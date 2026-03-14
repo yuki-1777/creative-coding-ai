@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>17 — L-System Tree</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F0EDE6; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+
+// L-System rules
+const AXIOM = 'F';
+const RULES = {
+  'F': 'FF-[-F+F+F]+[+F-F-F]'
+};
+const MAX_GEN = 5;
+const ANGLE_DEG = 25;
+
+function applyRules(str) {
+  let result = '';
+  for (const ch of str) {
+    result += RULES[ch] !== undefined ? RULES[ch] : ch;
+  }
+  return result;
+}
+
+function buildLSystem(generations) {
+  let str = AXIOM;
+  for (let i = 0; i < generations; i++) {
+    str = applyRules(str);
+  }
+  return str;
+}
+
+// Turtle graphics: collect line segments
+function turtleDraw(str, startX, startY, length, angleDeg) {
+  const segments = [];
+  const rad = angleDeg * Math.PI / 180;
+  let x = startX, y = startY;
+  let angle = -Math.PI / 2; // pointing up
+  const stack = [];
+  let depth = 0;
+
+  for (const ch of str) {
+    if (ch === 'F') {
+      const nx = x + Math.cos(angle) * length;
+      const ny = y + Math.sin(angle) * length;
+      segments.push({ x1: x, y1: y, x2: nx, y2: ny, depth });
+      x = nx;
+      y = ny;
+    } else if (ch === '+') {
+      angle += rad;
+    } else if (ch === '-') {
+      angle -= rad;
+    } else if (ch === '[') {
+      stack.push({ x, y, angle, depth });
+      depth++;
+    } else if (ch === ']') {
+      const s = stack.pop();
+      x = s.x; y = s.y; angle = s.angle; depth = s.depth;
+    }
+  }
+  return segments;
+}
+
+// Animation state
+let currentGen = 0;
+let segments = [];
+let drawIndex = 0;
+let lastAdvance = 0;
+const SEGMENTS_PER_FRAME = 60;
+let genTimer = 0;
+const GEN_INTERVAL = 2800; // ms between generation increases
+
+function buildForGen(gen) {
+  const lstr = buildLSystem(gen);
+  const segLen = Math.min(W, H) * 0.5 / Math.pow(2, gen);
+  segments = turtleDraw(lstr, W / 2, H * 0.92, segLen, ANGLE_DEG);
+  drawIndex = 0;
+}
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  currentGen = 0;
+  genTimer = performance.now();
+  buildForGen(currentGen);
+  ctx.fillStyle = '#F0EDE6';
+  ctx.fillRect(0, 0, W, H);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function draw(ts) {
+  // Advance generation periodically
+  if (ts - genTimer > GEN_INTERVAL) {
+    genTimer = ts;
+    if (currentGen < MAX_GEN) {
+      currentGen++;
+      ctx.fillStyle = '#F0EDE6';
+      ctx.fillRect(0, 0, W, H);
+      buildForGen(currentGen);
+    } else {
+      // restart
+      currentGen = 0;
+      genTimer = ts;
+      ctx.fillStyle = '#F0EDE6';
+      ctx.fillRect(0, 0, W, H);
+      buildForGen(currentGen);
+    }
+  }
+
+  // Draw next batch of segments
+  const end = Math.min(drawIndex + SEGMENTS_PER_FRAME, segments.length);
+  for (let i = drawIndex; i < end; i++) {
+    const seg = segments[i];
+    const maxDepth = currentGen + 1;
+    const t = seg.depth / Math.max(1, maxDepth);
+    const lineW = Math.max(0.3, 1.4 - t * 1.1);
+    const alpha = 0.55 + t * 0.3;
+    ctx.strokeStyle = `rgba(42,42,42,${alpha.toFixed(2)})`;
+    ctx.lineWidth = lineW;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(seg.x1, seg.y1);
+    ctx.lineTo(seg.x2, seg.y2);
+    ctx.stroke();
+  }
+  drawIndex = end;
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '17',
+  title: 'L-System Tree',
+  desc:  '1つのルールを繰り返したら、木になった。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

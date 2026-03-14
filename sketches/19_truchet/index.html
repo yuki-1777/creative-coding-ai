@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>19 — Truchet Tiles</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F2F0EB; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+const TILE = 48;
+let tiles = []; // array of 0 or 1 per tile
+let COLS, ROWS;
+
+// Seeded pseudo-random (mulberry32)
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+let seed = Date.now();
+let rng = mulberry32(seed);
+let targetTiles = [];
+let currentTiles = [];
+let transitionProgress = 1.0; // 0..1
+let transitionDuration = 2000; // ms
+let transitionStart = 0;
+let lastSeedChange = 0;
+const SEED_INTERVAL = 4000;
+
+function buildTiles(rngFn) {
+  const arr = [];
+  for (let i = 0; i < COLS * ROWS; i++) {
+    arr.push(rngFn() < 0.5 ? 0 : 1);
+  }
+  return arr;
+}
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  COLS = Math.ceil(W / TILE) + 1;
+  ROWS = Math.ceil(H / TILE) + 1;
+  rng = mulberry32(seed);
+  currentTiles = buildTiles(rng);
+  targetTiles = currentTiles.slice();
+  transitionProgress = 1.0;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Draw a single Truchet tile (two quarter-circle arcs)
+// type 0: arcs connect top-left corner and bottom-right corner
+// type 1: arcs connect top-right corner and bottom-left corner
+function drawTile(x, y, type, alpha) {
+  const r = TILE / 2;
+  ctx.strokeStyle = `rgba(42,42,42,${(alpha * 0.6).toFixed(3)})`;
+  ctx.lineWidth = 1.0;
+  ctx.lineCap = 'round';
+
+  if (type === 0) {
+    // arc from top-left corner
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI / 2);
+    ctx.stroke();
+    // arc from bottom-right corner
+    ctx.beginPath();
+    ctx.arc(x + TILE, y + TILE, r, Math.PI, Math.PI * 1.5);
+    ctx.stroke();
+  } else {
+    // arc from top-right corner
+    ctx.beginPath();
+    ctx.arc(x + TILE, y, r, Math.PI / 2, Math.PI);
+    ctx.stroke();
+    // arc from bottom-left corner
+    ctx.beginPath();
+    ctx.arc(x, y + TILE, r, Math.PI * 1.5, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+function easeInOut(t) {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
+function draw(ts) {
+  // Trigger new seed periodically
+  if (ts - lastSeedChange > SEED_INTERVAL && transitionProgress >= 1.0) {
+    lastSeedChange = ts;
+    seed = Math.floor(Math.random() * 0xFFFFFFFF);
+    rng = mulberry32(seed);
+    currentTiles = targetTiles.slice();
+    targetTiles = buildTiles(rng);
+    transitionProgress = 0.0;
+    transitionStart = ts;
+  }
+
+  if (transitionProgress < 1.0) {
+    transitionProgress = Math.min(1.0, (ts - transitionStart) / transitionDuration);
+  }
+
+  ctx.fillStyle = '#F2F0EB';
+  ctx.fillRect(0, 0, W, H);
+
+  const p = easeInOut(transitionProgress);
+
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const idx = row * COLS + col;
+      const tCurrent = currentTiles[idx] || 0;
+      const tTarget = targetTiles[idx] || 0;
+
+      const x = col * TILE - TILE / 2;
+      const y = row * TILE - TILE / 2;
+
+      if (tCurrent === tTarget) {
+        drawTile(x, y, tCurrent, 1.0);
+      } else {
+        // crossfade by drawing both with complementary alpha
+        drawTile(x, y, tCurrent, 1.0 - p);
+        drawTile(x, y, tTarget, p);
+      }
+    }
+  }
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '19',
+  title: 'Truchet Tiles',
+  desc:  '向きを変えただけで、繋がった。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

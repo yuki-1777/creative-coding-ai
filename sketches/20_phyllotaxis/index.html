@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>20 — Phyllotaxis</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+const GOLDEN_ANGLE = 137.507764 * Math.PI / 180;
+const MAX_DOTS = 800;
+let dotCount = 0;
+let dots = []; // { x, y, r, alpha, targetAlpha }
+let lastAdd = 0;
+const ADD_INTERVAL = 30; // ms per new dot — steady growth pace
+
+function getPos(n) {
+  const r = Math.sqrt(n) * scaleFactor();
+  const theta = n * GOLDEN_ANGLE;
+  return {
+    x: W / 2 + r * Math.cos(theta),
+    y: H / 2 + r * Math.sin(theta),
+  };
+}
+
+function scaleFactor() {
+  return Math.min(W, H) * 0.026;
+}
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  // Recompute positions for existing dots
+  for (let i = 0; i < dots.length; i++) {
+    const pos = getPos(i);
+    dots[i].x = pos.x;
+    dots[i].y = pos.y;
+  }
+}
+window.addEventListener('resize', resize);
+resize();
+
+function addDot(ts) {
+  if (dotCount >= MAX_DOTS) {
+    // restart
+    dots = [];
+    dotCount = 0;
+    ctx.fillStyle = '#F5F3EE';
+    ctx.fillRect(0, 0, W, H);
+    return;
+  }
+  const pos = getPos(dotCount);
+  // dot radius: smaller as count grows, range 1.5..3.5
+  const dotR = Math.max(1.5, 3.5 - dotCount * 0.003);
+  dots.push({
+    x: pos.x,
+    y: pos.y,
+    r: dotR,
+    alpha: 0,
+    targetAlpha: 0.7,
+  });
+  dotCount++;
+}
+
+function draw(ts) {
+  if (ts - lastAdd >= ADD_INTERVAL) {
+    addDot(ts);
+    lastAdd = ts;
+  }
+
+  // Soft background fade for trailing effect
+  ctx.fillStyle = 'rgba(245,243,238,0.18)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Fade in each dot
+  for (const d of dots) {
+    if (d.alpha < d.targetAlpha) {
+      d.alpha = Math.min(d.targetAlpha, d.alpha + 0.04);
+    }
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(42,42,42,${d.alpha.toFixed(3)})`;
+    ctx.fill();
+  }
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '20',
+  title: 'Phyllotaxis',
+  desc:  '黄金角を繰り返したら、ひまわりみたいになった。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

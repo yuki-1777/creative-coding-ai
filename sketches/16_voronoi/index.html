@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>16 — Voronoi</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+const seeds = [];
+const NUM_SEEDS_INIT = 36;
+
+function randomSeed() {
+  return {
+    x: Math.random() * W,
+    y: Math.random() * H,
+    vx: (Math.random() - 0.5) * 0.4,
+    vy: (Math.random() - 0.5) * 0.4,
+  };
+}
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  seeds.length = 0;
+  for (let i = 0; i < NUM_SEEDS_INIT; i++) {
+    seeds.push(randomSeed());
+  }
+}
+window.addEventListener('resize', resize);
+resize();
+
+canvas.addEventListener('click', (e) => {
+  seeds.push({
+    x: e.clientX,
+    y: e.clientY,
+    vx: (Math.random() - 0.5) * 0.4,
+    vy: (Math.random() - 0.5) * 0.4,
+  });
+});
+
+function updateSeeds() {
+  for (const s of seeds) {
+    s.x += s.vx;
+    s.y += s.vy;
+    if (s.x < 0 || s.x > W) s.vx *= -1;
+    if (s.y < 0 || s.y > H) s.vy *= -1;
+    s.x = Math.max(0, Math.min(W, s.x));
+    s.y = Math.max(0, Math.min(H, s.y));
+  }
+}
+
+// Voronoi boundary using Fortune-free brute force on a downsampled grid
+// We draw edges by checking neighboring grid cells for different nearest seeds
+const GRID = 4; // pixel step for sampling
+
+function drawVoronoi() {
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  // Build nearest-seed map on downsampled grid
+  const cols = Math.ceil(W / GRID);
+  const rows = Math.ceil(H / GRID);
+  const nearest = new Int32Array(cols * rows);
+
+  for (let gy = 0; gy < rows; gy++) {
+    for (let gx = 0; gx < cols; gx++) {
+      const px = gx * GRID + GRID / 2;
+      const py = gy * GRID + GRID / 2;
+      let minDist = Infinity;
+      let minIdx = 0;
+      for (let i = 0; i < seeds.length; i++) {
+        const dx = seeds[i].x - px;
+        const dy = seeds[i].y - py;
+        const d = dx * dx + dy * dy;
+        if (d < minDist) { minDist = d; minIdx = i; }
+      }
+      nearest[gy * cols + gx] = minIdx;
+    }
+  }
+
+  // Draw boundary lines between cells with different nearest seeds
+  ctx.strokeStyle = 'rgba(42,42,42,0.4)';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+
+  for (let gy = 0; gy < rows; gy++) {
+    for (let gx = 0; gx < cols; gx++) {
+      const me = nearest[gy * cols + gx];
+      // check right neighbor
+      if (gx + 1 < cols && nearest[gy * cols + gx + 1] !== me) {
+        const ex = (gx + 1) * GRID;
+        ctx.moveTo(ex, gy * GRID);
+        ctx.lineTo(ex, (gy + 1) * GRID);
+      }
+      // check bottom neighbor
+      if (gy + 1 < rows && nearest[(gy + 1) * cols + gx] !== me) {
+        const ey = (gy + 1) * GRID;
+        ctx.moveTo(gx * GRID, ey);
+        ctx.lineTo((gx + 1) * GRID, ey);
+      }
+    }
+  }
+  ctx.stroke();
+
+  // Draw seed points subtly
+  ctx.fillStyle = 'rgba(42,42,42,0.2)';
+  for (const s of seeds) {
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function draw() {
+  updateSeeds();
+  drawVoronoi();
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '16',
+  title: 'Voronoi',
+  desc:  '最も近い点の境界を描いた。どの点も主役になれない。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

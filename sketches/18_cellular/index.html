@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>18 — Cellular Automata</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const CELL = 10;
+let W, H, COLS, ROWS;
+let grid, next;
+let lastStep = 0;
+const STEP_INTERVAL = 120; // ms — ~8 generations/sec
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  COLS = Math.floor(W / CELL);
+  ROWS = Math.floor(H / CELL);
+  grid = new Uint8Array(COLS * ROWS);
+  next = new Uint8Array(COLS * ROWS);
+  randomize();
+}
+window.addEventListener('resize', resize);
+
+function randomize() {
+  for (let i = 0; i < grid.length; i++) {
+    grid[i] = Math.random() < 0.28 ? 1 : 0;
+  }
+}
+
+function get(g, col, row) {
+  const c = ((col % COLS) + COLS) % COLS;
+  const r = ((row % ROWS) + ROWS) % ROWS;
+  return g[r * COLS + c];
+}
+
+function step() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const alive = get(grid, c, r);
+      const neighbors =
+        get(grid, c - 1, r - 1) + get(grid, c, r - 1) + get(grid, c + 1, r - 1) +
+        get(grid, c - 1, r    )                         + get(grid, c + 1, r    ) +
+        get(grid, c - 1, r + 1) + get(grid, c, r + 1) + get(grid, c + 1, r + 1);
+
+      if (alive) {
+        next[r * COLS + c] = (neighbors === 2 || neighbors === 3) ? 1 : 0;
+      } else {
+        next[r * COLS + c] = neighbors === 3 ? 1 : 0;
+      }
+    }
+  }
+  const tmp = grid;
+  grid = next;
+  next = tmp;
+}
+
+function render() {
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = '#2A2A2A';
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (grid[r * COLS + c]) {
+        ctx.fillRect(c * CELL + 1, r * CELL + 1, CELL - 1, CELL - 1);
+      }
+    }
+  }
+}
+
+// Click to toggle cells
+canvas.addEventListener('click', (e) => {
+  const c = Math.floor(e.clientX / CELL);
+  const r = Math.floor(e.clientY / CELL);
+  if (c >= 0 && c < COLS && r >= 0 && r < ROWS) {
+    grid[r * COLS + c] ^= 1;
+  }
+});
+
+// Drag to paint cells
+let painting = false;
+canvas.addEventListener('mousedown', () => { painting = true; });
+canvas.addEventListener('mouseup', () => { painting = false; });
+canvas.addEventListener('mousemove', (e) => {
+  if (!painting) return;
+  const c = Math.floor(e.clientX / CELL);
+  const r = Math.floor(e.clientY / CELL);
+  if (c >= 0 && c < COLS && r >= 0 && r < ROWS) {
+    grid[r * COLS + c] = 1;
+  }
+});
+
+resize();
+
+function draw(ts) {
+  if (ts - lastStep >= STEP_INTERVAL) {
+    step();
+    lastStep = ts;
+  }
+  render();
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '18',
+  title: 'Cellular Automata',
+  desc:  '3つのルールだけで、世界が動き続けている。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
