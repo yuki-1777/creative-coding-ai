@@ -5,18 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Creative Coding</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;1,300&family=Inter:wght@200;300&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #f8f7f5;
-      --text: #1a1a1a;
-      --text-dim: #aaa;
-      --text-muted: #ccc;
-      --border: rgba(0,0,0,0.08);
-      --col-w: 680px;
-      --preview-size: 340px;
+      --bg: #080808;
+      --text: #e8e8e8;
+      --text-dim: #404040;
+      --text-ghost: #222222;
+      --border: #141414;
+      --cell-h: 65vh;
     }
 
     html { scroll-behavior: smooth; }
@@ -27,93 +26,81 @@
       font-family: 'Inter', sans-serif;
       font-weight: 200;
       min-height: 100vh;
+      cursor: crosshair;
     }
 
-    /* ─── LAYOUT ─── */
-    .col {
-      max-width: var(--col-w);
-      margin: 0 auto;
-      padding: 0 40px;
-    }
+    a, button { cursor: crosshair; }
 
     /* ─── HEADER ─── */
     header {
-      padding: 88px 0 40px;
-      border-bottom: 1px solid var(--border);
+      position: fixed;
+      top: 0;
+      left: 0;
+      padding: 28px 32px;
+      z-index: 100;
+      pointer-events: none;
     }
 
     .site-name {
-      font-family: 'Cormorant', serif;
+      font-size: 0.55rem;
       font-weight: 300;
-      font-size: 0.8rem;
-      letter-spacing: 0.35em;
+      letter-spacing: 0.38em;
       text-transform: uppercase;
-      color: var(--text);
+      color: var(--text-dim);
     }
 
-    .site-sub {
-      margin-top: 6px;
-      font-size: 0.58rem;
-      color: var(--text-dim);
-      letter-spacing: 0.2em;
+    .site-count {
+      margin-top: 5px;
+      font-size: 0.42rem;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
-      font-weight: 200;
+      color: var(--text-ghost);
     }
 
     /* ─── FILTER ─── */
     .filter-bar {
-      padding: 18px 0;
-      border-bottom: 1px solid var(--border);
+      position: fixed;
+      top: 28px;
+      right: 32px;
+      z-index: 100;
       display: flex;
       align-items: center;
-      gap: 20px;
-    }
-
-    .filter-label {
-      font-size: 0.55rem;
-      color: var(--text-muted);
-      letter-spacing: 0.25em;
-      text-transform: uppercase;
-      font-weight: 300;
+      gap: 18px;
     }
 
     .tag-btn {
       font-family: 'Inter', sans-serif;
       font-weight: 200;
-      font-size: 0.58rem;
-      letter-spacing: 0.14em;
-      padding: 0;
+      font-size: 0.42rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
       border: none;
       background: transparent;
-      color: var(--text-dim);
-      cursor: pointer;
-      text-transform: lowercase;
-      transition: color 0.2s;
+      color: var(--text-ghost);
+      cursor: crosshair;
+      padding: 0;
       position: relative;
+      transition: color 0.3s ease;
     }
-
-    .tag-btn::after {
-      content: '';
-      position: absolute;
-      bottom: -2px;
-      left: 0;
-      width: 0;
-      height: 1px;
-      background: var(--text);
-      transition: width 0.25s ease;
-    }
-
-    .tag-btn:hover { color: var(--text); }
 
     .tag-btn.active {
-      color: var(--text);
+      color: var(--text-dim);
     }
 
-    .tag-btn.active::after {
-      width: 100%;
+    .tag-btn.active::before {
+      content: '·';
+      position: absolute;
+      left: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
     }
 
-    /* ─── WORK LIST ─── */
+    .tag-btn:hover {
+      color: var(--text-dim);
+    }
+
+    /* ─── GALLERY ─── */
     .work-list {
       list-style: none;
     }
@@ -122,254 +109,239 @@
       display: none;
     }
 
-    .work-link {
-      display: grid;
-      grid-template-columns: 36px 1fr auto;
-      align-items: baseline;
-      gap: 0 28px;
-      padding: 26px 0;
+    .work-item {
+      position: relative;
+      width: 100%;
+      height: var(--cell-h);
       border-bottom: 1px solid var(--border);
-      text-decoration: none;
-      color: inherit;
-      transition: opacity 0.2s;
+      overflow: hidden;
+      background: #0f0f0f;
     }
 
-    .work-item:hover .work-link {
-      opacity: 0.55;
+    /* Noise layer for cells without thumbnail */
+    .work-item::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 30% 60%, rgba(255,255,255,0.025) 0%, transparent 70%),
+        radial-gradient(ellipse at 80% 30%, rgba(255,255,255,0.015) 0%, transparent 60%);
+      z-index: 1;
+      transition: opacity 0.6s ease;
+    }
+
+    /* Dark veil over thumbnail images */
+    .work-item.has-thumb::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 1;
+      transition: background 0.5s ease;
+    }
+
+    .work-item.has-thumb:hover::after {
+      background: rgba(0, 0, 0, 0.25);
+    }
+
+    /* Page load stagger */
+    .work-item {
+      opacity: 0;
+      transform: translateY(20px);
+      animation: revealCell 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes revealCell {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Full-cell link */
+    .work-link {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+
+    /* ─── TEXT OVERLAY ─── */
+    .work-info {
+      position: absolute;
+      bottom: 40px;
+      left: 40px;
+      z-index: 4;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      pointer-events: none;
+    }
+
+    .work-item:hover .work-info {
+      opacity: 1;
+      transform: translateY(0);
     }
 
     .work-num {
-      font-size: 0.55rem;
-      color: var(--text-muted);
-      letter-spacing: 0.1em;
-      font-weight: 200;
-      padding-top: 3px;
+      font-size: 0.42rem;
+      letter-spacing: 0.25em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 10px;
     }
 
     .work-title {
-      font-family: 'Cormorant', serif;
-      font-weight: 300;
-      font-size: 1.25rem;
-      letter-spacing: 0.02em;
+      font-size: clamp(2rem, 5vw, 3.4rem);
+      font-weight: 200;
+      letter-spacing: -0.03em;
       color: var(--text);
       line-height: 1;
+      margin-bottom: 14px;
     }
 
-    .work-right {
+    .work-meta {
       display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 5px;
+      gap: 24px;
+      align-items: center;
     }
 
     .work-tech {
-      font-size: 0.55rem;
-      color: var(--text-dim);
-      letter-spacing: 0.15em;
+      font-size: 0.42rem;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
+      color: var(--text-dim);
       font-weight: 300;
     }
 
     .work-date {
-      font-size: 0.55rem;
-      color: var(--text-muted);
-      letter-spacing: 0.06em;
-      font-weight: 200;
+      font-size: 0.42rem;
+      letter-spacing: 0.1em;
+      color: var(--text-ghost);
     }
 
-    /* ─── PREVIEW PANEL ─── */
-    #preview-panel {
-      position: fixed;
-      right: calc(50% - var(--col-w)/2 - var(--preview-size) - 48px);
-      top: 50%;
-      transform: translateY(-50%);
-      width: var(--preview-size);
-      aspect-ratio: 1;
-      pointer-events: none;
+    /* Arrow hint, top-right of cell */
+    .work-arrow {
+      position: absolute;
+      top: 36px;
+      right: 36px;
+      z-index: 4;
       opacity: 0;
-      transition: opacity 1.8s ease;
-      z-index: 50;
+      transform: translate(-4px, 4px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      pointer-events: none;
     }
 
-    #preview-panel.visible {
+    .work-item:hover .work-arrow {
       opacity: 1;
+      transform: translate(0, 0);
     }
 
-    #preview-content {
-      width: 100%;
-      height: 100%;
+    .work-arrow svg {
+      width: 16px;
+      height: 16px;
+      stroke: var(--text-dim);
     }
 
-    #preview-content img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    .preview-placeholder {
-      width: 100%;
-      height: 100%;
-      background: #eeece9;
-      display: flex;
+    /* ─── EMPTY STATE ─── */
+    .empty {
+      height: 40vh;
+      display: none;
       align-items: center;
       justify-content: center;
-    }
-
-    .preview-placeholder svg {
-      width: 28px;
-      height: 28px;
-      opacity: 0.2;
-      color: #999;
-    }
-
-    /* ─── EMPTY ─── */
-    .empty {
-      padding: 72px 0;
-      font-size: 0.58rem;
-      color: var(--text-muted);
-      letter-spacing: 0.2em;
+      font-size: 0.45rem;
+      letter-spacing: 0.3em;
       text-transform: uppercase;
-      display: none;
+      color: var(--text-ghost);
     }
 
     /* ─── FOOTER ─── */
     footer {
-      padding: 36px 0 72px;
-      display: flex;
-      justify-content: space-between;
+      padding: 20px 32px;
+      border-top: 1px solid var(--border);
     }
 
     footer span {
-      font-size: 0.55rem;
-      color: var(--text-muted);
-      letter-spacing: 0.14em;
+      font-size: 0.4rem;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
-      font-weight: 200;
+      color: var(--text-ghost);
     }
 
     /* ─── RESPONSIVE ─── */
-    @media (max-width: 1100px) {
-      #preview-panel {
-        right: 24px;
-        --preview-size: 260px;
-      }
-    }
-
-    @media (max-width: 720px) {
-      #preview-panel { display: none; }
-      .col { padding: 0 24px; }
-      header { padding: 56px 0 28px; }
+    @media (max-width: 600px) {
+      :root { --cell-h: 55vh; }
+      .filter-bar { top: 22px; right: 20px; gap: 14px; }
+      header { padding: 22px 20px; }
+      .work-info { left: 20px; bottom: 24px; }
+      footer { padding: 16px 20px; }
     }
   </style>
 </head>
 <body>
 
-<!-- ホバープレビュー（固定） -->
-<div id="preview-panel">
-  <div id="preview-content">
-    <div class="preview-placeholder">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.75">
-        <circle cx="12" cy="12" r="10"/>
-        <circle cx="12" cy="12" r="3"/>
+<header>
+  <div class="site-name">Creative Coding</div>
+  <div class="site-count"><span id="work-count">0</span> works</div>
+</header>
+
+<div class="filter-bar">
+  <button class="tag-btn active" data-filter="all">all</button>
+  <button class="tag-btn" data-filter="p5.js">p5.js</button>
+  <button class="tag-btn" data-filter="three.js">three.js</button>
+  <button class="tag-btn" data-filter="glsl">glsl</button>
+  <button class="tag-btn" data-filter="canvas">canvas</button>
+</div>
+
+<ul class="work-list" id="gallery">
+
+  <!-- ▼ 作品を追加するときはここに li を足す ▼ -->
+
+  <li class="work-item" data-tech="p5.js" data-date="2026-03-14" style="animation-delay: 0.1s">
+    <div class="work-info">
+      <div class="work-num">01</div>
+      <div class="work-title">Playground</div>
+      <div class="work-meta">
+        <span class="work-tech">p5.js</span>
+        <span class="work-date">2026–03–14</span>
+      </div>
+    </div>
+    <div class="work-arrow">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="5" y1="19" x2="19" y2="5"/>
+        <polyline points="9 5 19 5 19 15"/>
       </svg>
     </div>
-  </div>
-</div>
+    <a class="work-link" href="sketches/01_playground/" aria-label="Playground (p5.js)"></a>
+  </li>
 
-<div class="col">
+  <!-- ▲ ここまで ▲ -->
 
-  <header>
-    <div class="site-name">Creative Coding</div>
-    <div class="site-sub"><span id="work-count">0</span> works</div>
-  </header>
+  <li class="empty" id="empty-state">no works found</li>
+</ul>
 
-  <div class="filter-bar">
-    <span class="filter-label">filter</span>
-    <button class="tag-btn active" data-filter="all">all</button>
-    <button class="tag-btn" data-filter="p5.js">p5.js</button>
-    <button class="tag-btn" data-filter="three.js">three.js</button>
-    <button class="tag-btn" data-filter="glsl">glsl</button>
-    <button class="tag-btn" data-filter="canvas">canvas</button>
-  </div>
-
-  <ul class="work-list" id="gallery">
-
-    <!-- ▼ 作品を追加するときはここに li を足す ▼ -->
-
-    <li class="work-item" data-tech="p5.js" data-date="2026-03-14">
-      <a class="work-link" href="sketches/01_playground/">
-        <span class="work-num">01</span>
-        <span class="work-title">Playground</span>
-        <div class="work-right">
-          <span class="work-tech">p5.js</span>
-          <span class="work-date">2026–03–14</span>
-        </div>
-      </a>
-    </li>
-
-    <!-- ▲ ここまで ▲ -->
-
-    <li class="empty" id="empty-state">no works found</li>
-  </ul>
-
-  <footer>
-    <span>generative art / creative coding</span>
-    <span id="footer-count"></span>
-  </footer>
-
-</div>
+<footer>
+  <span>generative art / creative coding</span>
+</footer>
 
 <script>
-  const panel   = document.getElementById('preview-panel');
-  const content = document.getElementById('preview-content');
-
-  // サムネイルをデータとして保持
-  const thumbs = {};
+  // サムネイルを背景として適用
   document.querySelectorAll('.work-item[data-tech]').forEach(item => {
     const num = item.querySelector('.work-num').textContent.trim();
     const saved = localStorage.getItem(`thumb_${num}`);
-    thumbs[num] = saved || null;
-  });
-
-  // プレビューパネル制御
-  let hideTimer = null;
-
-  document.querySelectorAll('.work-item[data-tech]').forEach(item => {
-    item.addEventListener('mouseenter', () => {
-      clearTimeout(hideTimer);
-
-      const num = item.querySelector('.work-num').textContent.trim();
-      const src = thumbs[num];
-
-      if (src) {
-        content.innerHTML = `<img src="${src}" alt="">`;
-      } else {
-        content.innerHTML = `<div class="preview-placeholder">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.75">
-            <circle cx="12" cy="12" r="10"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-        </div>`;
-      }
-
-      // フェードイン（1.8s）
-      panel.style.transition = 'opacity 1.8s ease';
-      panel.classList.add('visible');
-    });
-
-    item.addEventListener('mouseleave', () => {
-      // フェードアウト（早め）
-      panel.style.transition = 'opacity 0.4s ease';
-      panel.classList.remove('visible');
-    });
+    if (saved) {
+      item.style.backgroundImage = `url(${saved})`;
+      item.style.backgroundSize = 'cover';
+      item.style.backgroundPosition = 'center';
+      item.classList.add('has-thumb');
+    }
   });
 
   // 作品数カウント
   const items = document.querySelectorAll('.work-item[data-tech]');
   document.getElementById('work-count').textContent = items.length;
-  document.getElementById('footer-count').textContent =
-    `${items.length} work${items.length !== 1 ? 's' : ''}`;
 
   // フィルター
   document.querySelectorAll('.tag-btn').forEach(btn => {
@@ -386,8 +358,8 @@
         if (match) visible++;
       });
 
-      document.getElementById('empty-state').style.display =
-        visible === 0 ? 'block' : 'none';
+      const emptyState = document.getElementById('empty-state');
+      emptyState.style.display = visible === 0 ? 'flex' : 'none';
     });
   });
 </script>
