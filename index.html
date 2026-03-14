@@ -204,7 +204,7 @@
     }
 
     .view-grid .work-item:hover .work-overlay {
-      opacity: 0.96;
+      opacity: 0.5;
     }
 
     .overlay-num {
@@ -322,6 +322,51 @@
       color: var(--dim);
     }
 
+    /* ─── LIST HOVER CARD ─── */
+    .hover-card {
+      position: fixed;
+      width: 260px;
+      pointer-events: none;
+      z-index: 500;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      border: 1px solid var(--rule);
+      background: var(--paper);
+    }
+
+    .hover-card.visible { opacity: 1; }
+
+    .hover-card-thumb {
+      width: 100%;
+      height: 154px;
+      object-fit: cover;
+      display: block;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .hover-card-num {
+      width: 100%;
+      height: 154px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 1px solid var(--rule);
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 300;
+      font-size: 5rem;
+      color: var(--rule);
+      letter-spacing: -0.02em;
+      font-style: italic;
+    }
+
+    .hover-card-desc {
+      padding: 14px 16px;
+      font-size: 0.55rem;
+      line-height: 1.75;
+      color: var(--mid);
+      letter-spacing: 0.04em;
+    }
+
     /* ─── EMPTY STATE ─── */
     .empty {
       display: none;
@@ -391,6 +436,13 @@
   </div>
 </header>
 
+<!-- List view hover card -->
+<div class="hover-card" id="hover-card">
+  <div class="hover-card-num" id="hover-card-num"></div>
+  <img class="hover-card-thumb" id="hover-card-thumb" src="" alt="" style="display:none">
+  <div class="hover-card-desc" id="hover-card-desc"></div>
+</div>
+
 <main>
   <ul class="work-list view-grid" id="gallery">
     <li class="empty" id="empty-state">no works found</li>
@@ -403,24 +455,71 @@
 </footer>
 
 <script>
-  let currentView = 'grid';
+  // ─── Hover card (list view) ───
+  const hoverCard     = document.getElementById('hover-card');
+  const hoverCardNum  = document.getElementById('hover-card-num');
+  const hoverCardThumb = document.getElementById('hover-card-thumb');
+  const hoverCardDesc = document.getElementById('hover-card-desc');
 
-  function formatDate(d) {
-    return d.replace(/-/g, '.');
+  document.addEventListener('mousemove', e => {
+    let x = e.clientX + 28;
+    let y = e.clientY - 80;
+    if (x + 260 > window.innerWidth)  x = e.clientX - 288;
+    if (y < 8)                         y = 8;
+    if (y + 320 > window.innerHeight)  y = window.innerHeight - 328;
+    hoverCard.style.left = x + 'px';
+    hoverCard.style.top  = y + 'px';
+  });
+
+  function showHoverCard(w) {
+    hoverCardNum.textContent = w.num;
+    if (w.thumb) {
+      hoverCardThumb.src = w.thumb;
+      hoverCardThumb.style.display = 'block';
+      hoverCardNum.style.display   = 'none';
+    } else {
+      hoverCardThumb.style.display = 'none';
+      hoverCardNum.style.display   = 'flex';
+    }
+    hoverCardDesc.textContent = w.description || '';
+    hoverCard.classList.add('visible');
   }
+
+  function hideHoverCard() {
+    hoverCard.classList.remove('visible');
+  }
+
+  // ─── State persistence (sessionStorage) ───
+  function saveState() {
+    sessionStorage.setItem('gallery_view',   currentView);
+    sessionStorage.setItem('gallery_filter', currentFilter);
+    sessionStorage.setItem('gallery_scroll', window.scrollY);
+  }
+
+  function loadState() {
+    return {
+      view:   sessionStorage.getItem('gallery_view')   || 'grid',
+      filter: sessionStorage.getItem('gallery_filter') || 'all',
+      scroll: parseInt(sessionStorage.getItem('gallery_scroll') || '0', 10),
+    };
+  }
+
+  let currentView   = 'grid';
+  let currentFilter = 'all';
+
+  function formatDate(d) { return d.replace(/-/g, '.'); }
 
   function renderWorks(works) {
     const gallery    = document.getElementById('gallery');
     const emptyState = document.getElementById('empty-state');
 
     works.forEach(w => {
-      const thumb = w.thumb || null;
       const li = document.createElement('li');
       li.className = 'work-item';
       li.dataset.tech = w.tech;
 
-      const thumbContent = thumb
-        ? `<img class="work-thumb" src="${thumb}" alt="${w.title}">`
+      const thumbContent = w.thumb
+        ? `<img class="work-thumb" src="${w.thumb}" alt="${w.title}">`
         : `<div class="work-fallback">${w.num}</div>`;
 
       li.innerHTML = `
@@ -445,44 +544,42 @@
         </a>
       `;
 
+      // List hover card
+      li.addEventListener('mouseenter', () => { if (currentView === 'list') showHoverCard(w); });
+      li.addEventListener('mouseleave', hideHoverCard);
+
+      // Save scroll on navigation
+      li.querySelectorAll('a').forEach(a => a.addEventListener('click', saveState));
+
       gallery.insertBefore(li, emptyState);
     });
 
     document.getElementById('work-count').textContent = works.length;
   }
 
-  function applyView(view) {
+  function applyView(view, save = true) {
     const gallery = document.getElementById('gallery');
     currentView = view;
 
     gallery.classList.remove('view-grid', 'view-list');
     gallery.classList.add(`view-${view}`);
 
-    // Show/hide the right link per item
     document.querySelectorAll('.work-item[data-tech]').forEach(li => {
       const gridLink = li.querySelector('.work-link:not([data-list-link])');
       const listLink = li.querySelector('[data-list-link]');
-      if (view === 'grid') {
-        gridLink.style.display = '';
-        listLink.style.display = 'none';
-      } else {
-        gridLink.style.display = 'none';
-        listLink.style.display = 'flex';
-      }
+      gridLink.style.display = view === 'grid' ? '' : 'none';
+      listLink.style.display = view === 'list' ? 'flex' : 'none';
     });
 
     document.querySelectorAll('.view-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.view === view);
     });
+
+    if (save) saveState();
   }
 
-  // View toggle
-  document.querySelectorAll('.view-btn').forEach(btn => {
-    btn.addEventListener('click', () => applyView(btn.dataset.view));
-  });
-
-  // Filter
-  function applyFilter(filter) {
+  function applyFilter(filter, save = true) {
+    currentFilter = filter;
     let visible = 0;
     document.querySelectorAll('.work-item[data-tech]').forEach(item => {
       const match = filter === 'all' || item.dataset.tech === filter;
@@ -491,21 +588,33 @@
     });
     document.getElementById('empty-state').style.display =
       visible === 0 ? 'block' : 'none';
+
+    document.querySelectorAll('.tag-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.filter === filter);
+    });
+
+    if (save) saveState();
   }
 
-  document.querySelectorAll('.tag-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      applyFilter(btn.dataset.filter);
-    });
+  // View toggle
+  document.querySelectorAll('.view-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyView(btn.dataset.view));
   });
 
+  // Filter
+  document.querySelectorAll('.tag-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyFilter(btn.dataset.filter));
+  });
+
+  // Load & restore state
   fetch('works.json')
     .then(r => r.json())
     .then(works => {
       renderWorks(works);
-      applyView('grid');
+      const s = loadState();
+      applyView(s.view, false);
+      applyFilter(s.filter, false);
+      if (s.scroll > 0) window.scrollTo(0, s.scroll);
     });
 </script>
 
