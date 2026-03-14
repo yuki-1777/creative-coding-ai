@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>36 — Drift Lines</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+
+// パーリンノイズ相当の滑らかなノイズ（簡易実装）
+function hash(x, y) {
+  let n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return n - Math.floor(n);
+}
+function smoothNoise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
+  const a = hash(ix,   iy);
+  const b = hash(ix+1, iy);
+  const c = hash(ix,   iy+1);
+  const d = hash(ix+1, iy+1);
+  return a + (b - a) * ux + (c - a) * uy + (d - b + a - c) * ux * uy;
+}
+function fbm(x, y) {
+  let v = 0, amp = 0.5, freq = 1;
+  for (let i = 0; i < 4; i++) {
+    v += smoothNoise(x * freq, y * freq) * amp;
+    amp *= 0.5; freq *= 2;
+  }
+  return v;
+}
+
+const AGENT_COUNT = 80;
+const TRAIL_ALPHA = 0.012;
+const agents = [];
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  // 紙色で塗りつぶし（リセット）
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+  agents.length = 0;
+  for (let i = 0; i < AGENT_COUNT; i++) {
+    agents.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      angle: Math.random() * Math.PI * 2,
+      life: Math.floor(Math.random() * 300 + 200),
+      maxLife: 500,
+      speed: 0.8 + Math.random() * 0.8,
+      t: Math.random() * 100,
+    });
+  }
+}
+window.addEventListener('resize', resize);
+resize();
+
+const SCALE = 0.0025;
+const TIME_SCALE = 0.0004;
+let frame = 0;
+
+// クリックで新しい軌跡を追加
+canvas.addEventListener('click', (e) => {
+  for (let i = 0; i < 8; i++) {
+    agents.push({
+      x: e.clientX + (Math.random() - 0.5) * 20,
+      y: e.clientY + (Math.random() - 0.5) * 20,
+      angle: Math.random() * Math.PI * 2,
+      life: 400,
+      maxLife: 400,
+      speed: 0.8 + Math.random() * 0.8,
+      t: Math.random() * 100,
+    });
+  }
+});
+
+function draw() {
+  frame++;
+
+  // 非常に薄い紙色をかけて、古い跡を少しずつ消す
+  ctx.fillStyle = `rgba(245,243,238,${TRAIL_ALPHA})`;
+  ctx.fillRect(0, 0, W, H);
+
+  for (let i = agents.length - 1; i >= 0; i--) {
+    const a = agents[i];
+    a.t += TIME_SCALE;
+
+    // フローフィールドの角度
+    const noiseVal = fbm(a.x * SCALE + a.t, a.y * SCALE + a.t * 0.7);
+    const targetAngle = noiseVal * Math.PI * 4;
+    a.angle += (targetAngle - a.angle) * 0.08;
+
+    const prevX = a.x;
+    const prevY = a.y;
+    a.x += Math.cos(a.angle) * a.speed;
+    a.y += Math.sin(a.angle) * a.speed;
+
+    // 画面外に出たら反対側へ
+    if (a.x < 0) a.x = W;
+    if (a.x > W) a.x = 0;
+    if (a.y < 0) a.y = H;
+    if (a.y > H) a.y = 0;
+
+    // ライフサイクルによる透明度
+    const lifeRatio = a.life / a.maxLife;
+    const alpha = Math.min(lifeRatio, 1 - lifeRatio / a.maxLife) * 0.18;
+
+    ctx.beginPath();
+    ctx.moveTo(prevX, prevY);
+    ctx.lineTo(a.x, a.y);
+    ctx.strokeStyle = `rgba(42,42,42,${alpha})`;
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+
+    a.life--;
+    if (a.life <= 0) {
+      // 消えたらリセット
+      a.x = Math.random() * W;
+      a.y = Math.random() * H;
+      a.angle = Math.random() * Math.PI * 2;
+      a.life = Math.floor(Math.random() * 300 + 200);
+      a.maxLife = a.life;
+      a.t = frame * TIME_SCALE + Math.random() * 10;
+    }
+  }
+
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '36',
+  title: 'Drift Lines',
+  desc:  '80本の線に方向を与えたら、それぞれがゆっくり迷子になった。流れに乗りながら、どこへ向かうかは誰も決めていない。クリックすると新しい軌跡が始まる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

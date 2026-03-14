@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>40 — Nervous Lines</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; cursor: none; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+let mouseX = -9999, mouseY = -9999;
+let t = 0;
+
+// 簡易ノイズ
+function noise1d(x) {
+  return Math.sin(x * 1.7 + 3.14) * 0.5 +
+         Math.sin(x * 3.3 + 1.0) * 0.3 +
+         Math.sin(x * 7.7 + 5.2) * 0.2;
+}
+
+const LINE_COUNT = 24;
+const SEGMENTS = 80;
+const lines = [];
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  lines.length = 0;
+  for (let i = 0; i < LINE_COUNT; i++) {
+    // 縦に均等に並ぶ水平線
+    const baseY = (H / (LINE_COUNT + 1)) * (i + 1);
+    lines.push({
+      baseY,
+      phase: Math.random() * Math.PI * 2,
+      nervousness: 0.3 + Math.random() * 0.7,
+    });
+  }
+}
+window.addEventListener('resize', resize);
+resize();
+
+canvas.addEventListener('mousemove', e => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+canvas.addEventListener('mouseleave', () => {
+  mouseX = -9999;
+  mouseY = -9999;
+});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  mouseX = e.touches[0].clientX;
+  mouseY = e.touches[0].clientY;
+}, { passive: false });
+canvas.addEventListener('touchend', () => {
+  mouseX = -9999;
+  mouseY = -9999;
+});
+
+function draw() {
+  t += 0.012;
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    const baseY = line.baseY;
+
+    // マウスからの距離による緊張度
+    const distToMouse = mouseX >= 0
+      ? Math.abs(baseY - mouseY)
+      : H;
+    const mouseInfluence = Math.max(0, 1 - distToMouse / (H * 0.3));
+
+    ctx.beginPath();
+    for (let s = 0; s <= SEGMENTS; s++) {
+      const px = (s / SEGMENTS) * W;
+
+      // 基本的な揺れ
+      const baseWobble = noise1d(s * 0.15 + t + line.phase) * 6 * line.nervousness;
+
+      // マウスに近いX位置での追加の揺れ
+      let mouseWobble = 0;
+      if (mouseX >= 0) {
+        const distX = Math.abs(px - mouseX);
+        const xInfluence = Math.max(0, 1 - distX / (W * 0.2));
+        mouseWobble = xInfluence * mouseInfluence *
+          noise1d(s * 0.4 + t * 3 + li * 0.5) * 40;
+      }
+
+      // 時間で緩やかに変わる呼吸
+      const breathe = Math.sin(t * 0.3 + li * 0.4) * 2;
+
+      const py = baseY + baseWobble + mouseWobble + breathe;
+
+      if (s === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+
+    // マウスが近い線は少し濃くなる
+    const alpha = 0.25 + mouseInfluence * 0.2;
+    ctx.strokeStyle = `rgba(42,42,42,${alpha})`;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+
+  // カーソル（小さな十字）
+  if (mouseX > -999) {
+    ctx.strokeStyle = 'rgba(42,42,42,0.3)';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(mouseX - 5, mouseY);
+    ctx.lineTo(mouseX + 5, mouseY);
+    ctx.moveTo(mouseX, mouseY - 5);
+    ctx.lineTo(mouseX, mouseY + 5);
+    ctx.stroke();
+  }
+
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '40',
+  title: 'Nervous Lines',
+  desc:  '水平線を引いたら、少し震えていた。カーソルを近づけると、もっと震える。触れないでほしそうにしている。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

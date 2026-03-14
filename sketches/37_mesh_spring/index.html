@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>37 — Mesh Spring</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; cursor: none; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+const COLS = 32;
+const ROWS = 22;
+const DAMPING = 0.85;
+const SPRING_K = 0.08;
+const MOUSE_RADIUS = 100;
+const MOUSE_STRENGTH = 3.5;
+
+let points = [];
+let mouse = { x: -9999, y: -9999, down: false };
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  initGrid();
+}
+
+function initGrid() {
+  points = [];
+  const padX = W * 0.1;
+  const padY = H * 0.1;
+  const gW = W - padX * 2;
+  const gH = H - padY * 2;
+
+  for (let r = 0; r < ROWS; r++) {
+    points[r] = [];
+    for (let c = 0; c < COLS; c++) {
+      const ox = padX + (c / (COLS - 1)) * gW;
+      const oy = padY + (r / (ROWS - 1)) * gH;
+      points[r][c] = {
+        x: ox, y: oy,
+        ox: ox, oy: oy,
+        vx: 0, vy: 0,
+      };
+    }
+  }
+}
+
+window.addEventListener('resize', resize);
+resize();
+
+canvas.addEventListener('mousemove', e => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+});
+canvas.addEventListener('mousedown', () => { mouse.down = true; });
+canvas.addEventListener('mouseup',   () => { mouse.down = false; });
+canvas.addEventListener('mouseleave',() => { mouse.x = -9999; mouse.y = -9999; });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  mouse.x = e.touches[0].clientX;
+  mouse.y = e.touches[0].clientY;
+}, { passive: false });
+canvas.addEventListener('touchend', () => { mouse.x = -9999; mouse.y = -9999; });
+
+function update() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const p = points[r][c];
+
+      // スプリング：元の位置に戻ろうとする
+      const fx = (p.ox - p.x) * SPRING_K;
+      const fy = (p.oy - p.y) * SPRING_K;
+      p.vx = (p.vx + fx) * DAMPING;
+      p.vy = (p.vy + fy) * DAMPING;
+
+      // マウスの影響
+      const dx = p.x - mouse.x;
+      const dy = p.y - mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < MOUSE_RADIUS) {
+        const force = (1 - dist / MOUSE_RADIUS) * MOUSE_STRENGTH;
+        const strength = mouse.down ? -force * 2 : force;
+        p.vx += (dx / (dist + 0.001)) * strength;
+        p.vy += (dy / (dist + 0.001)) * strength;
+      }
+
+      p.x += p.vx;
+      p.y += p.vy;
+    }
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = 'rgba(42,42,42,0.22)';
+  ctx.lineWidth = 0.8;
+
+  // 横線
+  for (let r = 0; r < ROWS; r++) {
+    ctx.beginPath();
+    for (let c = 0; c < COLS; c++) {
+      const p = points[r][c];
+      if (c === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+  }
+
+  // 縦線
+  for (let c = 0; c < COLS; c++) {
+    ctx.beginPath();
+    for (let r = 0; r < ROWS; r++) {
+      const p = points[r][c];
+      if (r === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+  }
+
+  // 交点
+  ctx.fillStyle = 'rgba(42,42,42,0.12)';
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const p = points[r][c];
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // カーソル
+  if (mouse.x > -999) {
+    ctx.beginPath();
+    ctx.arc(mouse.x, mouse.y, MOUSE_RADIUS * 0.15, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(42,42,42,0.2)';
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+  }
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '37',
+  title: 'Mesh Spring',
+  desc:  '格子に触れると、そこだけ形が崩れる。手を離すと、ゆっくり元に戻る。押すと引きつけ、動かすだけなら弾く。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

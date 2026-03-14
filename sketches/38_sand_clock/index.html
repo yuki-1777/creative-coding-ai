@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>38 — Sand</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+let grid; // 0: 空, 1: 砂
+let cols, rows;
+
+const CELL = 4;
+const SAND_COLOR = 'rgba(120,100,70,0.55)';
+const SPAWN_RATE = 3; // 1フレームに追加する砂粒数
+let mouseX = -1, mouseY = -1;
+let isPouring = false;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cols = Math.floor(W / CELL);
+  rows = Math.floor(H / CELL);
+  grid = new Uint8Array(cols * rows);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function idx(c, r) { return r * cols + c; }
+
+function addSand(cx, cy) {
+  // マウス周囲にランダムで砂を追加
+  for (let i = 0; i < SPAWN_RATE; i++) {
+    const c = cx + Math.floor((Math.random() - 0.5) * 4);
+    const r = cy - Math.floor(Math.random() * 2);
+    if (c >= 0 && c < cols && r >= 0 && r < rows) {
+      grid[idx(c, r)] = 1;
+    }
+  }
+}
+
+// 砂のシミュレーション（下から上に処理）
+function updateSand() {
+  // 砂の追加
+  if (isPouring && mouseX >= 0) {
+    const gc = Math.floor(mouseX / CELL);
+    const gr = Math.floor(mouseY / CELL);
+    addSand(gc, gr);
+  }
+
+  // 重力シミュレーション（下から上へ）
+  for (let r = rows - 2; r >= 0; r--) {
+    // 左右をランダムに処理してバイアスを消す
+    const left = Math.random() < 0.5;
+    const startC = left ? 0 : cols - 1;
+    const endC = left ? cols : -1;
+    const stepC = left ? 1 : -1;
+
+    for (let c = startC; c !== endC; c += stepC) {
+      if (!grid[idx(c, r)]) continue;
+
+      // 真下
+      if (r + 1 < rows && !grid[idx(c, r + 1)]) {
+        grid[idx(c, r + 1)] = 1;
+        grid[idx(c, r)] = 0;
+        continue;
+      }
+      // 斜め下左・右（ランダム順）
+      const dl = left ? -1 : 1;
+      const dr = left ? 1 : -1;
+      const d1c = c + dl;
+      const d2c = c + dr;
+
+      if (d1c >= 0 && d1c < cols && r + 1 < rows && !grid[idx(d1c, r + 1)]) {
+        grid[idx(d1c, r + 1)] = 1;
+        grid[idx(c, r)] = 0;
+      } else if (d2c >= 0 && d2c < cols && r + 1 < rows && !grid[idx(d2c, r + 1)]) {
+        grid[idx(d2c, r + 1)] = 1;
+        grid[idx(c, r)] = 0;
+      }
+    }
+  }
+}
+
+function drawSand() {
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = SAND_COLOR;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (grid[idx(c, r)]) {
+        ctx.fillRect(c * CELL, r * CELL, CELL - 0.5, CELL - 0.5);
+      }
+    }
+  }
+
+  // カーソル表示
+  if (isPouring && mouseX >= 0) {
+    ctx.beginPath();
+    ctx.arc(mouseX, mouseY, 12, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(42,42,42,0.2)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+
+  // 積もった高さのヒント線（最下段から1/3の高さ）
+  const targetRow = Math.floor(rows * 0.7);
+  let filled = 0;
+  for (let c = 0; c < cols; c++) {
+    if (grid[idx(c, targetRow)]) filled++;
+  }
+}
+
+canvas.addEventListener('mousemove', e => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+canvas.addEventListener('mousedown', () => { isPouring = true; });
+canvas.addEventListener('mouseup', () => { isPouring = false; });
+canvas.addEventListener('mouseleave', () => { mouseX = -1; isPouring = false; });
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  mouseX = e.touches[0].clientX;
+  mouseY = e.touches[0].clientY;
+  isPouring = true;
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  mouseX = e.touches[0].clientX;
+  mouseY = e.touches[0].clientY;
+}, { passive: false });
+canvas.addEventListener('touchend', () => { isPouring = false; mouseX = -1; });
+
+// 最初に少し砂を中央から降らせておく
+(function seedInitial() {
+  const gc = Math.floor(cols / 2);
+  for (let s = 0; s < 200; s++) {
+    const c = gc + Math.floor((Math.random() - 0.5) * 10);
+    const r = Math.floor(Math.random() * rows * 0.4);
+    if (c >= 0 && c < cols && r >= 0 && r < rows) {
+      grid[idx(c, r)] = 1;
+    }
+  }
+})();
+
+function loop() {
+  updateSand();
+  drawSand();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '38',
+  title: 'Sand',
+  desc:  '砂に重力を与えたら、勝手に積もった。クリック（タップ）長押しで砂を降らせる。落下の経路は毎回少し違う。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

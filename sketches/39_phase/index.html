@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>39 — Phase</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+let t = 0;
+let mouseX = 0.5, mouseY = 0.5;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+canvas.addEventListener('mousemove', e => {
+  mouseX = e.clientX / W;
+  mouseY = e.clientY / H;
+});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  mouseX = e.touches[0].clientX / W;
+  mouseY = e.touches[0].clientY / H;
+}, { passive: false });
+
+// 同心円の描画：中心から広がる波紋の重ね合わせ
+const RING_SETS = 5;
+
+function draw() {
+  t += 0.008;
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  const cx = W / 2;
+  const cy = H / 2;
+  const maxR = Math.max(W, H) * 0.72;
+  const RINGS = 28;
+
+  ctx.lineWidth = 0.7;
+
+  for (let s = 0; s < RING_SETS; s++) {
+    const setPhase = (s / RING_SETS) * Math.PI * 2;
+    // マウスX→位相差、マウスY→中心オフセット
+    const offsetX = (mouseX - 0.5) * W * 0.35;
+    const offsetY = (mouseY - 0.5) * H * 0.35;
+
+    // 各セットの中心を少しずらす
+    const angle = setPhase + t * 0.15;
+    const dist = Math.min(W, H) * 0.08 * (s / RING_SETS);
+    const scx = cx + Math.cos(angle) * dist + offsetX * (s / RING_SETS);
+    const scy = cy + Math.sin(angle) * dist + offsetY * (s / RING_SETS);
+
+    for (let i = 0; i < RINGS; i++) {
+      const progress = i / RINGS;
+      const r = progress * maxR;
+
+      // 位相による変調：半径が波打つ
+      const phaseShift = setPhase + t + progress * Math.PI * 3;
+      const wobble = Math.sin(phaseShift) * maxR * 0.02 * (1 - progress * 0.5);
+      const actualR = r + wobble;
+
+      if (actualR <= 0) continue;
+
+      const alpha = (1 - progress) * 0.12;
+
+      ctx.beginPath();
+      ctx.arc(scx, scy, actualR, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(42,42,42,${alpha})`;
+      ctx.stroke();
+    }
+  }
+
+  // 中心の小さな十字
+  ctx.strokeStyle = 'rgba(42,42,42,0.15)';
+  ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, cy);
+  ctx.lineTo(cx + 8, cy);
+  ctx.moveTo(cx, cy - 8);
+  ctx.lineTo(cx, cy + 8);
+  ctx.stroke();
+
+  t += 0;
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '39',
+  title: 'Phase',
+  desc:  '5つの同心円群が、わずかにずれた位相で広がる。マウスを動かすと中心がずれ、干渉の模様が変わる。ほとんど円だけで出来ている。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
