@@ -204,7 +204,7 @@
     }
 
     .view-grid .work-item:hover .work-overlay {
-      opacity: 0.5;
+      opacity: 0.7;
     }
 
     .overlay-num {
@@ -477,6 +477,10 @@
       hoverCardThumb.src = w.thumb;
       hoverCardThumb.style.display = 'block';
       hoverCardNum.style.display   = 'none';
+      hoverCardThumb.onerror = () => {
+        hoverCardThumb.style.display = 'none';
+        hoverCardNum.style.display   = 'flex';
+      };
     } else {
       hoverCardThumb.style.display = 'none';
       hoverCardNum.style.display   = 'flex';
@@ -519,7 +523,8 @@
       li.dataset.tech = w.tech;
 
       const thumbContent = w.thumb
-        ? `<img class="work-thumb" src="${w.thumb}" alt="${w.title}">`
+        ? `<img class="work-thumb" src="${w.thumb}" alt="${w.title}" onerror="this.style.display='none';this.parentElement.querySelector('.work-fallback').style.display='flex'">`
+          + `<div class="work-fallback" style="display:none">${w.num}</div>`
         : `<div class="work-fallback">${w.num}</div>`;
 
       li.innerHTML = `
