@@ -1,0 +1,18 @@
+[
+  { "num": "16", "title": "Julia Set",          "tech": "canvas",   "date": "2026-03-14", "path": "sketches/16_fractal/" },
+  { "num": "15", "title": "Raymarching",         "tech": "glsl",     "date": "2026-03-14", "path": "sketches/15_raymarching/" },
+  { "num": "14", "title": "Reaction Diffusion",  "tech": "canvas",   "date": "2026-03-14", "path": "sketches/14_reaction_diffusion/" },
+  { "num": "13", "title": "GLSL Shader Art",     "tech": "glsl",     "date": "2026-03-14", "path": "sketches/13_glsl_shader/" },
+  { "num": "12", "title": "Voronoi",             "tech": "canvas",   "date": "2026-03-14", "path": "sketches/12_voronoi/" },
+  { "num": "11", "title": "Tunnel",              "tech": "three.js", "date": "2026-03-14", "path": "sketches/11_tunnel/" },
+  { "num": "10", "title": "Ripple",              "tech": "three.js", "date": "2026-03-14", "path": "sketches/10_ripple/" },
+  { "num": "09", "title": "Morph",               "tech": "three.js", "date": "2026-03-14", "path": "sketches/09_morph/" },
+  { "num": "08", "title": "Galaxy",              "tech": "three.js", "date": "2026-03-14", "path": "sketches/08_galaxy/" },
+  { "num": "07", "title": "Icosahedron",         "tech": "three.js", "date": "2026-03-14", "path": "sketches/07_icosahedron/" },
+  { "num": "06", "title": "Lissajous",           "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/06_lissajous/" },
+  { "num": "05", "title": "Cellular Automata",   "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/05_cellular/" },
+  { "num": "04", "title": "Noise Landscape",     "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/04_noise_landscape/" },
+  { "num": "03", "title": "Particles",           "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/03_particles/" },
+  { "num": "02", "title": "Flow Field",          "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/02_flow_field/" },
+  { "num": "01", "title": "Playground",          "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/01_playground/" }
+]
