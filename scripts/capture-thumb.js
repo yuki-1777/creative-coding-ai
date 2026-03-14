@@ -36,7 +36,14 @@ if (targets.length === 0) {
 
 // ── キャプチャ ─────────────────────────────────────────
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({
+    args: [
+      '--use-gl=angle',
+      '--use-angle=swiftshader',
+      '--enable-webgl',
+      '--ignore-gpu-blocklist',
+    ]
+  });
   const page    = await browser.newPage();
   await page.setViewportSize({ width: 1280, height: 720 });
 
@@ -50,7 +57,7 @@ if (targets.length === 0) {
     const url = `file://${sketchPath}`;
     console.log(`[${w.num}] ${w.title} — 読み込み中...`);
 
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.goto(url, { waitUntil: 'networkidle' });
 
     // canvas が出るまで待つ（最大 10 秒）
     try {
@@ -64,10 +71,20 @@ if (targets.length === 0) {
     console.log(`[${w.num}] ${waitMs}ms 待機中...`);
     await page.waitForTimeout(waitMs);
 
-    // canvas をキャプチャ
+    // canvas の中身だけ取得（UIオーバーレイを除外）
     const outPath = path.join(root, 'img', `thumb_${w.num}.png`);
-    const canvas  = page.locator('canvas').first();
-    await canvas.screenshot({ path: outPath });
+    const base64 = await page.evaluate(() => {
+      const canvas = document.querySelector('canvas');
+      if (!canvas) return null;
+      return canvas.toDataURL('image/png').split(',')[1];
+    });
+
+    if (!base64) {
+      console.warn(`[${w.num}] canvas データが取得できませんでした。スキップします。`);
+      continue;
+    }
+
+    fs.writeFileSync(outPath, Buffer.from(base64, 'base64'));
 
     console.log(`[${w.num}] 保存: img/thumb_${w.num}.png`);
   }
