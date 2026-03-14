@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Ripple</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { background: #000; overflow: hidden; cursor: crosshair; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, 6, 8);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.target.set(0, 0, 0);
+
+const GRID = 128;
+const SIZE = 10;
+const geo = new THREE.PlaneGeometry(SIZE, SIZE, GRID - 1, GRID - 1);
+geo.rotateX(-Math.PI / 2);
+
+const posAttr = geo.getAttribute('position');
+const vertCount = posAttr.count;
+
+const height = new Float32Array(vertCount);
+const velocity = new Float32Array(vertCount);
+
+const mat = new THREE.MeshPhongMaterial({
+  color: 0x0077cc,
+  emissive: 0x001133,
+  shininess: 120,
+  specular: 0x88ddff,
+  wireframe: false,
+  side: THREE.DoubleSide,
+});
+
+const mesh = new THREE.Mesh(geo, mat);
+scene.add(mesh);
+
+const wireMat = new THREE.MeshBasicMaterial({
+  color: 0x0099ff,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.08,
+});
+const wireMesh = new THREE.Mesh(geo, wireMat);
+scene.add(wireMesh);
+
+scene.add(new THREE.AmbientLight(0x112233, 2));
+const l1 = new THREE.DirectionalLight(0xaaddff, 2);
+l1.position.set(5, 8, 5);
+scene.add(l1);
+const l2 = new THREE.PointLight(0x0066ff, 3, 20);
+l2.position.set(0, 5, 0);
+scene.add(l2);
+
+const ripples = [];
+
+function addRipple(wx, wz) {
+  ripples.push({ x: wx, z: wz, strength: 1.5 });
+}
+
+function applyRipple(rx, rz, strength) {
+  const step = SIZE / (GRID - 1);
+  const ix = Math.round((rx + SIZE / 2) / step);
+  const iz = Math.round((rz + SIZE / 2) / step);
+  for (let di = -2; di <= 2; di++) {
+    for (let dj = -2; dj <= 2; dj++) {
+      const ni = iz + di;
+      const nj = ix + dj;
+      if (ni < 0 || ni >= GRID || nj < 0 || nj >= GRID) continue;
+      const idx = ni * GRID + nj;
+      const d = Math.sqrt(di * di + dj * dj);
+      velocity[idx] += strength * Math.max(0, 1 - d / 3);
+    }
+  }
+}
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+function onPointerDown(e) {
+  mouse.x = (e.clientX / innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const pt = new THREE.Vector3();
+  raycaster.ray.intersectPlane(plane, pt);
+  if (pt && Math.abs(pt.x) < SIZE / 2 && Math.abs(pt.z) < SIZE / 2) {
+    addRipple(pt.x, pt.z);
+  }
+}
+
+renderer.domElement.addEventListener('pointerdown', onPointerDown);
+
+let autoTimer = 0;
+let frameCount = 0;
+const clock = new THREE.Clock();
+let lastTime = 0;
+
+function simulate(dt) {
+  const c = 18;
+  const damping = 0.985;
+  const step = SIZE / (GRID - 1);
+  const dtSim = Math.min(dt, 0.02);
+  const factor = c * c * dtSim * dtSim / (step * step);
+
+  for (let i = 1; i < GRID - 1; i++) {
+    for (let j = 1; j < GRID - 1; j++) {
+      const idx = i * GRID + j;
+      const laplacian =
+        height[(i - 1) * GRID + j] +
+        height[(i + 1) * GRID + j] +
+        height[i * GRID + (j - 1)] +
+        height[i * GRID + (j + 1)] -
+        4 * height[idx];
+      velocity[idx] += factor * laplacian;
+      velocity[idx] *= damping;
+    }
+  }
+
+  for (let i = 0; i < vertCount; i++) {
+    height[i] += velocity[i];
+  }
+
+  for (let i = 0; i < vertCount; i++) {
+    posAttr.setY(i, height[i]);
+  }
+  posAttr.needsUpdate = true;
+  geo.computeVertexNormals();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+  const dt = t - lastTime;
+  lastTime = t;
+
+  autoTimer += dt;
+  if (autoTimer > 2.5) {
+    autoTimer = 0;
+    const rx = (Math.random() - 0.5) * SIZE * 0.7;
+    const rz = (Math.random() - 0.5) * SIZE * 0.7;
+    addRipple(rx, rz);
+  }
+
+  for (const r of ripples) {
+    applyRipple(r.x, r.z, r.strength);
+  }
+  ripples.length = 0;
+
+  simulate(dt);
+
+  l2.position.x = Math.cos(t * 0.3) * 4;
+  l2.position.z = Math.sin(t * 0.3) * 4;
+
+  controls.update();
+  renderer.render(scene, camera);
+
+  frameCount++;
+  if (frameCount === 60) {
+    try {
+      renderer.render(scene, camera);
+      localStorage.setItem('thumb_10', renderer.domElement.toDataURL());
+    } catch (e) {}
+  }
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+animate();
+</script>
+</body>
+</html>

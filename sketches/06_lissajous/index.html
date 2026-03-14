@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Lissajous</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
+  <style>
+    body { margin: 0; background: #0a0a0f; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script>
+let t = 0;
+let trail = [];
+const TRAIL_LEN = 1800;
+let freqA = 3;
+let freqB = 2;
+let targetFreqA = 3;
+let targetFreqB = 2;
+let phase = 0;
+let phaseSpeed = 0.006;
+let hueBase = 200;
+let size = 320;
+let autoMode = true;
+let lastChange = 0;
+const RATIOS = [[1,1],[2,1],[3,1],[3,2],[4,3],[5,4],[5,3],[6,5],[7,4],[7,5]];
+let ratioIdx = 0;
+
+function setup() {
+  createCanvas(800, 800);
+  colorMode(HSB, 360, 100, 100, 100);
+  background(230, 20, 5);
+}
+
+function draw() {
+  fill(230, 20, 5, 14);
+  noStroke();
+  rect(0, 0, width, height);
+
+  freqA = lerp(freqA, targetFreqA, 0.02);
+  freqB = lerp(freqB, targetFreqB, 0.02);
+
+  if (autoMode && millis() - lastChange > 4000) {
+    ratioIdx = (ratioIdx + 1) % RATIOS.length;
+    targetFreqA = RATIOS[ratioIdx][0];
+    targetFreqB = RATIOS[ratioIdx][1];
+    hueBase = (hueBase + 40) % 360;
+    lastChange = millis();
+  }
+
+  phase += phaseSpeed;
+
+  let cx = width / 2;
+  let cy = height / 2;
+
+  let x = cx + size * sin(freqA * t + phase);
+  let y = cy + size * sin(freqB * t);
+  trail.push({ x, y, t: frameCount });
+
+  if (trail.length > TRAIL_LEN) trail.shift();
+
+  noFill();
+  for (let i = 1; i < trail.length; i++) {
+    let age = i / trail.length;
+    let hue = (hueBase + age * 60) % 360;
+    let sat = map(age, 0, 1, 30, 90);
+    let bri = map(age, 0, 1, 20, 100);
+    let alpha = map(age, 0, 1, 0, 90);
+    let sw = map(age, 0, 1, 0.2, 2.5);
+    stroke(hue, sat, bri, alpha);
+    strokeWeight(sw);
+    line(trail[i - 1].x, trail[i - 1].y, trail[i].x, trail[i].y);
+  }
+
+  stroke(hueBase, 30, 100, 80);
+  strokeWeight(6);
+  point(x, y);
+  stroke(hueBase, 60, 100, 40);
+  strokeWeight(12);
+  point(x, y);
+
+  t += 0.018;
+
+  if (!mouseIsPressed) {
+    noStroke();
+    fill(220, 10, 60, 70);
+    textSize(11);
+    textAlign(LEFT);
+    text(`${floor(freqA * 10) / 10} : ${floor(freqB * 10) / 10}`, 20, height - 20);
+  }
+
+  if (frameCount === 60) {
+    try {
+      localStorage.setItem('thumb_06', document.querySelector('canvas').toDataURL());
+    } catch(e) {}
+  }
+}
+
+function mouseMoved() {
+  if (!autoMode) {
+    targetFreqA = map(mouseX, 0, width, 1, 8);
+    targetFreqB = map(mouseY, 0, height, 1, 8);
+  }
+}
+
+function mousePressed() {
+  autoMode = !autoMode;
+  if (autoMode) {
+    lastChange = millis() - 4000;
+  } else {
+    targetFreqA = map(mouseX, 0, width, 1, 8);
+    targetFreqB = map(mouseY, 0, height, 1, 8);
+  }
+  trail = [];
+  t = 0;
+  phase = 0;
+}
+
+function keyPressed() {
+  if (key === 'r' || key === 'R') {
+    trail = [];
+    t = 0;
+    phase = 0;
+    hueBase = random(360);
+  }
+  if (key === '+' || key === '=') size = min(size + 20, 380);
+  if (key === '-') size = max(size - 20, 100);
+}
+</script>
+</body>
+</html>

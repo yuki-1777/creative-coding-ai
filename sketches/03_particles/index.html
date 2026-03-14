@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Particle System</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
+  <style>
+    body { margin: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script>
+let particles = [];
+const MAX = 600;
+let attractors = [];
+
+class Particle {
+  constructor() {
+    this.pos = createVector(random(width), random(height));
+    this.vel = p5.Vector.random2D().mult(random(0.5, 2));
+    this.acc = createVector(0, 0);
+    this.mass = random(1, 4);
+    this.hue = random(30, 80);
+    this.life = 255;
+    this.maxLife = random(200, 400);
+    this.age = 0;
+  }
+
+  applyForce(f) {
+    this.acc.add(p5.Vector.div(f, this.mass));
+  }
+
+  update() {
+    this.age++;
+    if (this.age > this.maxLife) this.reset();
+
+    for (let a of attractors) {
+      let dir = p5.Vector.sub(a.pos, this.pos);
+      let d = constrain(dir.mag(), 10, 200);
+      let strength = a.strength / (d * d);
+      dir.normalize().mult(strength * this.mass);
+      this.applyForce(dir);
+    }
+
+    let mouse = createVector(mouseX, mouseY);
+    let md = p5.Vector.sub(mouse, this.pos);
+    let mdist = constrain(md.mag(), 15, 300);
+    if (mouseIsPressed) {
+      let mf = 800 / (mdist * mdist);
+      md.normalize().mult(mf * this.mass);
+      this.applyForce(md);
+    }
+
+    this.vel.add(this.acc);
+    this.vel.limit(6);
+    this.pos.add(this.vel);
+    this.acc.mult(0);
+
+    if (this.pos.x < 0) { this.pos.x = width; }
+    if (this.pos.x > width) { this.pos.x = 0; }
+    if (this.pos.y < 0) { this.pos.y = height; }
+    if (this.pos.y > height) { this.pos.y = 0; }
+  }
+
+  reset() {
+    this.pos = createVector(random(width), random(height));
+    this.vel = p5.Vector.random2D().mult(random(0.5, 2));
+    this.age = 0;
+    this.hue = random(30, 80);
+  }
+
+  draw() {
+    let alpha = map(this.age, 0, this.maxLife, 200, 0);
+    let spd = this.vel.mag();
+    let s = map(spd, 0, 6, 40, 90);
+    let b = map(spd, 0, 6, 70, 100);
+    let sz = map(this.mass, 1, 4, 1.5, 4);
+    stroke(this.hue + spd * 5, s, b, alpha);
+    strokeWeight(sz);
+    point(this.pos.x, this.pos.y);
+  }
+}
+
+function setup() {
+  createCanvas(800, 800);
+  colorMode(HSB, 360, 100, 100, 255);
+  for (let i = 0; i < MAX; i++) particles.push(new Particle());
+  attractors = [
+    { pos: createVector(width * 0.3, height * 0.4), strength: 4000 },
+    { pos: createVector(width * 0.7, height * 0.6), strength: 4000 },
+    { pos: createVector(width * 0.5, height * 0.25), strength: -2000 },
+    { pos: createVector(width * 0.5, height * 0.75), strength: -2000 },
+  ];
+}
+
+function draw() {
+  fill(0, 0, 0, 18);
+  noStroke();
+  rect(0, 0, width, height);
+
+  for (let p of particles) {
+    p.update();
+    p.draw();
+  }
+
+  noFill();
+  for (let a of attractors) {
+    let c = a.strength > 0 ? color(50, 80, 100, 60) : color(200, 80, 100, 60);
+    stroke(c);
+    strokeWeight(0.5);
+    circle(a.pos.x, a.pos.y, 30);
+  }
+
+  if (frameCount === 60) {
+    try {
+      localStorage.setItem('thumb_03', document.querySelector('canvas').toDataURL());
+    } catch(e) {}
+  }
+}
+
+function mouseMoved() {
+  let t = frameCount * 0.01;
+  attractors[0].pos.set(
+    width * 0.3 + sin(t * 0.7) * 80,
+    height * 0.4 + cos(t * 0.5) * 80
+  );
+  attractors[1].pos.set(
+    width * 0.7 + cos(t * 0.6) * 80,
+    height * 0.6 + sin(t * 0.8) * 80
+  );
+}
+</script>
+</body>
+</html>
