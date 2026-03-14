@@ -66,6 +66,24 @@ window.SKETCH_META = { num: '17', title: '作品名', desc: '説明文' };
 
 **tech** の値: `p5.js` / `three.js` / `glsl` / `canvas`
 
+### サムネイルキャプチャの対応（必須）
+
+スケッチページの `↓ save thumb` ボタンで PNG をダウンロードできる。
+**three.js・GLSL は以下を必ず実装しないとキャプチャが黒画像になる。**
+
+**three.js**
+```js
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+```
+
+**GLSL（raw WebGL）**
+```js
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+```
+
+p5.js・canvas 2D は対応不要。
+
 詳細は [docs/requirements.md](docs/requirements.md) を参照。
 
 ## デプロイ
