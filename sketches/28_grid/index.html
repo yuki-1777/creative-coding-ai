@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>28 — Grid Wave</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 6, 10);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // smooth noise
+    function hash(n) {
+      n = Math.sin(n) * 43758.5453123;
+      return n - Math.floor(n);
+    }
+    function noise2(x, y) {
+      const ix = Math.floor(x), iy = Math.floor(y);
+      const fx = x - ix, fy = y - iy;
+      const ux = fx * fx * (3 - 2 * fx);
+      const uy = fy * fy * (3 - 2 * fy);
+      const h = (a, b) => hash(a + b * 157);
+      return h(ix,iy)*(1-ux)*(1-uy)
+           + h(ix+1,iy)*ux*(1-uy)
+           + h(ix,iy+1)*(1-ux)*uy
+           + h(ix+1,iy+1)*ux*uy;
+    }
+
+    const COLS = 60;
+    const ROWS = 60;
+    const SIZE = 8;
+
+    // グリッドの頂点を作成
+    const vertexCount = COLS * ROWS;
+    const positions = new Float32Array(vertexCount * 3);
+    const baseX = new Float32Array(vertexCount);
+    const baseZ = new Float32Array(vertexCount);
+
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const idx = row * COLS + col;
+        const x = (col / (COLS - 1) - 0.5) * SIZE;
+        const z = (row / (ROWS - 1) - 0.5) * SIZE;
+        baseX[idx] = x;
+        baseZ[idx] = z;
+        positions[idx * 3]     = x;
+        positions[idx * 3 + 1] = 0;
+        positions[idx * 3 + 2] = z;
+      }
+    }
+
+    // グリッドラインのインデックスを作成
+    const indices = [];
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS - 1; col++) {
+        indices.push(row * COLS + col, row * COLS + col + 1);
+      }
+    }
+    for (let col = 0; col < COLS; col++) {
+      for (let row = 0; row < ROWS - 1; row++) {
+        indices.push(row * COLS + col, (row + 1) * COLS + col);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x2A2826,
+      transparent: true,
+      opacity: 0.35
+    });
+
+    const grid = new THREE.LineSegments(geo, mat);
+    scene.add(grid);
+
+    // マウス
+    let mx = 0, my = 0;
+    document.addEventListener('mousemove', e => {
+      mx = (e.clientX / window.innerWidth - 0.5) * 2;
+      my = (e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.005;
+
+      const posAttr = geo.attributes.position;
+      const arr = posAttr.array;
+
+      for (let i = 0; i < vertexCount; i++) {
+        const x = baseX[i];
+        const z = baseZ[i];
+        // 重ね合わせたノイズで高さを決める
+        const n1 = noise2(x * 0.4 + time * 0.3, z * 0.4 + time * 0.2) * 2 - 1;
+        const n2 = noise2(x * 0.8 - time * 0.15, z * 0.8 + time * 0.25) * 2 - 1;
+        const height = n1 * 0.8 + n2 * 0.35;
+
+        arr[i * 3 + 1] = height;
+      }
+
+      posAttr.needsUpdate = true;
+      geo.computeBoundingSphere();
+
+      // カメラをゆっくり旋回
+      const angle = time * 0.08 + mx * 0.3;
+      const camDist = 10 + my * 1.5;
+      camera.position.x = Math.sin(angle) * camDist;
+      camera.position.z = Math.cos(angle) * camDist;
+      camera.position.y = 5 + my * 1.5;
+      camera.lookAt(0, 0, 0);
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '28',
+    title: 'Grid Wave',
+    desc:  '格子を引いて、高さを与えた。風みたいなものが通り抜けている。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

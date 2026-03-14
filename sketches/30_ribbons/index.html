@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>30 — Ribbons</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 7);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // smooth noise
+    function hash(n) {
+      n = Math.sin(n) * 43758.5453123;
+      return n - Math.floor(n);
+    }
+    function noise3(x, y, z) {
+      const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+      const fx = x - ix, fy = y - iy, fz = z - iz;
+      const ux = fx * fx * (3 - 2 * fx);
+      const uy = fy * fy * (3 - 2 * fy);
+      const uz = fz * fz * (3 - 2 * fz);
+      const h = (a, b, c) => hash(a + b * 157 + c * 1031);
+      return h(ix,iy,iz)*(1-ux)*(1-uy)*(1-uz)
+           + h(ix+1,iy,iz)*ux*(1-uy)*(1-uz)
+           + h(ix,iy+1,iz)*(1-ux)*uy*(1-uz)
+           + h(ix+1,iy+1,iz)*ux*uy*(1-uz)
+           + h(ix,iy,iz+1)*(1-ux)*(1-uy)*uz
+           + h(ix+1,iy,iz+1)*ux*(1-uy)*uz
+           + h(ix,iy+1,iz+1)*(1-ux)*uy*uz
+           + h(ix+1,iy+1,iz+1)*ux*uy*uz;
+    }
+
+    const RIBBON_COUNT = 12;
+    const POINTS_PER_RIBBON = 80;
+    const ribbons = [];
+
+    // 各リボンのパラメータ
+    for (let r = 0; r < RIBBON_COUNT; r++) {
+      const offsetX = (Math.random() - 0.5) * 6;
+      const offsetY = (Math.random() - 0.5) * 4;
+      const offsetZ = (Math.random() - 0.5) * 3;
+      const seedX = Math.random() * 100;
+      const seedY = Math.random() * 100;
+      const seedZ = Math.random() * 100;
+      const speed = 0.4 + Math.random() * 0.3;
+      const scale = 1.5 + Math.random() * 1.5;
+      const opacity = 0.25 + Math.random() * 0.35;
+
+      const points = [];
+      for (let p = 0; p < POINTS_PER_RIBBON; p++) {
+        points.push(new THREE.Vector3(0, 0, 0));
+      }
+
+      const geo = new THREE.BufferGeometry().setFromPoints(points);
+      const mat = new THREE.LineBasicMaterial({
+        color: 0x2A2826,
+        transparent: true,
+        opacity
+      });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+
+      ribbons.push({ line, geo, points, offsetX, offsetY, offsetZ, seedX, seedY, seedZ, speed, scale });
+    }
+
+    // マウス
+    let mx = 0, my = 0;
+    document.addEventListener('mousemove', e => {
+      mx = (e.clientX / window.innerWidth - 0.5) * 2;
+      my = (e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.004;
+
+      for (const rb of ribbons) {
+        const { line, geo, points, offsetX, offsetY, offsetZ, seedX, seedY, seedZ, speed, scale } = rb;
+
+        for (let p = 0; p < POINTS_PER_RIBBON; p++) {
+          const t = p / (POINTS_PER_RIBBON - 1);
+          const tt = time * speed + t * 2.5;
+
+          // ノイズフィールドで曲線を生成
+          const nx = noise3(seedX + tt * 0.3, seedY, seedZ) * 2 - 1;
+          const ny = noise3(seedX, seedY + tt * 0.3, seedZ) * 2 - 1;
+          const nz = noise3(seedX, seedY, seedZ + tt * 0.25) * 2 - 1;
+
+          points[p].set(
+            offsetX + nx * scale,
+            offsetY + ny * scale * 0.7,
+            offsetZ + nz * scale * 0.5
+          );
+        }
+
+        geo.setFromPoints(points);
+        geo.computeBoundingSphere();
+      }
+
+      // シーン全体をゆっくり回転（マウスで補助）
+      scene.rotation.y = time * 0.05 + mx * 0.2;
+      scene.rotation.x = my * 0.15;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '30',
+    title: 'Ribbons',
+    desc:  '12本の線にノイズフィールドを通したら、それぞれが別の場所を漂い始めた。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

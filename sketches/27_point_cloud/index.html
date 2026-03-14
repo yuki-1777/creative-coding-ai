@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>27 — Point Cloud</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 0, 6);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // smooth noise
+    function hash(n) {
+      n = Math.sin(n) * 43758.5453123;
+      return n - Math.floor(n);
+    }
+    function noise(x, y, z) {
+      const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+      const fx = x - ix, fy = y - iy, fz = z - iz;
+      const ux = fx * fx * (3 - 2 * fx);
+      const uy = fy * fy * (3 - 2 * fy);
+      const uz = fz * fz * (3 - 2 * fz);
+      const h = (a, b, c) => hash(a + b * 157 + c * 1031);
+      return h(ix,iy,iz)*(1-ux)*(1-uy)*(1-uz)
+           + h(ix+1,iy,iz)*ux*(1-uy)*(1-uz)
+           + h(ix,iy+1,iz)*(1-ux)*uy*(1-uz)
+           + h(ix+1,iy+1,iz)*ux*uy*(1-uz)
+           + h(ix,iy,iz+1)*(1-ux)*(1-uy)*uz
+           + h(ix+1,iy,iz+1)*ux*(1-uy)*uz
+           + h(ix,iy+1,iz+1)*(1-ux)*uy*uz
+           + h(ix+1,iy+1,iz+1)*ux*uy*uz;
+    }
+
+    const COUNT = 5000;
+    const positions = new Float32Array(COUNT * 3);
+    const origins = new Float32Array(COUNT * 3);
+    const seeds = new Float32Array(COUNT * 3);
+
+    // 球面上に均等分布
+    for (let i = 0; i < COUNT; i++) {
+      const phi = Math.acos(1 - 2 * (i + 0.5) / COUNT);
+      const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+      const r = 1.8;
+      const x = r * Math.sin(phi) * Math.cos(theta);
+      const y = r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+      origins[i * 3]     = x;
+      origins[i * 3 + 1] = y;
+      origins[i * 3 + 2] = z;
+      positions[i * 3]     = x;
+      positions[i * 3 + 1] = y;
+      positions[i * 3 + 2] = z;
+      seeds[i * 3]     = Math.random() * 100;
+      seeds[i * 3 + 1] = Math.random() * 100;
+      seeds[i * 3 + 2] = Math.random() * 100;
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const mat = new THREE.PointsMaterial({
+      color: 0x2A2826,
+      size: 0.025,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.7
+    });
+
+    const points = new THREE.Points(geo, mat);
+    scene.add(points);
+
+    // マウス追従
+    let mx = 0, my = 0;
+    document.addEventListener('mousemove', e => {
+      mx = (e.clientX / window.innerWidth - 0.5) * 2;
+      my = (e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.004;
+
+      const posAttr = geo.attributes.position;
+      const arr = posAttr.array;
+
+      for (let i = 0; i < COUNT; i++) {
+        const ox = origins[i * 3];
+        const oy = origins[i * 3 + 1];
+        const oz = origins[i * 3 + 2];
+        const sx = seeds[i * 3];
+        const sy = seeds[i * 3 + 1];
+        const sz = seeds[i * 3 + 2];
+
+        // ゆっくり膨らんだり縮んだりする呼吸
+        const breath = 1 + Math.sin(time * 0.6 + sx * 0.01) * 0.08;
+
+        // ノイズによる微細な揺らぎ
+        const n = noise(sx + time * 0.2, sy + time * 0.15, sz + time * 0.18) - 0.5;
+        const amplitude = 0.15;
+
+        // 法線方向にずらす
+        const len = Math.sqrt(ox * ox + oy * oy + oz * oz);
+        const nx = ox / len;
+        const ny = oy / len;
+        const nz = oz / len;
+
+        arr[i * 3]     = ox * breath + nx * n * amplitude;
+        arr[i * 3 + 1] = oy * breath + ny * n * amplitude;
+        arr[i * 3 + 2] = oz * breath + nz * n * amplitude;
+      }
+
+      posAttr.needsUpdate = true;
+
+      // マウスでゆるく回転
+      points.rotation.y += 0.003 + mx * 0.004;
+      points.rotation.x += 0.001 + my * 0.002;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '27',
+    title: 'Point Cloud',
+    desc:  '球面に5000個の点を並べた。それぞれが少しずつ呼吸している。触ると向きが変わる。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
