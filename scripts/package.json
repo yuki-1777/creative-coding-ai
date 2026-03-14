@@ -1,0 +1,8 @@
+{
+  "name": "ai-pj-scripts",
+  "private": true,
+  "description": "開発用スクリプト（デプロイ不要）",
+  "dependencies": {
+    "playwright": "^1.40.0"
+  }
+}
