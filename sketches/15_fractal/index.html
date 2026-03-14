@@ -78,7 +78,7 @@ void main() {
 `;
 
 const canvas = document.getElementById('c');
-const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true }) || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
 if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
 
 function compileShader(type, src) {
