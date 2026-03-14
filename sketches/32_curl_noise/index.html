@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>32 — Curl Noise</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+// ストリームラインをフラグメントシェーダで描く手法：
+// 各ピクセルを仮想粒子として、時間を遡りながら軌跡を積算する
+const frag = `
+precision highp float;
+uniform vec2  uResolution;
+uniform float uTime;
+uniform vec2  uMouse;
+
+// ---- ノイズ / カールノイズ ----
+vec2 hash2(vec2 p) {
+  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+  return -1.0 + 2.0 * fract(sin(p) * 43758.5453);
+}
+
+float gradNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(dot(hash2(i + vec2(0,0)), f - vec2(0,0)),
+        dot(hash2(i + vec2(1,0)), f - vec2(1,0)), u.x),
+    mix(dot(hash2(i + vec2(0,1)), f - vec2(0,1)),
+        dot(hash2(i + vec2(1,1)), f - vec2(1,1)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float v = 0.0, a = 0.5, f = 1.0;
+  for (int i = 0; i < 4; i++) {
+    v += a * gradNoise(p * f);
+    a *= 0.5; f *= 2.0;
+  }
+  return v;
+}
+
+// カールノイズ: スカラーノイズの勾配を90度回転
+vec2 curl(vec2 p, float t) {
+  float eps = 0.01;
+  float nx0 = fbm(vec2(p.x - eps, p.y) + vec2(0.0, t));
+  float nx1 = fbm(vec2(p.x + eps, p.y) + vec2(0.0, t));
+  float ny0 = fbm(vec2(p.x, p.y - eps) + vec2(0.0, t));
+  float ny1 = fbm(vec2(p.x, p.y + eps) + vec2(0.0, t));
+  float dydx = (nx1 - nx0) / (2.0 * eps);
+  float dxdy = (ny1 - ny0) / (2.0 * eps);
+  return vec2(dxdy, -dydx);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float aspect = uResolution.x / uResolution.y;
+  vec2 st = vec2(uv.x * aspect, uv.y);
+
+  float t = uTime * 0.12;
+
+  // マウスが流れをわずかに曲げる
+  vec2 mouse = (uMouse - 0.5) * 0.25;
+
+  // ストリームライン：後退積分でピクセルの来た道を辿る
+  vec2 p = st * 2.5 + mouse;
+  float density = 0.0;
+  float stepSize = 0.04;
+  int steps = 18;
+
+  for (int i = 0; i < 18; i++) {
+    vec2 v = curl(p, t);
+    float mag = length(v);
+    v = mag > 0.001 ? v / mag : vec2(1.0, 0.0);
+
+    // 線の細さを密度として蓄積（ストリームラインの束）
+    // fbm のゼロ交差付近だけを光らせる
+    float field = fbm(p + vec2(0.0, t));
+    float lineVal = 1.0 - smoothstep(0.0, 0.06, abs(fract(field * 5.0 + 0.5) - 0.5) * 2.0);
+    density += lineVal * (1.0 - float(i) / float(steps));
+
+    p -= v * stepSize;
+  }
+  density /= float(steps);
+  density = clamp(density * 1.8, 0.0, 1.0);
+
+  vec3 paper    = vec3(0.960, 0.953, 0.933);
+  vec3 graphite = vec3(0.22, 0.20, 0.19);
+
+  vec3 color = mix(paper, graphite, density * 0.65);
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s)); return null;
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER,   vert));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1, 1,-1, -1,1,
+  -1, 1, 1,-1,  1,1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = { x: 0.5, y: 0.5 };
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX / window.innerWidth;
+  mouse.y = 1.0 - e.clientY / window.innerHeight;
+});
+
+function resize() {
+  canvas.width  = window.innerWidth  * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const t0 = performance.now();
+function render() {
+  const t = (performance.now() - t0) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '32',
+  title: 'Curl Noise',
+  desc:  '渦を発散させずに流す方法がある。煙みたいになった。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

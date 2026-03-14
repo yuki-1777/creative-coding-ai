@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>31 — Contour Lines</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2  uResolution;
+uniform float uTime;
+uniform vec2  uMouse;
+
+// ---- ノイズ関数 ----
+vec2 hash2(vec2 p) {
+  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+  return -1.0 + 2.0 * fract(sin(p) * 43758.5453);
+}
+
+float gradNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(dot(hash2(i + vec2(0,0)), f - vec2(0,0)),
+        dot(hash2(i + vec2(1,0)), f - vec2(1,0)), u.x),
+    mix(dot(hash2(i + vec2(0,1)), f - vec2(0,1)),
+        dot(hash2(i + vec2(1,1)), f - vec2(1,1)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float v = 0.0, a = 0.5, f = 1.0;
+  for (int i = 0; i < 5; i++) {
+    v += a * gradNoise(p * f);
+    a *= 0.5; f *= 2.0;
+  }
+  return v;
+}
+
+// ---- 等高線を引く ----
+// val を [0,1] として、nLines 本の等高線のどれかに近い度合いを返す
+float contourLine(float val, float nLines, float lw) {
+  float scaled = val * nLines;
+  float d = abs(fract(scaled) - 0.5); // 0.0 が等高線上
+  return 1.0 - smoothstep(0.0, lw, d);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float aspect = uResolution.x / uResolution.y;
+  vec2 st = vec2(uv.x * aspect, uv.y);
+
+  float t = uTime * 0.04;
+
+  // マウスで地形がゆっくり傾く
+  vec2 mouse = (uMouse - 0.5) * 0.4;
+
+  // 地形値: fbm を2層重ねてゆっくり移動
+  vec2 pos = st * 2.2 + vec2(t, t * 0.6) + mouse;
+  float terrain = fbm(pos) * 0.5 + 0.5; // 0〜1
+
+  // 等高線の本数と線幅
+  float lines  = contourLine(terrain, 14.0, 0.04);
+  // 少し太めの主等高線（5本おき）
+  float major  = contourLine(terrain,  7.0, 0.055);
+
+  float ink = lines * 0.38 + major * 0.22;
+  ink = clamp(ink, 0.0, 1.0);
+
+  vec3 paper    = vec3(0.960, 0.953, 0.933);
+  vec3 graphite = vec3(0.20, 0.19, 0.18);
+
+  vec3 color = mix(paper, graphite, ink);
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s)); return null;
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER,   vert));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1, 1,-1, -1,1,
+  -1, 1, 1,-1,  1,1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = { x: 0.5, y: 0.5 };
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX / window.innerWidth;
+  mouse.y = 1.0 - e.clientY / window.innerHeight;
+});
+
+function resize() {
+  canvas.width  = window.innerWidth  * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const t0 = performance.now();
+function render() {
+  const t = (performance.now() - t0) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '31',
+  title: 'Contour Lines',
+  desc:  '存在しない地形の等高線を引いた。地図になりきれていない何か。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>35 — Sand</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+// 砂絵技法：マウスの軌跡に沿って砂粒がばらまかれたような効果
+// GLSLでは単体フレームのため、砂の密度マップをノイズで近似する
+const frag = `
+precision highp float;
+uniform vec2  uResolution;
+uniform float uTime;
+uniform vec2  uMouse;
+
+#define PI 3.14159265358979
+
+// ---- ハッシュ & ノイズ ----
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float hash1(float n) {
+  return fract(sin(n) * 43758.5453);
+}
+
+// ボロノイ（ノイズ点間距離）
+vec2 voronoi(vec2 p) {
+  vec2 ip = floor(p);
+  vec2 fp = fract(p);
+  float d1 = 8.0, d2 = 8.0;
+  for (int j = -1; j <= 1; j++) {
+    for (int i = -1; i <= 1; i++) {
+      vec2 g = vec2(float(i), float(j));
+      vec2 o = vec2(hash(ip + g), hash(ip + g + vec2(13.7, 45.3)));
+      vec2 r = g + o - fp;
+      float d = dot(r, r);
+      if (d < d1) { d2 = d1; d1 = d; }
+      else if (d < d2) { d2 = d; }
+    }
+  }
+  return vec2(sqrt(d1), sqrt(d2));
+}
+
+// 値ノイズ
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i),              hash(i + vec2(1,0)), u.x),
+    mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float v = 0.0, a = 0.5, f = 1.0;
+  for (int i = 0; i < 5; i++) {
+    v += a * noise(p * f);
+    a *= 0.5; f *= 2.0;
+  }
+  return v;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float aspect = uResolution.x / uResolution.y;
+  vec2 st = vec2(uv.x * aspect, uv.y);
+
+  float t = uTime * 0.18;
+
+  // マウスを「砂を落としている点」として使う
+  vec2 mouse = vec2(uMouse.x * aspect, uMouse.y);
+
+  // 基礎となる形：ゆっくり変形するブロブ（砂が積もった形）
+  vec2 center = vec2(0.5 * aspect, 0.5);
+
+  // ブロブの輪郭をSDF風に（ノイズで歪んだ円）
+  float r0 = length(st - center);
+  float angle = atan(st.y - center.y, st.x - center.x);
+  float blobRadius = 0.22 + 0.06 * fbm(vec2(cos(angle) * 2.0 + t * 0.4, sin(angle) * 2.0 + t * 0.3));
+  float blobDist = r0 - blobRadius;
+
+  // マウス周辺に砂が流れる（マウスが「掃いている」効果）
+  float mouseR = length(st - mouse);
+  float mousePull = exp(-mouseR * mouseR * 18.0); // ガウシアン
+
+  // 砂の粒：ボロノイの細胞構造 + 微細ノイズ
+  vec2 vor = voronoi(st * 28.0 + vec2(t * 0.15));
+  float grain = vor.y - vor.x; // セル境界付近が高い
+  grain = smoothstep(0.0, 0.15, grain) * 0.55;
+
+  // 微細な砂粒（高周波値ノイズ）
+  float dust = noise(st * 95.0 + vec2(t * 0.6)) * 0.3
+             + noise(st * 47.0 + vec2(t * 0.4)) * 0.2;
+
+  // 砂の密度：ブロブ内部が濃く、外側に向かって薄くなる
+  float blobFill = smoothstep(0.04, -0.10, blobDist); // 内側が1
+
+  // マウス引力でブロブが少し引き伸ばされる
+  float stretch = smoothstep(0.35, 0.0, mouseR) * 0.4;
+  float density = blobFill * (grain + dust) + stretch * dust * 0.7;
+
+  // 砂の輪郭線：境界付近に砂の縁
+  float edge = (1.0 - smoothstep(0.0, 0.018, abs(blobDist))) * 0.45;
+
+  float ink = clamp(density * 0.80 + edge, 0.0, 1.0);
+
+  vec3 paper    = vec3(0.960, 0.953, 0.933);
+  vec3 graphite = vec3(0.22, 0.20, 0.19);
+
+  vec3 color = mix(paper, graphite, ink);
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s)); return null;
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER,   vert));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1, 1,-1, -1,1,
+  -1, 1, 1,-1,  1,1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = { x: 0.5, y: 0.5 };
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX / window.innerWidth;
+  mouse.y = 1.0 - e.clientY / window.innerHeight;
+});
+
+function resize() {
+  canvas.width  = window.innerWidth  * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const t0 = performance.now();
+function render() {
+  const t = (performance.now() - t0) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '35',
+  title: 'Sand',
+  desc:  '砂を積んだ。マウスで掃くと砂が引き寄せられる。粒の数は数えていない。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
