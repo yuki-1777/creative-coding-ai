@@ -16,27 +16,38 @@ open sketches/01_playground/index.html  # 個別スケッチ
 
 Vercel にデプロイ済み。`vercel.json` は空オブジェクト（設定なし）。
 
+## ドキュメント
+
+作業前に必ず参照すること。
+
+| ファイル | 内容 |
+|---------|------|
+| [docs/creative-guideline.md](docs/creative-guideline.md) | **クリエイティブガイドライン（必読）** — UI・スケッチ・ライティング全てに適用するビジュアル・トーンの方針 |
+| [docs/requirements.md](docs/requirements.md) | 機能要件 — ギャラリー・スケッチページの仕様、データ構造 |
+
 ## ディレクトリ構成
 
 ```
 /
   index.html              ギャラリートップ（作品一覧）
+  works.json              作品データ一元管理
   vercel.json             Vercel設定（空）
+  docs/
+    creative-guideline.md   クリエイティブガイドライン
+    requirements.md         機能要件
   sketches/
-    01_playground/
-      index.html          p5.jsスケッチ本体
-  samples/
-    agent1/sample1-5.html   ダーク/ミニマル系サンプル
-    agent2/sample1-5.html   ライト/エディトリアル系サンプル
-    agent3/sample1-5.html   実験的/インタラクティブ系サンプル
+    NN_name/
+      index.html          スケッチ本体
+  js/
+    sketch-ui.js          スケッチページ共通UI
   creative-direction/
-    gallery-redesign/       デザイン検討資料
+    gallery-top/          ギャラリーデザイン検討資料
 ```
 
 ## 新しい作品を追加する
 
-1. `sketches/NN_name/index.html` を作る（既存スケッチを参考に）
-2. `works.json` に1行追加する（`description` は200字程度で書く）
+1. `sketches/NN_name/index.html` を作る
+2. `works.json` に1行追加する（`description` は200字程度、ライティングトーンは creative-guideline.md 参照）
 
 ```json
 { "num": "17", "title": "作品名", "tech": "p5.js", "date": "YYYY-MM-DD", "path": "sketches/17_name/", "description": "説明文（200字程度）" }
