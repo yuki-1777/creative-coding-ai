@@ -41,12 +41,12 @@
       max-width: 480px;
     }
     #sketch-overlay-title {
-      font-size: 0.55rem;
+      font-size: 1.1rem;
       letter-spacing: 0.2em;
       color: rgba(255,255,255,0.4);
     }
     #sketch-overlay-desc {
-      font-size: 0.62rem;
+      font-size: 1.2rem;
       line-height: 1.65;
       color: rgba(255,255,255,0.28);
       letter-spacing: 0.03em;
@@ -60,7 +60,7 @@
       flex-shrink: 0;
     }
     #sketch-overlay-back {
-      font-size: 0.48rem;
+      font-size: 0.9rem;
       letter-spacing: 0.22em;
       color: rgba(255,255,255,0.25);
       text-decoration: none;
@@ -73,7 +73,7 @@
     #sketch-capture-btn {
       font-family: inherit;
       font-weight: 300;
-      font-size: 0.48rem;
+      font-size: 0.9rem;
       letter-spacing: 0.22em;
       background: transparent;
       border: none;
