@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>21 — Breath</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #f5f2ec; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+new p5(function(p) {
+  // 複数の円が独立したリズムで呼吸する
+  const circles = [];
+  const NUM = 7;
+
+  p.setup = function() {
+    p.createCanvas(p.windowWidth, p.windowHeight);
+    p.noFill();
+    p.strokeWeight(0.8);
+
+    for (let i = 0; i < NUM; i++) {
+      circles.push({
+        x: p.random(p.width * 0.2, p.width * 0.8),
+        y: p.random(p.height * 0.2, p.height * 0.8),
+        baseR: p.random(30, 120),
+        phase: p.random(p.TWO_PI),
+        speed: p.random(0.008, 0.018),
+        amp: p.random(0.12, 0.28),
+        rings: p.floor(p.random(2, 6)),
+      });
+    }
+  };
+
+  p.draw = function() {
+    p.background(245, 242, 236, 18);
+
+    const t = p.frameCount;
+
+    for (const c of circles) {
+      const breathe = 1 + c.amp * Math.sin(t * c.speed + c.phase);
+      const r = c.baseR * breathe;
+
+      // マウスとの距離で微妙に引き寄せられる
+      const mx = p.mouseX, my = p.mouseY;
+      const d = p.dist(c.x, c.y, mx, my);
+      const pull = p.map(d, 0, 400, 0.04, 0, true);
+      const cx = c.x + (mx - c.x) * pull;
+      const cy = c.y + (my - c.y) * pull;
+
+      const alpha = p.map(breathe, 1 - c.amp, 1 + c.amp, 55, 120);
+
+      for (let ring = 0; ring < c.rings; ring++) {
+        const rr = r * (1 - ring * 0.18);
+        const a = alpha * (1 - ring * 0.25);
+        p.stroke(60, 55, 50, a);
+        p.ellipse(cx, cy, rr * 2, rr * 2);
+      }
+    }
+  };
+
+  p.windowResized = function() {
+    p.resizeCanvas(p.windowWidth, p.windowHeight);
+  };
+});
+</script>
+
+<script>
+window.SKETCH_META = {
+  num: '21',
+  title: 'Breath',
+  desc: '7つの円が、それぞれ違うリズムで膨らんだり縮んだりしている。同期していない。マウスに近づくと、少しだけ引き寄せられる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

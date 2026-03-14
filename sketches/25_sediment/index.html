@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>25 — Sediment</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #f4f1eb; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+new p5(function(p) {
+  // ノイズで地層の断面を生成する。
+  // 各「層」は水平に延びる線の集まりで、深さによって密度と色が変わる。
+
+  let seed;
+  let rendered = false;
+  let pg;
+
+  function render() {
+    pg.background(244, 241, 235);
+    pg.noFill();
+
+    const W = p.width;
+    const H = p.height;
+    const LAYERS = 180;   // 地層の数
+    const LINES_PER_LAYER = 4; // 各層の線の本数（重ねて密度を出す）
+
+    for (let li = 0; li < LAYERS; li++) {
+      const yBase = (li / LAYERS) * H;
+      // 深いほど暗く・密に
+      const depth = li / LAYERS;
+      const darkness = p.map(depth, 0, 1, 30, 75);
+      const alphaBase = p.map(depth, 0, 1, 18, 55);
+
+      for (let rep = 0; rep < LINES_PER_LAYER; rep++) {
+        const yOff = rep * 0.8;
+        pg.stroke(darkness, darkness - 5, darkness - 8, alphaBase);
+        pg.strokeWeight(p.map(depth, 0, 1, 0.4, 1.1));
+        pg.beginShape();
+
+        const STEP = 4;
+        for (let x = 0; x <= W; x += STEP) {
+          // 複数のノイズスケールを合成して地層らしい波打ちを作る
+          const n1 = p.noise(x * 0.003 + seed, li * 0.08) * 28;
+          const n2 = p.noise(x * 0.012 + seed + 100, li * 0.12) * 10;
+          const n3 = p.noise(x * 0.035 + seed + 200, li * 0.2) * 4;
+          const y = yBase + yOff + n1 + n2 + n3 - 21;
+          pg.vertex(x, y);
+        }
+        pg.endShape();
+      }
+
+      // 断層: ランダムに数本、垂直方向のズレを入れる
+      if (p.noise(li * 0.3 + seed * 7.3) > 0.82 && li > 10) {
+        const faultX = p.noise(li * 1.1 + seed * 3.7) * W;
+        pg.stroke(darkness - 5, darkness - 10, darkness - 10, alphaBase * 1.4);
+        pg.strokeWeight(0.5);
+        pg.line(faultX, yBase - 30, faultX + p.random(-6, 6), yBase + 30);
+      }
+    }
+  }
+
+  p.setup = function() {
+    p.createCanvas(p.windowWidth, p.windowHeight);
+    pg = p.createGraphics(p.width, p.height);
+    seed = p.random(0, 1000);
+    p.noiseSeed(p.floor(seed * 1000));
+    render();
+  };
+
+  p.draw = function() {
+    p.image(pg, 0, 0);
+
+    // マウスY位置に応じて、その深さの「層」を微妙にハイライト
+    if (p.mouseY > 0 && p.mouseY < p.height && p.mouseIsPressed === false) {
+      const depth = p.mouseY / p.height;
+      const age = p.floor(depth * 450); // 仮の年代（百万年単位）
+      p.noStroke();
+      p.fill(60, 55, 50, 18);
+      p.rect(0, p.mouseY - 1, p.width, 3);
+    }
+
+    p.noLoop();
+  };
+
+  // クリックで新しい地形を生成
+  p.mousePressed = function() {
+    seed = p.random(0, 1000);
+    p.noiseSeed(p.floor(seed * 1000));
+    render();
+    p.loop();
+  };
+
+  p.windowResized = function() {
+    p.resizeCanvas(p.windowWidth, p.windowHeight);
+    pg = p.createGraphics(p.width, p.height);
+    seed = p.random(0, 1000);
+    p.noiseSeed(p.floor(seed * 1000));
+    render();
+    p.loop();
+  };
+});
+</script>
+
+<script>
+window.SKETCH_META = {
+  num: '25',
+  title: 'Sediment',
+  desc: '同じコードを動かすたびに、違う地層が出てくる。クリックで次の断面へ。深いほど線が重なる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

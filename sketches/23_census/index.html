@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>23 — Census</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #f5f2ec; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+new p5(function(p) {
+  const NUM = 800;
+  const dots = [];
+
+  // 各点の状態
+  const STATE_FOLLOW = 0; // マウスを追う
+  const STATE_FLEE   = 1; // 逃げる
+  const STATE_WANDER = 2; // さまよう
+
+  for (let i = 0; i < NUM; i++) {
+    dots.push({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      vx: 0,
+      vy: 0,
+      state: STATE_WANDER,
+      stateTimer: 0,
+    });
+  }
+
+  p.setup = function() {
+    p.createCanvas(p.windowWidth, p.windowHeight);
+    p.noStroke();
+  };
+
+  p.draw = function() {
+    p.background(245, 242, 236, 30);
+
+    const mx = p.mouseX;
+    const my = p.mouseY;
+    const isMoving = p.dist(mx, my, p.pmouseX, p.pmouseY) > 1;
+
+    for (const d of dots) {
+      const dist = p.dist(d.x, d.y, mx, my);
+
+      // 状態遷移
+      if (dist < 80) {
+        d.state = STATE_FLEE;
+        d.stateTimer = 40;
+      } else if (isMoving && dist < 200 && d.state !== STATE_FLEE) {
+        d.state = STATE_FOLLOW;
+      } else if (d.state === STATE_FLEE) {
+        d.stateTimer--;
+        if (d.stateTimer <= 0) d.state = STATE_WANDER;
+      } else if (!isMoving) {
+        d.state = STATE_WANDER;
+      }
+
+      // 力の計算
+      let fx = 0, fy = 0;
+
+      if (d.state === STATE_FOLLOW) {
+        // マウスへの引力（弱め）
+        const angle = Math.atan2(my - d.y, mx - d.x);
+        const str = p.map(dist, 0, 200, 0.08, 0.01);
+        fx += Math.cos(angle) * str;
+        fy += Math.sin(angle) * str;
+      } else if (d.state === STATE_FLEE) {
+        // マウスから逃げる
+        const angle = Math.atan2(d.y - my, d.x - mx);
+        const str = p.map(dist, 0, 80, 0.5, 0.05);
+        fx += Math.cos(angle) * str;
+        fy += Math.sin(angle) * str;
+      } else {
+        // ノイズでさまよう
+        const n = p.noise(d.x * 0.004, d.y * 0.004, p.frameCount * 0.004);
+        const angle = n * p.TWO_PI * 2;
+        fx += Math.cos(angle) * 0.04;
+        fy += Math.sin(angle) * 0.04;
+      }
+
+      d.vx = (d.vx + fx) * 0.9;
+      d.vy = (d.vy + fy) * 0.9;
+
+      d.x += d.vx;
+      d.y += d.vy;
+
+      // 境界で折り返す
+      if (d.x < 0) d.x = p.width;
+      if (d.x > p.width) d.x = 0;
+      if (d.y < 0) d.y = p.height;
+      if (d.y > p.height) d.y = 0;
+
+      // 描画
+      let alpha, size;
+      if (d.state === STATE_FLEE) {
+        alpha = 160;
+        size = 2.2;
+      } else if (d.state === STATE_FOLLOW) {
+        alpha = 100;
+        size = 1.8;
+      } else {
+        alpha = 55;
+        size = 1.4;
+      }
+
+      p.fill(60, 55, 50, alpha);
+      p.ellipse(d.x, d.y, size, size);
+    }
+  };
+
+  p.windowResized = function() {
+    p.resizeCanvas(p.windowWidth, p.windowHeight);
+  };
+});
+</script>
+
+<script>
+window.SKETCH_META = {
+  num: '23',
+  title: 'Census',
+  desc: '800個の点がいる。近づくと逃げる。少し遠くから動くと、ゆっくり寄ってくる。触れると散る。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

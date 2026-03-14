@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>22 — Threadfall</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #f4f1eb; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+new p5(function(p) {
+  const threads = [];
+  const MAX_THREADS = 120;
+  let pg; // オフスクリーングラフィクス（糸の堆積）
+
+  function makeThread() {
+    return {
+      x: p.random(p.width),
+      y: p.random(-60, -10),
+      vx: p.random(-0.6, 0.6),
+      vy: p.random(1.2, 2.8),
+      len: p.random(18, 60),
+      angle: p.random(-0.3, 0.3),
+      alpha: p.random(40, 90),
+      dead: false,
+      trail: [],
+    };
+  }
+
+  p.setup = function() {
+    p.createCanvas(p.windowWidth, p.windowHeight);
+    pg = p.createGraphics(p.width, p.height);
+    pg.background(244, 241, 235);
+    pg.strokeWeight(0.7);
+    pg.noFill();
+
+    for (let i = 0; i < 30; i++) {
+      const t = makeThread();
+      t.y = p.random(p.height);
+      threads.push(t);
+    }
+  };
+
+  p.draw = function() {
+    // 背景を少し重ねて既存の糸を薄く残す
+    p.image(pg, 0, 0);
+
+    // 新しい糸を生成
+    if (p.frameCount % 3 === 0 && threads.length < MAX_THREADS) {
+      threads.push(makeThread());
+    }
+
+    for (let i = threads.length - 1; i >= 0; i--) {
+      const t = threads[i];
+
+      // 風の揺らぎ
+      t.vx += p.noise(t.x * 0.003, t.y * 0.003, p.frameCount * 0.005) * 0.4 - 0.2;
+      t.vx *= 0.96;
+      t.vy += 0.03;
+      t.vy = p.min(t.vy, 3.5);
+
+      t.trail.push({ x: t.x, y: t.y });
+      if (t.trail.length > t.len) t.trail.shift();
+
+      t.x += t.vx;
+      t.y += t.vy;
+
+      // 軌跡を描く
+      if (t.trail.length > 1) {
+        p.stroke(55, 50, 45, t.alpha);
+        p.strokeWeight(0.6);
+        p.beginShape();
+        p.noFill();
+        for (const pt of t.trail) {
+          p.curveVertex(pt.x, pt.y);
+        }
+        p.curveVertex(t.x, t.y);
+        p.endShape();
+      }
+
+      // 地面に到達したら堆積させてフェードアウト
+      if (t.y > p.height + 10) {
+        // 堆積グラフィクスに書き込む
+        if (t.trail.length > 1) {
+          pg.stroke(55, 50, 45, t.alpha * 0.6);
+          pg.strokeWeight(0.6);
+          pg.beginShape();
+          for (const pt of t.trail) {
+            pg.curveVertex(pt.x, pt.y);
+          }
+          pg.curveVertex(t.x, t.y);
+          pg.endShape();
+        }
+        threads.splice(i, 1);
+      }
+    }
+  };
+
+  p.mousePressed = function() {
+    // クリックで堆積をリセット
+    pg.background(244, 241, 235);
+    threads.length = 0;
+  };
+
+  p.windowResized = function() {
+    p.resizeCanvas(p.windowWidth, p.windowHeight);
+    pg = p.createGraphics(p.width, p.height);
+    pg.background(244, 241, 235);
+  };
+});
+</script>
+
+<script>
+window.SKETCH_META = {
+  num: '22',
+  title: 'Threadfall',
+  desc: '細い糸が上から降ってくる。風に揺れながら落ちて、積み重なっていく。クリックで白紙に戻る。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
