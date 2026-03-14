@@ -414,7 +414,7 @@
     const emptyState = document.getElementById('empty-state');
 
     works.forEach(w => {
-      const thumb = localStorage.getItem(`thumb_${w.num}`);
+      const thumb = w.thumb || null;
       const li = document.createElement('li');
       li.className = 'work-item';
       li.dataset.tech = w.tech;
