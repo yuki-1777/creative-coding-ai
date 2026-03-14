@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>12 — SDF Shapes</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+
+// --- SDF 基本関数 ---
+
+// 円
+float sdCircle(vec2 p, float r) {
+  return length(p) - r;
+}
+
+// ボックス
+float sdBox(vec2 p, vec2 b) {
+  vec2 d = abs(p) - b;
+  return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+}
+
+// 正六角形
+float sdHexagon(vec2 p, float r) {
+  const vec3 k = vec3(-0.866025404, 0.5, 0.577350269);
+  p = abs(p);
+  p -= 2.0 * min(dot(k.xy, p), 0.0) * k.xy;
+  p -= vec2(clamp(p.x, -k.z * r, k.z * r), r);
+  return length(p) * sign(p.y);
+}
+
+// 菱形
+float sdRhombus(vec2 p, vec2 b) {
+  p = abs(p);
+  float h = clamp((-2.0 * dot(p, b) + dot(b, b)) / dot(b, b), -1.0, 1.0);
+  float d = length(p - 0.5 * b * vec2(1.0 - h, 1.0 + h));
+  return d * sign(p.x * b.y + p.y * b.x - b.x * b.y);
+}
+
+// スムーズユニオン
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+// スムーズサブトラクション
+float smax(float a, float b, float k) {
+  float h = clamp(0.5 - 0.5 * (b + a) / k, 0.0, 1.0);
+  return mix(b, -a, h) + k * h * (1.0 - h);
+}
+
+void main() {
+  vec2 uv = (gl_FragCoord.xy - uResolution * 0.5) / min(uResolution.x, uResolution.y);
+
+  float t = uTime * 0.4;
+
+  // 呼吸するように各形が変形
+  float breathe = sin(t) * 0.5 + 0.5; // 0〜1
+
+  // 円（中央、呼吸）
+  float r1 = 0.18 + breathe * 0.04;
+  float c1 = sdCircle(uv, r1);
+
+  // ボックス（少し回転、右寄り）
+  float angle = t * 0.3;
+  vec2 p2 = uv - vec2(0.25, 0.0);
+  p2 = vec2(p2.x * cos(angle) - p2.y * sin(angle),
+            p2.x * sin(angle) + p2.y * cos(angle));
+  float boxSize = 0.10 + sin(t * 0.7) * 0.02;
+  float c2 = sdBox(p2, vec2(boxSize));
+
+  // 六角形（左寄り）
+  vec2 p3 = uv - vec2(-0.28, 0.05);
+  float hexR = 0.12 + cos(t * 0.5) * 0.02;
+  float c3 = sdHexagon(p3, hexR);
+
+  // 菱形（下）
+  vec2 p4 = uv - vec2(0.0, -0.22);
+  float c4 = sdRhombus(p4, vec2(0.10 + sin(t * 0.6) * 0.02, 0.13 + cos(t * 0.8) * 0.02));
+
+  // スムーズユニオンで合成
+  float d = smin(c1, c2, 0.08);
+  d = smin(d, c3, 0.06);
+  d = smin(d, c4, 0.07);
+
+  // 等値線（輪郭線を複数描く）
+  float paper    = 1.0;
+  float graphite = 0.0;
+
+  // 外側の細い輪郭線（d ≈ 0 付近）
+  float lineWidth = 0.003;
+  float line1 = 1.0 - smoothstep(0.0, lineWidth, abs(d));
+  float line2 = 1.0 - smoothstep(0.0, lineWidth, abs(d - 0.04));
+  float line3 = 1.0 - smoothstep(0.0, lineWidth, abs(d - 0.08));
+  float line4 = 1.0 - smoothstep(0.0, lineWidth * 1.5, abs(d + 0.005));
+
+  // 内側を少し暗く（形のシルエットをほのかに）
+  float fill = smoothstep(0.01, -0.02, d) * 0.06;
+
+  float ink = line1 * 0.55 + line2 * 0.18 + line3 * 0.10 + line4 * 0.40 + fill;
+  ink = clamp(ink, 0.0, 1.0);
+
+  // 背景: オフホワイト
+  vec3 paperColor   = vec3(0.960, 0.953, 0.933);
+  vec3 graphiteColor = vec3(0.20, 0.19, 0.18);
+
+  vec3 color = mix(paperColor, graphiteColor, ink);
+
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+    return null;
+  }
+  return s;
+}
+
+const vs = compileShader(gl.VERTEX_SHADER, vert);
+const fs = compileShader(gl.FRAGMENT_SHADER, frag);
+const prog = gl.createProgram();
+gl.attachShader(prog, vs);
+gl.attachShader(prog, fs);
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+  console.error(gl.getProgramInfoLog(prog));
+}
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = { x: 0.5, y: 0.5 };
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX / window.innerWidth;
+  mouse.y = 1.0 - e.clientY / window.innerHeight;
+});
+
+function resize() {
+  canvas.width  = window.innerWidth  * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const startTime = performance.now();
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '12',
+  title: 'SDF Shapes',
+  desc:  '距離を測る関数だけで形を作った。線を引いていない。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1,4 +1,9 @@
 [
+  { "num": "11", "title": "Noise Field",     "tech": "glsl", "date": "2026-03-14", "path": "sketches/11_noise_field/",    "description": "ノイズに時間を足したら、霧みたいになった。" },
+  { "num": "12", "title": "SDF Shapes",      "tech": "glsl", "date": "2026-03-14", "path": "sketches/12_sdf_shapes/",     "description": "距離を測る関数だけで形を作った。線を引いていない。" },
+  { "num": "13", "title": "Voronoi Lines",   "tech": "glsl", "date": "2026-03-14", "path": "sketches/13_voronoi_lines/",  "description": "最近傍の点を探したら、領域の境目が現れた。" },
+  { "num": "14", "title": "Interference",    "tech": "glsl", "date": "2026-03-14", "path": "sketches/14_interference/",   "description": "波を重ねたら、重なった場所に縞が出てきた。" },
+  { "num": "15", "title": "Fractal",         "tech": "glsl", "date": "2026-03-14", "path": "sketches/15_fractal/",        "description": "同じ式を繰り返すだけで、際限なく細かくなる。" },
   { "num": "06", "title": "Wire Icosahedron", "tech": "three.js", "date": "2026-03-14", "path": "sketches/06_icosahedron/", "description": "面を取り除いたら、骨格だけ残った。" },
   { "num": "07", "title": "Floating Particles", "tech": "three.js", "date": "2026-03-14", "path": "sketches/07_particles/", "description": "3000個の点を空中に置いた。それぞれ勝手に動いている。" },
   { "num": "08", "title": "Morphing Mesh", "tech": "three.js", "date": "2026-03-14", "path": "sketches/08_morph/", "description": "球に揺らぎを与えたら、生き物みたいになった。" },
