@@ -130,5 +130,13 @@ setTimeout(() => {
   try { localStorage.setItem('thumb_16', canvas.toDataURL()); } catch(e) {}
 }, 2000);
 </script>
+<script>
+window.SKETCH_META = {
+  num:   '16',
+  title: 'Julia Set',
+  desc:  '複素平面上の点 c を固定し、z → z² + c の反復回数で色を決めるジュリア集合のビジュアライザ。c の値をわずかに変えるだけでフラクタルの形が劇的に変化する。無限に続く自己相似構造を2Dキャンバスで描画している。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
 </body>
 </html>

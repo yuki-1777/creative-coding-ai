@@ -124,5 +124,13 @@ setTimeout(() => {
   try { localStorage.setItem('thumb_12', canvas.toDataURL()); } catch(e) {}
 }, 2000);
 </script>
+<script>
+window.SKETCH_META = {
+  num:   '12',
+  title: 'Voronoi',
+  desc:  'ランダムに配置した母点から最も近い点の領域を分割するボロノイ図のリアルタイム描画。母点が動くにつれて境界線が変形し、細胞組織や地図の行政区分のような有機的な分割が生まれる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
 </body>
 </html>

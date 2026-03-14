@@ -148,5 +148,13 @@ setTimeout(() => {
   try { localStorage.setItem('thumb_13', canvas.toDataURL()); } catch(e) {}
 }, 2000);
 </script>
+<script>
+window.SKETCH_META = {
+  num:   '13',
+  title: 'GLSL Shader Art',
+  desc:  'フラグメントシェーダーだけで描くプロシージャルアート。UV座標・時間・三角関数を組み合わせることで、CPUを使わずGPU上でリアルタイムにアニメーションするパターンを生成する。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
 </body>
 </html>

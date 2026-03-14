@@ -245,5 +245,13 @@ setTimeout(() => {
   try { localStorage.setItem('thumb_15', canvas.toDataURL()); } catch(e) {}
 }, 2000);
 </script>
+<script>
+window.SKETCH_META = {
+  num:   '15',
+  title: 'Raymarching',
+  desc:  'GLSLシェーダーによるレイマーチング。距離関数（SDF）で定義した球や箱などのプリミティブを光線との交差判定だけでレンダリングする。ポリゴンを一切使わずにリアルタイム3Dシーンを構築できることを示している。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
 </body>
 </html>
