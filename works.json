@@ -1,1 +1,7 @@
-[]
+[
+  { "num": "06", "title": "Wire Icosahedron", "tech": "three.js", "date": "2026-03-14", "path": "sketches/06_icosahedron/", "description": "面を取り除いたら、骨格だけ残った。" },
+  { "num": "07", "title": "Floating Particles", "tech": "three.js", "date": "2026-03-14", "path": "sketches/07_particles/", "description": "3000個の点を空中に置いた。それぞれ勝手に動いている。" },
+  { "num": "08", "title": "Morphing Mesh", "tech": "three.js", "date": "2026-03-14", "path": "sketches/08_morph/", "description": "球に揺らぎを与えたら、生き物みたいになった。" },
+  { "num": "09", "title": "Ripple Plane", "tech": "three.js", "date": "2026-03-14", "path": "sketches/09_ripple/", "description": "平面に波を通した。クリックすると波紋が起きる。" },
+  { "num": "10", "title": "Line Spiral", "tech": "three.js", "date": "2026-03-14", "path": "sketches/10_spiral/", "description": "コードがらせんを描いた。どこまでも伸びていく。" }
+]

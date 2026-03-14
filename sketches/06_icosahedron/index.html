@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>06 — Wire Icosahedron</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 4);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // Icosahedron wireframe
+    const geo = new THREE.IcosahedronGeometry(1.2, 0);
+    const edges = new THREE.EdgesGeometry(geo);
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x2A2A2A,
+      linewidth: 1
+    });
+    const wireframe = new THREE.LineSegments(edges, mat);
+    scene.add(wireframe);
+
+    // Inner icosahedron (smaller, slightly transparent)
+    const geoInner = new THREE.IcosahedronGeometry(0.7, 1);
+    const edgesInner = new THREE.EdgesGeometry(geoInner);
+    const matInner = new THREE.LineBasicMaterial({
+      color: 0x2A2A2A,
+      transparent: true,
+      opacity: 0.18
+    });
+    const wireframeInner = new THREE.LineSegments(edgesInner, matInner);
+    scene.add(wireframeInner);
+
+    // Mouse tracking
+    let mouseX = 0;
+    let mouseY = 0;
+    document.addEventListener('mousemove', e => {
+      mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.005;
+
+      // Base rotation speed modulated by mouse position
+      const speedX = 0.003 + mouseY * 0.008;
+      const speedY = 0.004 + mouseX * 0.008;
+
+      wireframe.rotation.x += speedX;
+      wireframe.rotation.y += speedY;
+      wireframe.rotation.z += 0.001;
+
+      wireframeInner.rotation.x -= speedX * 0.6;
+      wireframeInner.rotation.y -= speedY * 0.6;
+      wireframeInner.rotation.z += 0.002;
+
+      // Gentle breathing scale
+      const breathe = 1 + Math.sin(time * 1.2) * 0.03;
+      wireframe.scale.setScalar(breathe);
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '06',
+    title: 'Wire Icosahedron',
+    desc:  '面を取り除いたら、骨格だけ残った。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

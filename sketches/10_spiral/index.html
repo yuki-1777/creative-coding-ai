@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>10 — Line Spiral</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(4, 3, 10);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    const MAX_POINTS = 3000;
+    const positions = new Float32Array(MAX_POINTS * 3);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x2A2A2A,
+      transparent: true,
+      opacity: 0.8
+    });
+
+    const line = new THREE.Line(geo, mat);
+    scene.add(line);
+
+    // Secondary faint spiral (offset phase)
+    const positions2 = new Float32Array(MAX_POINTS * 3);
+    const geo2 = new THREE.BufferGeometry();
+    geo2.setAttribute('position', new THREE.BufferAttribute(positions2, 3));
+    const mat2 = new THREE.LineBasicMaterial({
+      color: 0x2A2A2A,
+      transparent: true,
+      opacity: 0.18
+    });
+    const line2 = new THREE.Line(geo2, mat2);
+    scene.add(line2);
+
+    let time = 0;
+    let drawnPoints = 0;
+    const GROWTH_SPEED = 8; // points per frame added during growth phase
+    const TOTAL_LOOPS = 7;
+
+    function buildSpiral(t, phaseOffset, posArray) {
+      // t: 0..1 controls how much of the spiral is drawn
+      const drawn = Math.floor(t * MAX_POINTS);
+      for (let i = 0; i < MAX_POINTS; i++) {
+        if (i >= drawn) {
+          // Hide remaining points at last visible point
+          const last = Math.max(0, drawn - 1);
+          posArray[i * 3]     = posArray[last * 3];
+          posArray[i * 3 + 1] = posArray[last * 3 + 1];
+          posArray[i * 3 + 2] = posArray[last * 3 + 2];
+          continue;
+        }
+        const frac = i / MAX_POINTS;
+        const angle = frac * Math.PI * 2 * TOTAL_LOOPS + phaseOffset;
+        const radius = 0.3 + frac * 3.0;
+        const height = (frac - 0.5) * 8.0;
+
+        // Gentle undulation on radius
+        const undulate = Math.sin(frac * Math.PI * 12 + time * 1.5 + phaseOffset) * 0.08;
+
+        posArray[i * 3]     = Math.cos(angle) * (radius + undulate);
+        posArray[i * 3 + 1] = height;
+        posArray[i * 3 + 2] = Math.sin(angle) * (radius + undulate);
+      }
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.012;
+
+      // Growth phase: spiral extends over ~5 seconds, then stays full
+      if (drawnPoints < MAX_POINTS) {
+        drawnPoints = Math.min(drawnPoints + GROWTH_SPEED, MAX_POINTS);
+      }
+
+      const t = drawnPoints / MAX_POINTS;
+
+      buildSpiral(t, 0, positions);
+      buildSpiral(t, Math.PI, positions2);
+
+      geo.attributes.position.needsUpdate = true;
+      geo2.attributes.position.needsUpdate = true;
+
+      // Slow rotation of the whole scene
+      line.rotation.y += 0.004;
+      line2.rotation.y += 0.004;
+
+      // Camera gentle orbit
+      const camAngle = time * 0.06;
+      camera.position.x = Math.sin(camAngle) * 11;
+      camera.position.z = Math.cos(camAngle) * 11;
+      camera.position.y = 3 + Math.sin(time * 0.04) * 1.5;
+      camera.lookAt(0, 0, 0);
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '10',
+    title: 'Line Spiral',
+    desc:  'コードがらせんを描いた。どこまでも伸びていく。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

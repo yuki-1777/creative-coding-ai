@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>07 — Floating Particles</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F0EDE6; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 0, 18);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF0EDE6);
+    document.body.appendChild(renderer.domElement);
+
+    // Simple hash-based pseudo-noise (no external library)
+    function hash(n) {
+      n = Math.sin(n) * 43758.5453123;
+      return n - Math.floor(n);
+    }
+    function noise3(x, y, z) {
+      const ix = Math.floor(x);
+      const iy = Math.floor(y);
+      const iz = Math.floor(z);
+      const fx = x - ix;
+      const fy = y - iy;
+      const fz = z - iz;
+      const ux = fx * fx * (3 - 2 * fx);
+      const uy = fy * fy * (3 - 2 * fy);
+      const uz = fz * fz * (3 - 2 * fz);
+
+      const n000 = hash(ix + iy * 157 + iz * 1031);
+      const n100 = hash(ix + 1 + iy * 157 + iz * 1031);
+      const n010 = hash(ix + (iy + 1) * 157 + iz * 1031);
+      const n110 = hash(ix + 1 + (iy + 1) * 157 + iz * 1031);
+      const n001 = hash(ix + iy * 157 + (iz + 1) * 1031);
+      const n101 = hash(ix + 1 + iy * 157 + (iz + 1) * 1031);
+      const n011 = hash(ix + (iy + 1) * 157 + (iz + 1) * 1031);
+      const n111 = hash(ix + 1 + (iy + 1) * 157 + (iz + 1) * 1031);
+
+      return n000 * (1 - ux) * (1 - uy) * (1 - uz)
+           + n100 * ux * (1 - uy) * (1 - uz)
+           + n010 * (1 - ux) * uy * (1 - uz)
+           + n110 * ux * uy * (1 - uz)
+           + n001 * (1 - ux) * (1 - uy) * uz
+           + n101 * ux * (1 - uy) * uz
+           + n011 * (1 - ux) * uy * uz
+           + n111 * ux * uy * uz;
+    }
+
+    const COUNT = 3000;
+    const positions = new Float32Array(COUNT * 3);
+    const basePositions = new Float32Array(COUNT * 3);
+    const offsets = new Float32Array(COUNT * 3); // per-particle noise offset
+
+    // Spherical distribution
+    for (let i = 0; i < COUNT; i++) {
+      const u = Math.random();
+      const v = Math.random();
+      const theta = 2 * Math.PI * u;
+      const phi = Math.acos(2 * v - 1);
+      const r = 5 * Math.cbrt(Math.random()); // cube root for uniform sphere volume
+      const x = r * Math.sin(phi) * Math.cos(theta);
+      const y = r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+      basePositions[i * 3]     = x;
+      basePositions[i * 3 + 1] = y;
+      basePositions[i * 3 + 2] = z;
+      positions[i * 3]     = x;
+      positions[i * 3 + 1] = y;
+      positions[i * 3 + 2] = z;
+      offsets[i * 3]     = Math.random() * 100;
+      offsets[i * 3 + 1] = Math.random() * 100;
+      offsets[i * 3 + 2] = Math.random() * 100;
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const mat = new THREE.PointsMaterial({
+      color: 0x2A2A2A,
+      size: 0.06,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.75
+    });
+
+    const points = new THREE.Points(geo, mat);
+    scene.add(points);
+
+    let time = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.004;
+
+      // Update particle positions with noise drift
+      const posAttr = geo.attributes.position;
+      for (let i = 0; i < COUNT; i++) {
+        const bx = basePositions[i * 3];
+        const by = basePositions[i * 3 + 1];
+        const bz = basePositions[i * 3 + 2];
+        const ox = offsets[i * 3];
+        const oy = offsets[i * 3 + 1];
+        const oz = offsets[i * 3 + 2];
+        const speed = 0.28;
+        const amp = 0.4;
+        posAttr.array[i * 3]     = bx + (noise3(ox + time * speed, by * 0.1, bz * 0.1) - 0.5) * amp;
+        posAttr.array[i * 3 + 1] = by + (noise3(bx * 0.1, oy + time * speed, bz * 0.1) - 0.5) * amp;
+        posAttr.array[i * 3 + 2] = bz + (noise3(bx * 0.1, by * 0.1, oz + time * speed) - 0.5) * amp;
+      }
+      posAttr.needsUpdate = true;
+
+      // Camera slow orbit
+      const camAngle = time * 0.08;
+      camera.position.x = Math.sin(camAngle) * 18;
+      camera.position.z = Math.cos(camAngle) * 18;
+      camera.position.y = Math.sin(time * 0.04) * 3;
+      camera.lookAt(0, 0, 0);
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '07',
+    title: 'Floating Particles',
+    desc:  '3000個の点を空中に置いた。それぞれ勝手に動いている。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

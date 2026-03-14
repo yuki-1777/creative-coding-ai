@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>09 — Ripple Plane</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F2F0EB; cursor: crosshair; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 9, 10);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF2F0EB);
+    document.body.appendChild(renderer.domElement);
+
+    const SEGMENTS = 90;
+    const SIZE = 14;
+    const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEGMENTS, SEGMENTS);
+    geo.rotateX(-Math.PI / 2);
+
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x3D3D3D,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.55
+    });
+    const plane = new THREE.Mesh(geo, mat);
+    scene.add(plane);
+
+    // Multiple ripple sources
+    const ripples = [
+      { x: 0, z: 0, time: 0, active: true }
+    ];
+
+    // Raycaster for mouse clicks
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const clickPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+    document.addEventListener('click', e => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const target = new THREE.Vector3();
+      raycaster.ray.intersectPlane(clickPlane, target);
+      if (target) {
+        ripples.push({ x: target.x, z: target.z, time: 0, active: true });
+        // Keep only last 5 ripples
+        if (ripples.length > 5) ripples.shift();
+      }
+    });
+
+    // Store original Y positions (all zero after rotation)
+    const originalPos = geo.attributes.position.array.slice();
+
+    let time = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.016;
+
+      // Update each ripple's time
+      for (const r of ripples) {
+        r.time += 0.016;
+      }
+
+      const posAttr = geo.attributes.position;
+      const arr = posAttr.array;
+
+      for (let i = 0; i < arr.length; i += 3) {
+        const px = arr[i];
+        const pz = arr[i + 2];
+
+        let totalY = 0;
+
+        for (const r of ripples) {
+          const dx = px - r.x;
+          const dz = pz - r.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          const speed = 3.5;
+          const waveLen = 1.2;
+          const amplitude = 0.35;
+          const decay = 0.18;
+
+          // Wave front propagation
+          const waveFront = r.time * speed;
+          const distFromFront = dist - waveFront;
+
+          // Gaussian envelope around the wave front
+          const envelope = Math.exp(-distFromFront * distFromFront * decay * decay * 120)
+                         * Math.exp(-r.time * 0.4);
+
+          const wave = Math.sin(dist / waveLen - r.time * speed * 1.5) * amplitude * envelope;
+          totalY += wave;
+        }
+
+        // Gentle ambient undulation
+        totalY += Math.sin(px * 0.4 + time * 0.5) * Math.sin(pz * 0.4 + time * 0.3) * 0.04;
+
+        arr[i + 1] = totalY;
+      }
+
+      posAttr.needsUpdate = true;
+      geo.computeVertexNormals();
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '09',
+    title: 'Ripple Plane',
+    desc:  '平面に波を通した。クリックすると波紋が起きる。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
