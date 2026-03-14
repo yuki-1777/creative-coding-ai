@@ -21,6 +21,13 @@ function draw() {
   fill(255, 100, 50);
   noStroke();
   ellipse(mouseX, mouseY, 20, 20);
+
+  // 60フレーム後にサムネイルをギャラリーへ保存
+  if (frameCount === 60) {
+    try {
+      localStorage.setItem('thumb_01', document.querySelector('canvas').toDataURL());
+    } catch(e) {}
+  }
 }
 </script>
 </body>
