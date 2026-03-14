@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>26 — Torus Knot</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // トーラス結び目のジオメトリを動的生成
+    let knotMesh = null;
+    let edgesMesh = null;
+
+    function buildKnot(p, q) {
+      if (knotMesh) {
+        scene.remove(knotMesh);
+        knotMesh.geometry.dispose();
+      }
+      if (edgesMesh) {
+        scene.remove(edgesMesh);
+        edgesMesh.geometry.dispose();
+      }
+
+      const geo = new THREE.TorusKnotGeometry(1.1, 0.03, 256, 8, Math.round(p), Math.round(q));
+      const edges = new THREE.EdgesGeometry(geo);
+      const mat = new THREE.LineBasicMaterial({
+        color: 0x2A2826,
+        transparent: true,
+        opacity: 0.85
+      });
+      knotMesh = new THREE.LineSegments(edges, mat);
+      scene.add(knotMesh);
+    }
+
+    let currentP = 2;
+    let currentQ = 3;
+    let targetP = 2;
+    let targetQ = 3;
+    buildKnot(currentP, currentQ);
+
+    // 補助リング（ガイド）
+    const ringGeo = new THREE.TorusGeometry(1.1, 0.003, 8, 80);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x2A2826, transparent: true, opacity: 0.12 });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI / 2;
+    scene.add(ring);
+
+    let time = 0;
+    let lastRebuild = 0;
+    const REBUILD_INTERVAL = 8; // 秒
+
+    // パラメータの組み合わせリスト
+    const paramSets = [
+      [2, 3], [3, 2], [3, 4], [4, 3], [2, 5], [5, 2], [3, 5], [5, 3]
+    ];
+    let paramIdx = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.005;
+
+      // ゆっくり回転
+      if (knotMesh) {
+        knotMesh.rotation.x = time * 0.12;
+        knotMesh.rotation.y = time * 0.18;
+        knotMesh.rotation.z = time * 0.05;
+      }
+      ring.rotation.y = time * 0.06;
+
+      // 一定間隔でパラメータを切り替え
+      if (time - lastRebuild > REBUILD_INTERVAL) {
+        lastRebuild = time;
+        paramIdx = (paramIdx + 1) % paramSets.length;
+        const [np, nq] = paramSets[paramIdx];
+        buildKnot(np, nq);
+        if (knotMesh) {
+          knotMesh.rotation.x = time * 0.12;
+          knotMesh.rotation.y = time * 0.18;
+          knotMesh.rotation.z = time * 0.05;
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '26',
+    title: 'Torus Knot',
+    desc:  '結び目を解こうとしたら、別の結び目になった。パラメータを変えるたびに、どこかで聞いた形が出てくる。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
