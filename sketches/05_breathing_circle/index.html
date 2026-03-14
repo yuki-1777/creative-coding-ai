@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>05 — Breathing Circle</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    // 同心円が呼吸するように拡縮する
+    // マウスに近い円はよけるように動く
+
+    const CIRCLE_COUNT = 28;
+    const BASE_SPACING = 22; // 円の間隔（px）
+    const BREATH_AMP = 7;    // 呼吸の振幅
+    const BREATH_PERIOD = 200; // フレーム数
+    const MOUSE_REPEL_RADIUS = 160;
+    const MOUSE_REPEL_STRENGTH = 28;
+
+    let cx, cy;
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      cx = width / 2;
+      cy = height / 2;
+      colorMode(RGB);
+      noFill();
+      strokeWeight(0.8);
+    }
+
+    function draw() {
+      background('#F5F3EE');
+
+      let t = frameCount;
+      let mx = mouseX;
+      let my = mouseY;
+
+      for (let i = 0; i < CIRCLE_COUNT; i++) {
+        // 各円の基本半径（中心から外へ等間隔）
+        let baseR = (i + 1) * BASE_SPACING;
+
+        // 位相差をつけた呼吸（外側ほど遅れる）
+        let phaseShift = i * 0.22;
+        let breath = sin((t * TWO_PI / BREATH_PERIOD) + phaseShift) * BREATH_AMP;
+
+        // マウスとの距離による反発オフセット
+        let centerDist = dist(mx, my, cx, cy);
+        let repelOffset = 0;
+
+        // 円の周上でマウスに最も近い点を推定し、円全体を押し出す
+        if (centerDist < baseR + MOUSE_REPEL_RADIUS) {
+          let proximity = max(0, 1 - abs(centerDist - baseR) / MOUSE_REPEL_RADIUS);
+          repelOffset = proximity * MOUSE_REPEL_STRENGTH * (1 - i / CIRCLE_COUNT * 0.6);
+        }
+
+        let r = baseR + breath + repelOffset;
+
+        // マウスが近い円ほど少し透明度を下げる
+        let alpha = map(repelOffset, 0, MOUSE_REPEL_STRENGTH, 100, 160);
+
+        stroke(42, 42, 42, alpha);
+
+        // 完全な円ではなく、マウス方向に少し歪ませる
+        if (repelOffset > 1 && centerDist > 0.1) {
+          // マウスから遠ざかる方向にわずかにオフセット
+          let dirX = (cx - mx) / centerDist;
+          let dirY = (cy - my) / centerDist;
+          let pushX = dirX * repelOffset * 0.4;
+          let pushY = dirY * repelOffset * 0.4;
+
+          // 歪んだ円を頂点で描く
+          beginShape();
+          for (let a = 0; a < TWO_PI; a += 0.08) {
+            // マウス方向への近さで押し出し量を変化（楕円的歪み）
+            let dot = cos(a) * (-dirX) + sin(a) * (-dirY);
+            let distort = map(dot, -1, 1, -repelOffset * 0.3, repelOffset * 0.3);
+            let rx = cos(a) * (r + distort) + cx + pushX;
+            let ry = sin(a) * (r + distort) + cy + pushY;
+            vertex(rx, ry);
+          }
+          endShape(CLOSE);
+        } else {
+          circle(cx, cy, r * 2);
+        }
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      cx = width / 2;
+      cy = height / 2;
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '05',
+    title: 'Breathing Circle',
+    desc:  '円に呼吸させてみた。触ると逃げる。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

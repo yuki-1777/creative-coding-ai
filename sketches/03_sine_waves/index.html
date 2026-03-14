@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>03 — Sine Waves</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    // 複数の正弦波の干渉パターン
+    // 縦方向の波を重ねてモアレ的な効果を生む
+
+    const WAVE_COUNT = 7;
+    const LINE_SPACING = 4; // 横ライン間隔(px)
+
+    // 各波のパラメータ
+    let waves = [];
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      colorMode(RGB);
+      strokeWeight(0.6);
+      noFill();
+
+      initWaves();
+    }
+
+    function initWaves() {
+      waves = [];
+      for (let i = 0; i < WAVE_COUNT; i++) {
+        waves.push({
+          freq: random(0.004, 0.018),      // 空間周波数
+          amp: random(8, 22),              // 振幅
+          speed: random(0.008, 0.025),     // 時間変化速度
+          phaseOffset: random(TWO_PI),     // 初期位相
+          vertFreq: random(0.003, 0.012),  // 縦方向の変調周波数
+          vertAmp: random(3, 12)           // 縦方向の変調振幅
+        });
+      }
+    }
+
+    function draw() {
+      background('#F5F3EE');
+
+      // マウスY位置で振幅倍率を変化
+      let ampMult = map(mouseY, 0, height, 0.3, 2.2);
+
+      let t = frameCount * 0.012;
+      let numLines = floor(height / LINE_SPACING);
+
+      for (let row = 0; row <= numLines; row++) {
+        let baseY = row * LINE_SPACING;
+
+        stroke(61, 61, 61, 110);
+        beginShape();
+        for (let x = 0; x <= width; x += 2) {
+          let yOffset = 0;
+
+          for (let w = 0; w < waves.length; w++) {
+            let wv = waves[w];
+            // 横方向の正弦波 + 縦方向で位相が変化（干渉パターン）
+            let phase = x * wv.freq + t * wv.speed + wv.phaseOffset;
+            let vertPhase = baseY * wv.vertFreq;
+            yOffset += sin(phase + vertPhase) * wv.amp * ampMult;
+          }
+
+          // 合成した波形を縦方向の変位として使う
+          let y = baseY + yOffset / WAVE_COUNT;
+          vertex(x, y);
+        }
+        endShape();
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+    }
+
+    function mousePressed() {
+      // クリックで波パラメータをリセット
+      initWaves();
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '03',
+    title: 'Sine Waves',
+    desc:  '位相をずらした正弦波を重ねたら、予期しない模様が出てきた。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

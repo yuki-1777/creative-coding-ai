@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>01 — Flow Field</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    const PARTICLE_COUNT = 1000;
+    const STEP = 3;
+    const NOISE_SCALE = 0.003;
+    const SPEED = 2.0;
+
+    let particles = [];
+    let noiseOffset = 0;
+    let frameTarget = 2500;
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      background('#F5F3EE');
+      colorMode(RGB);
+      strokeWeight(0.8);
+      noFill();
+
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        particles.push(createParticle());
+      }
+    }
+
+    function createParticle() {
+      return {
+        x: random(width),
+        y: random(height),
+        prevX: null,
+        prevY: null,
+        life: random(80, 200)
+      };
+    }
+
+    function draw() {
+      // マウス位置をノイズオフセットに反映
+      let mx = mouseX / width;
+      let my = mouseY / height;
+      noiseOffset = (mx * 2.0 + my * 1.5) * 0.5;
+
+      // draw毎に15個だけ動かす
+      let count = min(15, particles.length);
+      for (let i = 0; i < count; i++) {
+        let idx = (frameCount * 15 + i) % particles.length;
+        let p = particles[idx];
+
+        // パーリンノイズで方向決定
+        let n = noise(
+          p.x * NOISE_SCALE + noiseOffset,
+          p.y * NOISE_SCALE + noiseOffset * 0.7,
+          frameCount * 0.0008
+        );
+        let angle = n * TWO_PI * 2.5;
+
+        p.prevX = p.x;
+        p.prevY = p.y;
+        p.x += cos(angle) * SPEED;
+        p.y += sin(angle) * SPEED;
+        p.life--;
+
+        // 線を描く
+        stroke(42, 42, 42, 38);
+        line(p.prevX, p.prevY, p.x, p.y);
+
+        // 画面外 or 寿命切れで再生成
+        if (
+          p.x < 0 || p.x > width ||
+          p.y < 0 || p.y > height ||
+          p.life <= 0
+        ) {
+          particles[idx] = createParticle();
+        }
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      background('#F5F3EE');
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '01',
+    title: 'Flow Field',
+    desc:  'ノイズ場に1000本の糸を流したら、川みたいになった。マウスで流れが変わる。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

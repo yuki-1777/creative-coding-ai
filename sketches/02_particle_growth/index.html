@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>02 — Particle Growth</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F0EDE6; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    // DLA風の有機的成長
+    // 固定クラスター + ウォーカー粒子
+
+    let cluster = [];       // 固定された粒子（成長済み）
+    let walkers = [];       // 動き回る粒子
+    let clusterMap = {};    // 高速ルックアップ用
+
+    const CELL = 4;         // グリッドセル幅
+    const WALKER_COUNT = 60;
+    const WALKER_STEP = 2;
+    const MAX_CLUSTER = 1800;
+    const STICK_RADIUS = CELL * 1.5;
+
+    let cx, cy;
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      background('#F0EDE6');
+      stroke('#2A2A2A');
+      noFill();
+      strokeWeight(0.7);
+
+      cx = width / 2;
+      cy = height / 2;
+
+      // シードを中央に配置
+      addToCluster(cx, cy);
+
+      // ウォーカー初期化
+      for (let i = 0; i < WALKER_COUNT; i++) {
+        walkers.push(spawnWalker());
+      }
+    }
+
+    function addToCluster(x, y) {
+      cluster.push({ x, y });
+      let key = gridKey(x, y);
+      clusterMap[key] = true;
+    }
+
+    function gridKey(x, y) {
+      return Math.floor(x / CELL) + '_' + Math.floor(y / CELL);
+    }
+
+    function spawnWalker() {
+      // クラスターの端から少し離れたところに生成
+      let angle = random(TWO_PI);
+      let r = random(80, 160) + cluster.length * 0.05;
+      return {
+        x: cx + cos(angle) * r,
+        y: cy + sin(angle) * r
+      };
+    }
+
+    function isNearCluster(x, y) {
+      // 近傍グリッドセルをチェック
+      let gx = Math.floor(x / CELL);
+      let gy = Math.floor(y / CELL);
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dy = -2; dy <= 2; dy++) {
+          if (clusterMap[(gx + dx) + '_' + (gy + dy)]) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function draw() {
+      if (cluster.length >= MAX_CLUSTER) {
+        // 成長完了後も静的に表示
+        noLoop();
+        return;
+      }
+
+      // フレームごとに複数ウォーカーを動かす
+      let stuckThisFrame = 0;
+      for (let i = walkers.length - 1; i >= 0; i--) {
+        let w = walkers[i];
+
+        // ランダムウォーク（ノイズで少し方向付け）
+        let n = noise(w.x * 0.004, w.y * 0.004, frameCount * 0.001);
+        let angle = n * TWO_PI * 2 + frameCount * 0.01;
+        w.x += cos(angle) * WALKER_STEP + random(-1, 1);
+        w.y += sin(angle) * WALKER_STEP + random(-1, 1);
+
+        // 画面外リセット
+        if (w.x < 0 || w.x > width || w.y < 0 || w.y > height) {
+          walkers[i] = spawnWalker();
+          continue;
+        }
+
+        // クラスターに近づいたら固定
+        if (isNearCluster(w.x, w.y)) {
+          // 最近傍クラスタ粒子を探して線を描く
+          let nearest = findNearest(w.x, w.y);
+          if (nearest) {
+            strokeWeight(0.6);
+            stroke(42, 42, 42, 180);
+            line(nearest.x, nearest.y, w.x, w.y);
+            // 小さな点
+            strokeWeight(1.2);
+            point(w.x, w.y);
+          }
+          addToCluster(w.x, w.y);
+          walkers[i] = spawnWalker();
+          stuckThisFrame++;
+          if (stuckThisFrame >= 3) break;
+        }
+      }
+    }
+
+    function findNearest(x, y) {
+      let best = null;
+      let bestDist = Infinity;
+      // 近傍のみ探索（全探索は重いのでランダムサンプリング）
+      let start = max(0, cluster.length - 200);
+      for (let i = start; i < cluster.length; i++) {
+        let c = cluster[i];
+        let d = dist(x, y, c.x, c.y);
+        if (d < bestDist) {
+          bestDist = d;
+          best = c;
+        }
+      }
+      return best;
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      background('#F0EDE6');
+      // リセット
+      cluster = [];
+      clusterMap = {};
+      walkers = [];
+      cx = width / 2;
+      cy = height / 2;
+      addToCluster(cx, cy);
+      for (let i = 0; i < WALKER_COUNT; i++) {
+        walkers.push(spawnWalker());
+      }
+      loop();
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '02',
+    title: 'Particle Growth',
+    desc:  '分裂を繰り返すルールだけ書いた。出てきたのは木に似たものだった。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

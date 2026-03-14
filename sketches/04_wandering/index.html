@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>04 — Wandering</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F2F0EB; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    const AGENT_COUNT = 100;
+    const MAX_SPEED = 1.4;
+    const COHESION_RADIUS = 120;
+    const COHESION_STRENGTH = 0.0006;
+    const WANDER_STRENGTH = 0.18;
+    const TRAIL_ALPHA = 20; // rgba alpha (0-255)
+
+    let agents = [];
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      background('#F2F0EB');
+      colorMode(RGB);
+
+      for (let i = 0; i < AGENT_COUNT; i++) {
+        agents.push({
+          x: random(width * 0.2, width * 0.8),
+          y: random(height * 0.2, height * 0.8),
+          vx: random(-1, 1),
+          vy: random(-1, 1),
+          noiseOffX: random(1000),
+          noiseOffY: random(1000)
+        });
+      }
+    }
+
+    function draw() {
+      // 軌跡を残すため背景を薄く塗らない（蓄積）
+      // 透明な矩形で薄くフェード
+      noStroke();
+      fill(242, 240, 235, 4);
+      rect(0, 0, width, height);
+
+      let t = frameCount * 0.003;
+
+      for (let i = 0; i < agents.length; i++) {
+        let a = agents[i];
+
+        // ランダムウォーク（パーリンノイズ）
+        let nx = noise(a.noiseOffX + t, a.y * 0.003);
+        let ny = noise(a.noiseOffY + t, a.x * 0.003);
+        let wAngle = nx * TWO_PI * 2;
+        let wAngle2 = ny * TWO_PI * 2;
+        a.vx += cos(wAngle) * WANDER_STRENGTH;
+        a.vy += sin(wAngle2) * WANDER_STRENGTH;
+
+        // 緩やかなフロッキング（凝集）
+        let cx = 0, cy = 0, cnt = 0;
+        for (let j = 0; j < agents.length; j++) {
+          if (i === j) continue;
+          let b = agents[j];
+          let d = dist(a.x, a.y, b.x, b.y);
+          if (d < COHESION_RADIUS && d > 0) {
+            cx += b.x;
+            cy += b.y;
+            cnt++;
+          }
+        }
+        if (cnt > 0) {
+          cx /= cnt;
+          cy /= cnt;
+          a.vx += (cx - a.x) * COHESION_STRENGTH;
+          a.vy += (cy - a.y) * COHESION_STRENGTH;
+        }
+
+        // 速度制限
+        let spd = sqrt(a.vx * a.vx + a.vy * a.vy);
+        if (spd > MAX_SPEED) {
+          a.vx = (a.vx / spd) * MAX_SPEED;
+          a.vy = (a.vy / spd) * MAX_SPEED;
+        }
+
+        // 位置更新
+        let prevX = a.x;
+        let prevY = a.y;
+        a.x += a.vx;
+        a.y += a.vy;
+
+        // 境界でバウンス（余白の外に出ないよう）
+        let margin = 60;
+        if (a.x < margin) { a.vx += 0.05; }
+        if (a.x > width - margin) { a.vx -= 0.05; }
+        if (a.y < margin) { a.vy += 0.05; }
+        if (a.y > height - margin) { a.vy -= 0.05; }
+
+        // 軌跡を描く（極薄い線）
+        stroke(42, 42, 42, TRAIL_ALPHA);
+        strokeWeight(0.5);
+        line(prevX, prevY, a.x, a.y);
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      background('#F2F0EB');
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '04',
+    title: 'Wandering',
+    desc:  '同じコードを動かすたびに、少し違う形が出てくる。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
