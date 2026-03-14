@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Creative Coding</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;1,300&family=Inter:wght@200;300&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #050505;
-      --surface: #0d0d0d;
-      --border: #1c1c1c;
-      --text: #c8c8c8;
-      --text-dim: #444;
-      --accent: #ff3c00;
-      --accent-glow: rgba(255, 60, 0, 0.15);
+      --bg: #f8f7f5;
+      --text: #1a1a1a;
+      --text-dim: #aaa;
+      --text-muted: #ccc;
+      --border: rgba(0,0,0,0.08);
+      --col-w: 680px;
+      --preview-size: 340px;
     }
 
     html { scroll-behavior: smooth; }
@@ -24,245 +24,210 @@
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: 'JetBrains Mono', monospace;
+      font-family: 'Inter', sans-serif;
+      font-weight: 200;
       min-height: 100vh;
-      /* subtle grid overlay */
-      background-image:
-        linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
-      background-size: 40px 40px;
+    }
+
+    /* ─── LAYOUT ─── */
+    .col {
+      max-width: var(--col-w);
+      margin: 0 auto;
+      padding: 0 40px;
     }
 
     /* ─── HEADER ─── */
     header {
-      padding: 64px 48px 48px;
+      padding: 88px 0 40px;
       border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 32px;
     }
 
-    .header-title {
-      font-family: 'Barlow Condensed', sans-serif;
-      font-weight: 700;
-      font-size: clamp(3rem, 8vw, 7rem);
-      line-height: 0.9;
-      letter-spacing: -0.01em;
+    .site-name {
+      font-family: 'Cormorant', serif;
+      font-weight: 300;
+      font-size: 0.8rem;
+      letter-spacing: 0.35em;
       text-transform: uppercase;
-      color: #fff;
-      user-select: none;
+      color: var(--text);
     }
 
-    .header-title span {
-      display: block;
-      color: var(--accent);
-    }
-
-    .header-meta {
-      text-align: right;
-      flex-shrink: 0;
-    }
-
-    .header-meta .count {
-      font-size: 0.65rem;
-      color: var(--text-dim);
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      margin-bottom: 4px;
-    }
-
-    .header-meta .count strong {
-      color: var(--accent);
-      font-size: 1.8rem;
-      font-family: 'Barlow Condensed', sans-serif;
-      font-weight: 600;
-      display: block;
-      line-height: 1;
-    }
-
-    /* ─── FILTER BAR ─── */
-    .filter-bar {
-      padding: 16px 48px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .filter-label {
-      font-size: 0.6rem;
+    .site-sub {
+      margin-top: 6px;
+      font-size: 0.58rem;
       color: var(--text-dim);
       letter-spacing: 0.2em;
       text-transform: uppercase;
-      margin-right: 8px;
+      font-weight: 200;
+    }
+
+    /* ─── FILTER ─── */
+    .filter-bar {
+      padding: 18px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .filter-label {
+      font-size: 0.55rem;
+      color: var(--text-muted);
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      font-weight: 300;
     }
 
     .tag-btn {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.65rem;
-      letter-spacing: 0.05em;
-      padding: 4px 10px;
-      border: 1px solid var(--border);
+      font-family: 'Inter', sans-serif;
+      font-weight: 200;
+      font-size: 0.58rem;
+      letter-spacing: 0.14em;
+      padding: 0;
+      border: none;
       background: transparent;
       color: var(--text-dim);
       cursor: pointer;
-      transition: all 0.15s ease;
       text-transform: lowercase;
-    }
-
-    .tag-btn:hover,
-    .tag-btn.active {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: var(--accent-glow);
-    }
-
-    /* ─── GRID ─── */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 1px;
-      padding: 1px;
-      background: var(--border);
-    }
-
-    /* ─── CARD ─── */
-    .card {
+      transition: color 0.2s;
       position: relative;
-      aspect-ratio: 1;
-      background: var(--surface);
-      overflow: hidden;
-      text-decoration: none;
-      display: block;
-      cursor: pointer;
     }
 
-    .card-thumb {
+    .tag-btn::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      width: 0;
+      height: 1px;
+      background: var(--text);
+      transition: width 0.25s ease;
+    }
+
+    .tag-btn:hover { color: var(--text); }
+
+    .tag-btn.active {
+      color: var(--text);
+    }
+
+    .tag-btn.active::after {
+      width: 100%;
+    }
+
+    /* ─── WORK LIST ─── */
+    .work-list {
+      list-style: none;
+    }
+
+    .work-item[data-hidden] {
+      display: none;
+    }
+
+    .work-link {
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      align-items: baseline;
+      gap: 0 28px;
+      padding: 26px 0;
+      border-bottom: 1px solid var(--border);
+      text-decoration: none;
+      color: inherit;
+      transition: opacity 0.2s;
+    }
+
+    .work-item:hover .work-link {
+      opacity: 0.55;
+    }
+
+    .work-num {
+      font-size: 0.55rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      font-weight: 200;
+      padding-top: 3px;
+    }
+
+    .work-title {
+      font-family: 'Cormorant', serif;
+      font-weight: 300;
+      font-size: 1.25rem;
+      letter-spacing: 0.02em;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .work-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 5px;
+    }
+
+    .work-tech {
+      font-size: 0.55rem;
+      color: var(--text-dim);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      font-weight: 300;
+    }
+
+    .work-date {
+      font-size: 0.55rem;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+      font-weight: 200;
+    }
+
+    /* ─── PREVIEW PANEL ─── */
+    #preview-panel {
+      position: fixed;
+      right: calc(50% - var(--col-w)/2 - var(--preview-size) - 48px);
+      top: 50%;
+      transform: translateY(-50%);
+      width: var(--preview-size);
+      aspect-ratio: 1;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 1.8s ease;
+      z-index: 50;
+    }
+
+    #preview-panel.visible {
+      opacity: 1;
+    }
+
+    #preview-content {
+      width: 100%;
+      height: 100%;
+    }
+
+    #preview-content img {
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
-      transition: transform 0.4s ease;
     }
 
-    .card-placeholder {
+    .preview-placeholder {
       width: 100%;
       height: 100%;
+      background: #eeece9;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--surface);
-      transition: background 0.3s ease;
     }
 
-    /* アニメーションするプレースホルダーアイコン */
-    .card-placeholder svg {
-      width: 40px;
-      height: 40px;
-      opacity: 0.12;
-      transition: opacity 0.3s ease;
-    }
-
-    .card:hover .card-placeholder {
-      background: #111;
-    }
-
-    .card:hover .card-placeholder svg {
+    .preview-placeholder svg {
+      width: 28px;
+      height: 28px;
       opacity: 0.2;
+      color: #999;
     }
 
-    .card:hover .card-thumb {
-      transform: scale(1.03);
-    }
-
-    /* ホバーオーバーレイ */
-    .card-overlay {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, transparent 50%);
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      padding: 20px;
-      opacity: 0;
-      transition: opacity 0.2s ease;
-    }
-
-    .card:hover .card-overlay {
-      opacity: 1;
-    }
-
-    /* 左上のインデックス番号 */
-    .card-index {
-      position: absolute;
-      top: 14px;
-      left: 16px;
-      font-size: 0.6rem;
-      color: var(--text-dim);
-      letter-spacing: 0.1em;
-      font-family: 'JetBrains Mono', monospace;
-      transition: color 0.2s;
-    }
-
-    .card:hover .card-index {
-      color: var(--accent);
-    }
-
-    /* アクセントライン（ホバー時） */
-    .card::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      height: 2px;
-      background: var(--accent);
-      transform: scaleX(0);
-      transform-origin: left;
-      transition: transform 0.3s ease;
-    }
-
-    .card:hover::after {
-      transform: scaleX(1);
-    }
-
-    .card-title {
-      font-family: 'Barlow Condensed', sans-serif;
-      font-weight: 600;
-      font-size: 1.1rem;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: #fff;
-      line-height: 1;
-    }
-
-    .card-info {
-      margin-top: 6px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .card-tech {
-      font-size: 0.6rem;
-      color: var(--accent);
-      letter-spacing: 0.1em;
-    }
-
-    .card-date {
-      font-size: 0.6rem;
-      color: var(--text-dim);
-      letter-spacing: 0.05em;
-    }
-
-    /* ─── EMPTY STATE ─── */
+    /* ─── EMPTY ─── */
     .empty {
-      grid-column: 1/-1;
-      padding: 80px 48px;
-      text-align: center;
-      color: var(--text-dim);
-      font-size: 0.7rem;
+      padding: 72px 0;
+      font-size: 0.58rem;
+      color: var(--text-muted);
       letter-spacing: 0.2em;
       text-transform: uppercase;
       display: none;
@@ -270,98 +235,141 @@
 
     /* ─── FOOTER ─── */
     footer {
-      padding: 24px 48px;
-      border-top: 1px solid var(--border);
+      padding: 36px 0 72px;
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      margin-top: 1px;
     }
 
     footer span {
-      font-size: 0.6rem;
-      color: var(--text-dim);
-      letter-spacing: 0.1em;
+      font-size: 0.55rem;
+      color: var(--text-muted);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-weight: 200;
     }
 
-    /* ─── HIDDEN (filter) ─── */
-    .card[data-hidden] {
-      display: none;
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 1100px) {
+      #preview-panel {
+        right: 24px;
+        --preview-size: 260px;
+      }
+    }
+
+    @media (max-width: 720px) {
+      #preview-panel { display: none; }
+      .col { padding: 0 24px; }
+      header { padding: 56px 0 28px; }
     }
   </style>
 </head>
 <body>
 
-<header>
-  <div class="header-title">
-    Creative<span>Coding</span>
-  </div>
-  <div class="header-meta">
-    <div class="count">
-      works
-      <strong id="work-count">0</strong>
-    </div>
-  </div>
-</header>
-
-<div class="filter-bar">
-  <span class="filter-label">filter</span>
-  <button class="tag-btn active" data-filter="all">all</button>
-  <button class="tag-btn" data-filter="p5.js">p5.js</button>
-  <button class="tag-btn" data-filter="three.js">three.js</button>
-  <button class="tag-btn" data-filter="glsl">glsl</button>
-  <button class="tag-btn" data-filter="canvas">canvas</button>
-</div>
-
-<div class="grid" id="gallery">
-
-  <!-- ▼ 作品を追加するときはここにカードを足す ▼ -->
-
-  <a class="card" href="sketches/01_playground/" data-tech="p5.js" data-date="2026-03-14">
-    <span class="card-index">01</span>
-    <div class="card-placeholder">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+<!-- ホバープレビュー（固定） -->
+<div id="preview-panel">
+  <div id="preview-content">
+    <div class="preview-placeholder">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.75">
         <circle cx="12" cy="12" r="10"/>
         <circle cx="12" cy="12" r="3"/>
       </svg>
     </div>
-    <div class="card-overlay">
-      <div class="card-title">Playground</div>
-      <div class="card-info">
-        <span class="card-tech">p5.js</span>
-        <span class="card-date">2026-03-14</span>
-      </div>
-    </div>
-  </a>
-
-  <!-- ▲ ここまで ▲ -->
-
-  <div class="empty" id="empty-state">no works found</div>
+  </div>
 </div>
 
-<footer>
-  <span>creative coding / generative art</span>
-  <span id="footer-count"></span>
-</footer>
+<div class="col">
+
+  <header>
+    <div class="site-name">Creative Coding</div>
+    <div class="site-sub"><span id="work-count">0</span> works</div>
+  </header>
+
+  <div class="filter-bar">
+    <span class="filter-label">filter</span>
+    <button class="tag-btn active" data-filter="all">all</button>
+    <button class="tag-btn" data-filter="p5.js">p5.js</button>
+    <button class="tag-btn" data-filter="three.js">three.js</button>
+    <button class="tag-btn" data-filter="glsl">glsl</button>
+    <button class="tag-btn" data-filter="canvas">canvas</button>
+  </div>
+
+  <ul class="work-list" id="gallery">
+
+    <!-- ▼ 作品を追加するときはここに li を足す ▼ -->
+
+    <li class="work-item" data-tech="p5.js" data-date="2026-03-14">
+      <a class="work-link" href="sketches/01_playground/">
+        <span class="work-num">01</span>
+        <span class="work-title">Playground</span>
+        <div class="work-right">
+          <span class="work-tech">p5.js</span>
+          <span class="work-date">2026–03–14</span>
+        </div>
+      </a>
+    </li>
+
+    <!-- ▲ ここまで ▲ -->
+
+    <li class="empty" id="empty-state">no works found</li>
+  </ul>
+
+  <footer>
+    <span>generative art / creative coding</span>
+    <span id="footer-count"></span>
+  </footer>
+
+</div>
 
 <script>
-  // サムネイル復元（localStorageから）
-  document.querySelectorAll('.card[data-tech]').forEach(card => {
-    const id = card.querySelector('.card-index').textContent.trim();
-    const saved = localStorage.getItem(`thumb_${id}`);
-    if (saved) {
-      const placeholder = card.querySelector('.card-placeholder');
-      const img = document.createElement('img');
-      img.className = 'card-thumb';
-      img.src = saved;
-      placeholder.replaceWith(img);
-    }
+  const panel   = document.getElementById('preview-panel');
+  const content = document.getElementById('preview-content');
+
+  // サムネイルをデータとして保持
+  const thumbs = {};
+  document.querySelectorAll('.work-item[data-tech]').forEach(item => {
+    const num = item.querySelector('.work-num').textContent.trim();
+    const saved = localStorage.getItem(`thumb_${num}`);
+    thumbs[num] = saved || null;
+  });
+
+  // プレビューパネル制御
+  let hideTimer = null;
+
+  document.querySelectorAll('.work-item[data-tech]').forEach(item => {
+    item.addEventListener('mouseenter', () => {
+      clearTimeout(hideTimer);
+
+      const num = item.querySelector('.work-num').textContent.trim();
+      const src = thumbs[num];
+
+      if (src) {
+        content.innerHTML = `<img src="${src}" alt="">`;
+      } else {
+        content.innerHTML = `<div class="preview-placeholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.75">
+            <circle cx="12" cy="12" r="10"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </div>`;
+      }
+
+      // フェードイン（1.8s）
+      panel.style.transition = 'opacity 1.8s ease';
+      panel.classList.add('visible');
+    });
+
+    item.addEventListener('mouseleave', () => {
+      // フェードアウト（早め）
+      panel.style.transition = 'opacity 0.4s ease';
+      panel.classList.remove('visible');
+    });
   });
 
   // 作品数カウント
-  const cards = document.querySelectorAll('.card[data-tech]');
-  document.getElementById('work-count').textContent = cards.length;
-  document.getElementById('footer-count').textContent = `${cards.length} work${cards.length !== 1 ? 's' : ''}`;
+  const items = document.querySelectorAll('.work-item[data-tech]');
+  document.getElementById('work-count').textContent = items.length;
+  document.getElementById('footer-count').textContent =
+    `${items.length} work${items.length !== 1 ? 's' : ''}`;
 
   // フィルター
   document.querySelectorAll('.tag-btn').forEach(btn => {
@@ -372,13 +380,14 @@
       const filter = btn.dataset.filter;
       let visible = 0;
 
-      cards.forEach(card => {
-        const match = filter === 'all' || card.dataset.tech === filter;
-        card.toggleAttribute('data-hidden', !match);
+      items.forEach(item => {
+        const match = filter === 'all' || item.dataset.tech === filter;
+        item.toggleAttribute('data-hidden', !match);
         if (match) visible++;
       });
 
-      document.getElementById('empty-state').style.display = visible === 0 ? 'block' : 'none';
+      document.getElementById('empty-state').style.display =
+        visible === 0 ? 'block' : 'none';
     });
   });
 </script>
