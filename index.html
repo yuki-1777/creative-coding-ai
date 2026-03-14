@@ -2,57 +2,140 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Creative Coding</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #050505;
+      --surface: #0d0d0d;
+      --border: #1c1c1c;
+      --text: #c8c8c8;
+      --text-dim: #444;
+      --accent: #ff3c00;
+      --accent-glow: rgba(255, 60, 0, 0.15);
+    }
+
+    html { scroll-behavior: smooth; }
 
     body {
-      background: #0e0e0e;
-      color: #eee;
-      font-family: 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
       min-height: 100vh;
+      /* subtle grid overlay */
+      background-image:
+        linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
+      background-size: 40px 40px;
     }
 
+    /* ─── HEADER ─── */
     header {
-      padding: 48px 48px 32px;
-      border-bottom: 1px solid #222;
+      padding: 64px 48px 48px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 32px;
     }
 
-    header h1 {
-      font-size: 1.4rem;
-      font-weight: 400;
-      letter-spacing: 0.15em;
+    .header-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: clamp(3rem, 8vw, 7rem);
+      line-height: 0.9;
+      letter-spacing: -0.01em;
       text-transform: uppercase;
       color: #fff;
+      user-select: none;
     }
 
-    header p {
-      margin-top: 6px;
-      font-size: 0.8rem;
-      color: #555;
+    .header-title span {
+      display: block;
+      color: var(--accent);
+    }
+
+    .header-meta {
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .header-meta .count {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .header-meta .count strong {
+      color: var(--accent);
+      font-size: 1.8rem;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 600;
+      display: block;
+      line-height: 1;
+    }
+
+    /* ─── FILTER BAR ─── */
+    .filter-bar {
+      padding: 16px 48px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter-label {
+      font-size: 0.6rem;
+      color: var(--text-dim);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-right: 8px;
+    }
+
+    .tag-btn {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
       letter-spacing: 0.05em;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-transform: lowercase;
     }
 
+    .tag-btn:hover,
+    .tag-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-glow);
+    }
+
+    /* ─── GRID ─── */
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 2px;
-      padding: 2px;
-      margin-top: 2px;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1px;
+      padding: 1px;
+      background: var(--border);
     }
 
+    /* ─── CARD ─── */
     .card {
       position: relative;
       aspect-ratio: 1;
-      background: #1a1a1a;
+      background: var(--surface);
       overflow: hidden;
-      cursor: pointer;
       text-decoration: none;
       display: block;
-    }
-
-    .card:hover .card-overlay {
-      opacity: 1;
+      cursor: pointer;
     }
 
     .card-thumb {
@@ -60,24 +143,44 @@
       height: 100%;
       object-fit: cover;
       display: block;
+      transition: transform 0.4s ease;
     }
 
-    /* サムネイルがない場合のプレースホルダー */
     .card-placeholder {
       width: 100%;
       height: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #1a1a1a;
-      color: #333;
-      font-size: 3rem;
+      background: var(--surface);
+      transition: background 0.3s ease;
     }
 
+    /* アニメーションするプレースホルダーアイコン */
+    .card-placeholder svg {
+      width: 40px;
+      height: 40px;
+      opacity: 0.12;
+      transition: opacity 0.3s ease;
+    }
+
+    .card:hover .card-placeholder {
+      background: #111;
+    }
+
+    .card:hover .card-placeholder svg {
+      opacity: 0.2;
+    }
+
+    .card:hover .card-thumb {
+      transform: scale(1.03);
+    }
+
+    /* ホバーオーバーレイ */
     .card-overlay {
       position: absolute;
       inset: 0;
-      background: rgba(0,0,0,0.7);
+      background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, transparent 50%);
       display: flex;
       flex-direction: column;
       justify-content: flex-end;
@@ -86,53 +189,199 @@
       transition: opacity 0.2s ease;
     }
 
-    .card-overlay h2 {
-      font-size: 0.95rem;
-      font-weight: 500;
-      letter-spacing: 0.05em;
-      color: #fff;
+    .card:hover .card-overlay {
+      opacity: 1;
     }
 
-    .card-overlay p {
-      margin-top: 4px;
-      font-size: 0.75rem;
-      color: #aaa;
-    }
-
-    .card-num {
+    /* 左上のインデックス番号 */
+    .card-index {
       position: absolute;
-      top: 16px;
+      top: 14px;
       left: 16px;
+      font-size: 0.6rem;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+      font-family: 'JetBrains Mono', monospace;
+      transition: color 0.2s;
+    }
+
+    .card:hover .card-index {
+      color: var(--accent);
+    }
+
+    /* アクセントライン（ホバー時） */
+    .card::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: var(--accent);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.3s ease;
+    }
+
+    .card:hover::after {
+      transform: scaleX(1);
+    }
+
+    .card-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 600;
+      font-size: 1.1rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #fff;
+      line-height: 1;
+    }
+
+    .card-info {
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-tech {
+      font-size: 0.6rem;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+    }
+
+    .card-date {
+      font-size: 0.6rem;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+    }
+
+    /* ─── EMPTY STATE ─── */
+    .empty {
+      grid-column: 1/-1;
+      padding: 80px 48px;
+      text-align: center;
+      color: var(--text-dim);
       font-size: 0.7rem;
-      color: #444;
-      letter-spacing: 0.08em;
-      font-family: monospace;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      display: none;
+    }
+
+    /* ─── FOOTER ─── */
+    footer {
+      padding: 24px 48px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 1px;
+    }
+
+    footer span {
+      font-size: 0.6rem;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+    }
+
+    /* ─── HIDDEN (filter) ─── */
+    .card[data-hidden] {
+      display: none;
     }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>Creative Coding</h1>
-  <p>generative art &amp; creative coding playground</p>
+  <div class="header-title">
+    Creative<span>Coding</span>
+  </div>
+  <div class="header-meta">
+    <div class="count">
+      works
+      <strong id="work-count">0</strong>
+    </div>
+  </div>
 </header>
+
+<div class="filter-bar">
+  <span class="filter-label">filter</span>
+  <button class="tag-btn active" data-filter="all">all</button>
+  <button class="tag-btn" data-filter="p5.js">p5.js</button>
+  <button class="tag-btn" data-filter="three.js">three.js</button>
+  <button class="tag-btn" data-filter="glsl">glsl</button>
+  <button class="tag-btn" data-filter="canvas">canvas</button>
+</div>
 
 <div class="grid" id="gallery">
 
-  <!-- ▼ スケッチを追加するときはここにカードを足す -->
+  <!-- ▼ 作品を追加するときはここにカードを足す ▼ -->
 
-  <a class="card" href="sketches/01_playground/index.html">
-    <span class="card-num">01</span>
-    <div class="card-placeholder">◎</div>
+  <a class="card" href="sketches/01_playground/" data-tech="p5.js" data-date="2026-03-14">
+    <span class="card-index">01</span>
+    <div class="card-placeholder">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+        <circle cx="12" cy="12" r="10"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+    </div>
     <div class="card-overlay">
-      <h2>Playground</h2>
-      <p>mouse trail — getting started</p>
+      <div class="card-title">Playground</div>
+      <div class="card-info">
+        <span class="card-tech">p5.js</span>
+        <span class="card-date">2026-03-14</span>
+      </div>
     </div>
   </a>
 
-  <!-- ▲ ここまで -->
+  <!-- ▲ ここまで ▲ -->
 
+  <div class="empty" id="empty-state">no works found</div>
 </div>
+
+<footer>
+  <span>creative coding / generative art</span>
+  <span id="footer-count"></span>
+</footer>
+
+<script>
+  // サムネイル復元（localStorageから）
+  document.querySelectorAll('.card[data-tech]').forEach(card => {
+    const id = card.querySelector('.card-index').textContent.trim();
+    const saved = localStorage.getItem(`thumb_${id}`);
+    if (saved) {
+      const placeholder = card.querySelector('.card-placeholder');
+      const img = document.createElement('img');
+      img.className = 'card-thumb';
+      img.src = saved;
+      placeholder.replaceWith(img);
+    }
+  });
+
+  // 作品数カウント
+  const cards = document.querySelectorAll('.card[data-tech]');
+  document.getElementById('work-count').textContent = cards.length;
+  document.getElementById('footer-count').textContent = `${cards.length} work${cards.length !== 1 ? 's' : ''}`;
+
+  // フィルター
+  document.querySelectorAll('.tag-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const filter = btn.dataset.filter;
+      let visible = 0;
+
+      cards.forEach(card => {
+        const match = filter === 'all' || card.dataset.tech === filter;
+        card.toggleAttribute('data-hidden', !match);
+        if (match) visible++;
+      });
+
+      document.getElementById('empty-state').style.display = visible === 0 ? 'block' : 'none';
+    });
+  });
+</script>
 
 </body>
 </html>
