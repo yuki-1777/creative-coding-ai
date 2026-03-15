@@ -125,7 +125,7 @@ async function startWithCamera() {
     // Freeverb は同期で使えるリバーブ（Reverb と異なり await 不要）
     reverb = new Tone.Freeverb({ roomSize: 0.6, dampening: 3000 }).toDestination();
     gainNode = new Tone.Gain(0.8).connect(reverb);
-    toneWaveform = new Tone.Waveform(CANVAS_H);
+    toneWaveform = new Tone.Waveform(512);
     gainNode.connect(toneWaveform);
 
     const baseFreqs = [220, 330, 440, 550, 660, 880];
@@ -139,8 +139,10 @@ async function startWithCamera() {
       oscillators.push(osc);
     }
     audioStarted = true;
+    console.log('Tone.js OK, oscillators:', oscillators.length);
   } catch (e) {
     audioStarted = false;
+    console.error('Tone.js init failed:', e);
   }
 
   // カメラ取得試行
