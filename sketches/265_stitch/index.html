@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stitch</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0eeea; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const W = window.innerWidth, H = window.innerHeight;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xf0eeea);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 100);
+  camera.position.set(0, 2.5, 12);
+  camera.lookAt(0, 0, 0);
+
+  // 布面のY座標
+  const FABRIC_Y = 0;
+
+  // 針
+  const NEEDLE_LEN = 1.2;
+  let needleX = -4.5;
+  let needleY = NEEDLE_LEN; // 初期は上
+  let needlePhase = 0;       // 0〜2π
+  const NEEDLE_SPEED = 0.06;
+  let fabricFeedSpeed = 0.025; // 布の送り速度
+  let stitchPattern = 0;       // 縫い方パターン
+
+  // 針のジオメトリ（棒 + 先端の小さなリング）
+  const needleGroup = new THREE.Group();
+  scene.add(needleGroup);
+
+  const needleBodyPts = [
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, NEEDLE_LEN, 0)
+  ];
+  const needleBodyMat = new THREE.LineBasicMaterial({ color: 0x444440 });
+  const needleBodyLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(needleBodyPts),
+    needleBodyMat
+  );
+  needleGroup.add(needleBodyLine);
+
+  // 針の目（穴）
+  const eyePts = [];
+  for (let i = 0; i <= 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    eyePts.push(new THREE.Vector3(Math.cos(a) * 0.04, NEEDLE_LEN * 0.15 + Math.sin(a) * 0.04, 0.01));
+  }
+  needleGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(eyePts),
+    new THREE.LineBasicMaterial({ color: 0x888882 })));
+
+  // 布の横線（2本：上布・下布）
+  const fabricMat = new THREE.LineBasicMaterial({ color: 0x888882, opacity: 0.5, transparent: true });
+  const topFabric = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-6, FABRIC_Y + 0.02, 0),
+      new THREE.Vector3(6, FABRIC_Y + 0.02, 0)
+    ]), fabricMat);
+  scene.add(topFabric);
+  const botFabric = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-6, FABRIC_Y - 0.02, 0),
+      new THREE.Vector3(6, FABRIC_Y - 0.02, 0)
+    ]), fabricMat);
+  scene.add(botFabric);
+
+  // 縫い目の管理
+  const stitchPoints = []; // { x, isAbove } 各貫通点
+  let stitchLines = [];    // scene内の縫い目ライン
+
+  // 縫い目ラインを再描画
+  function rebuildStitchLines() {
+    stitchLines.forEach(l => scene.remove(l));
+    stitchLines = [];
+
+    if (stitchPoints.length < 2) return;
+
+    for (let i = 0; i < stitchPoints.length - 1; i++) {
+      const p0 = stitchPoints[i];
+      const p1 = stitchPoints[i + 1];
+      const y0 = p0.isAbove ? FABRIC_Y + 0.15 : FABRIC_Y - 0.15;
+      const y1 = p1.isAbove ? FABRIC_Y + 0.15 : FABRIC_Y - 0.15;
+
+      const pts = [];
+      const SEGS = 8;
+      for (let s = 0; s <= SEGS; s++) {
+        const t = s / SEGS;
+        const x = p0.x + (p1.x - p0.x) * t;
+        // 表側は少し弧を描く、裏側はまっすぐ
+        const midY = (y0 + y1) / 2;
+        const arcAmount = p0.isAbove ? 0.08 : 0.02;
+        const y = y0 + (y1 - y0) * t + arcAmount * Math.sin(t * Math.PI);
+        pts.push(new THREE.Vector3(x, y, 0));
+      }
+
+      // 表はやや濃く、裏はやや薄い
+      const col = p0.isAbove ? 0x444440 : 0x999994;
+      const mat = new THREE.LineBasicMaterial({ color: col });
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
+      scene.add(line);
+      stitchLines.push(line);
+    }
+  }
+
+  // 縫い方パターンの種類
+  const patterns = [
+    { name: 'straight', checkFn: (phase) => true },         // 通常縫い（毎回貫通）
+    { name: 'skip', checkFn: (phase, i) => i % 3 !== 1 },   // 1目おき
+    { name: 'zigzag', checkFn: () => true }                  // ジグザグ（xオフセット）
+  ];
+
+  let stitchIndex = 0;
+  let isPiercing = false; // 布を貫通中か
+  let lastPierceAbove = true;
+
+  // クリックでパターン変更
+  renderer.domElement.addEventListener('click', () => {
+    stitchPattern = (stitchPattern + 1) % patterns.length;
+  });
+
+  let time = 0;
+
+  function animate() {
+    requestAnimationFrame(animate);
+    time++;
+
+    // 針の上下運動（正弦波）
+    needlePhase += NEEDLE_SPEED;
+    const sinVal = Math.sin(needlePhase);
+    needleY = sinVal * NEEDLE_LEN * 0.7; // 上下の振れ
+    needleGroup.position.set(needleX, needleY, 0);
+
+    // 布を貫通するタイミングを検出
+    const prevSin = Math.sin(needlePhase - NEEDLE_SPEED);
+    const crossDown = prevSin > -0.1 && sinVal <= -0.1;
+    const crossUp = prevSin < -0.3 && sinVal >= -0.3;
+
+    if (crossDown) {
+      // 針が布を下から貫通
+      let x = needleX;
+      if (stitchPattern === 2) { // ジグザグ
+        x += (stitchIndex % 2 === 0 ? 0.15 : -0.15);
+      }
+      const doStitch = stitchPattern === 1 ? (stitchIndex % 3 !== 1) : true;
+      if (doStitch) {
+        stitchPoints.push({ x, isAbove: false });
+        stitchIndex++;
+        rebuildStitchLines();
+      }
+    }
+    if (crossUp) {
+      // 針が布を上から出る
+      let x = needleX;
+      if (stitchPattern === 2) {
+        x += (stitchIndex % 2 === 0 ? 0.15 : -0.15);
+      }
+      const doStitch = stitchPattern === 1 ? (stitchIndex % 3 !== 1) : true;
+      if (doStitch) {
+        stitchPoints.push({ x, isAbove: true });
+        stitchIndex++;
+        rebuildStitchLines();
+      }
+    }
+
+    // 布の送り（針が上にあるとき布が動く）
+    if (sinVal > 0.3) {
+      needleX += fabricFeedSpeed;
+      if (needleX > 5.0) {
+        // 右端に達したら最初に戻る
+        needleX = -4.5;
+        stitchPoints.length = 0;
+        stitchIndex = 0;
+        rebuildStitchLines();
+      }
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  window.addEventListener('resize', () => {
+    const nW = window.innerWidth, nH = window.innerHeight;
+    renderer.setSize(nW, nH);
+    camera.aspect = nW / nH;
+    camera.updateProjectionMatrix();
+  });
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '265',
+  title:  'Stitch',
+  detail: 'ミシン針が左から右へ布を縫い進んでいます。針が布を通り抜けるたびに縫い目が増えます。クリックすると縫い方が変わります（通常縫い → 飛ばし縫い → ジグザグ縫い）。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
