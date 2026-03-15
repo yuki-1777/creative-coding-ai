@@ -2626,5 +2626,14 @@
     "path": "sketches/292_reel/",
     "description": "映写機のコマ送りだけ書いた。フィルムは24コマ毎秒で送られ続けるが、映っているものは何もない。",
     "thumb": "img/thumb_292.png"
+  },
+  {
+    "num": "293",
+    "title": "Nacre",
+    "tech": "glsl",
+    "date": "2026-03-16",
+    "path": "sketches/293_nacre/",
+    "description": "貝殻の内側を書いた。薄い層が重なるたびに光が干渉して、グレーの中に青みが滲んだ。",
+    "thumb": "img/thumb_293.png"
   }
 ]
