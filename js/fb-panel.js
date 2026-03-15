@@ -163,13 +163,16 @@
   document.body.appendChild(trigger);
 
   if (isSketchPage) {
-    // スケッチページ：sketch-fb-panel（bottom:106, ~100px高）の上
-    trigger.style.bottom = '214px';
-    trigger.style.right  = '32px';
-    overlay.style.bottom = '252px';
-    overlay.style.right  = '32px';
+    // スケッチページ：DEV(right:32,bottom:32)の左横に並べる
+    // save thumb(right:32,bottom:66) / sketch-fb-panel(right:32,bottom:106) とは行が異なり重ならない
+    trigger.style.bottom = '32px';
+    trigger.style.right  = '170px';
+    // オーバーレイはトリガーの上に展開
+    overlay.style.bottom = '70px';
+    overlay.style.right  = '170px';
   } else {
-    // ギャラリーページ：DEVボタン横（bottom:32, right:48）の左
+    // ギャラリーページ：DEVボタン(right:48)の左
+    trigger.style.right  = '100px';
     overlay.style.bottom = '72px';
     overlay.style.right  = '32px';
   }

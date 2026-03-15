@@ -250,8 +250,7 @@
       justify-content: space-between;
       align-items: center;
     }
-    #sketch-fb-clear,
-    #sketch-fb-list-btn {
+    #sketch-fb-clear {
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
       font-size: 0.58rem;
       letter-spacing: 0.1em;
@@ -262,9 +261,7 @@
       padding: 0;
       transition: color 0.2s;
     }
-    #sketch-fb-clear:hover,
-    #sketch-fb-list-btn:hover { color: rgba(42,42,42,0.6); }
-    #sketch-fb-list-btn.open { color: rgba(42,42,42,0.7); }
+    #sketch-fb-clear:hover { color: rgba(42,42,42,0.6); }
     #sketch-fb-textarea {
       display: block;
       width: 100%;
@@ -359,7 +356,7 @@
     const fbPanel = document.createElement('div');
     fbPanel.id = 'sketch-fb-panel';
     fbPanel.innerHTML = `
-      <div id="sketch-fb-label"><span>FB</span><span style="display:flex;gap:10px"><button id="sketch-fb-list-btn">list</button><button id="sketch-fb-clear">clear</button></span></div>
+      <div id="sketch-fb-label"><span>FB</span><button id="sketch-fb-clear">clear</button></div>
       <textarea id="sketch-fb-textarea" placeholder="フィードバックを入力…"></textarea>
     `;
     document.body.appendChild(fbPanel);
