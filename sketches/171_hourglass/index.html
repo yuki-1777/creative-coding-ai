@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>171 – Hourglass</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f2ed; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 砂時計：粒子が落ちていく。クリックでひっくり返す。
+
+const NUM_GRAINS = 200;
+const HG_W = 100;   // 最大幅（上下端）
+const HG_H = 210;   // 全体の高さ
+const NECK = 12;    // くびれ幅
+const GRAIN_R = 3;  // 粒子半径（固定）
+
+let grains = [];
+let gravDir = 1;        // 1: 下向き, -1: 上向き（ひっくり返し後）
+let flipAngle = 0;      // 現在の回転角度
+let flipStart = 0;
+let flipEnd = 0;
+let isFlipping = false;
+let flipProgress = 0;
+let totalFlips = 0;
+
+function hourglassWidth(y) {
+  const t = Math.abs(y) / (HG_H / 2);
+  return NECK + (HG_W - NECK) * t * t;
+}
+
+function isInsideHourglass(x, y) {
+  if (Math.abs(y) > HG_H / 2 - GRAIN_R) return false;
+  const hw = hourglassWidth(y) / 2 - GRAIN_R;
+  return Math.abs(x) <= hw;
+}
+
+class Grain {
+  constructor() {
+    this.vx = 0;
+    this.vy = 0;
+    this.settled = false;
+    // 上の室に配置
+    this.resetToUpper();
+  }
+
+  resetToUpper() {
+    // 上の室 y: -(HG_H/2 - GRAIN_R) ~ -(GRAIN_R*2+4)
+    // y を先に決め、その y での有効幅内に x を置く
+    let placed = false;
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const ty = random(-(HG_H / 2 - GRAIN_R - 2), -(GRAIN_R * 2 + 4));
+      const hw = hourglassWidth(ty) / 2 - GRAIN_R - 1;
+      if (hw <= 0) continue;
+      this.x = random(-hw, hw);
+      this.y = ty;
+      placed = true;
+      break;
+    }
+    if (!placed) {
+      // フォールバック: 上端付近（幅が広い場所）
+      this.y = -(HG_H / 2 - GRAIN_R - 5);
+      const hw = hourglassWidth(this.y) / 2 - GRAIN_R - 1;
+      this.x = random(-hw, hw);
+    }
+    this.vx = 0;
+    this.vy = 0;
+    this.settled = false;
+  }
+
+  update() {
+    if (this.settled) return;
+
+    // 重力（ゆっくり）
+    this.vy += 0.06 * gravDir;
+    this.vx *= 0.96;
+    this.vy = constrain(this.vy, -4, 4);
+
+    let nx = this.x + this.vx;
+    let ny = this.y + this.vy;
+
+    // 壁との衝突
+    const wallHW = hourglassWidth(ny) / 2 - GRAIN_R;
+    if (wallHW > 0 && Math.abs(nx) > wallHW) {
+      this.vx *= -0.3;
+      nx = constrain(nx, -wallHW, wallHW);
+    }
+
+    // 上下端
+    const halfH = HG_H / 2 - GRAIN_R;
+    if (ny > halfH) {
+      ny = halfH;
+      this.vy *= -0.1;
+    } else if (ny < -halfH) {
+      ny = -halfH;
+      this.vy *= -0.1;
+    }
+
+    this.x = nx;
+    this.y = ny;
+
+    // 下の室に達して安定
+    const lowerBound = gravDir > 0 ? GRAIN_R * 3 : -(GRAIN_R * 3);
+    const inLower = gravDir > 0 ? (this.y > lowerBound) : (this.y < lowerBound);
+    if (inLower && Math.abs(this.vy) < 0.18 && Math.abs(this.vx) < 0.18) {
+      this.settled = true;
+      this.vy = 0;
+      this.vx = 0;
+    }
+  }
+
+  draw() {
+    fill(68, 60, 52, 215);
+    noStroke();
+    ellipse(this.x, this.y, GRAIN_R * 2, GRAIN_R * 2);
+  }
+}
+
+function easeInOut(t) {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  for (let i = 0; i < NUM_GRAINS; i++) {
+    grains.push(new Grain(i));
+  }
+}
+
+function draw() {
+  background(245, 242, 237);
+
+  // ひっくり返しアニメーション
+  if (isFlipping) {
+    flipProgress += 0.032;
+    if (flipProgress >= 1) {
+      flipProgress = 1;
+      isFlipping = false;
+      flipAngle = flipEnd;
+    }
+    flipAngle = lerp(flipStart, flipEnd, easeInOut(flipProgress));
+  }
+
+  const cx = width / 2;
+  const cy = height / 2;
+
+  push();
+  translate(cx, cy);
+  rotate(flipAngle);
+
+  // 砂時計の輪郭
+  drawHourglass();
+
+  // 粒子
+  for (let g of grains) {
+    g.update();
+    g.draw();
+  }
+
+  pop();
+
+  // ヒント（最初だけ）
+  if (totalFlips === 0) {
+    fill(140, 130, 118, 140);
+    noStroke();
+    textSize(12);
+    textAlign(CENTER);
+    text('クリックでひっくり返す', cx, cy + HG_H / 2 + 40);
+  }
+}
+
+function drawHourglass() {
+  stroke(85, 78, 70);
+  strokeWeight(1.5);
+  noFill();
+
+  // 左の輪郭
+  beginShape();
+  for (let y = -HG_H / 2; y <= HG_H / 2; y += 3) {
+    vertex(-hourglassWidth(y) / 2, y);
+  }
+  endShape();
+
+  // 右の輪郭
+  beginShape();
+  for (let y = -HG_H / 2; y <= HG_H / 2; y += 3) {
+    vertex(hourglassWidth(y) / 2, y);
+  }
+  endShape();
+
+  // 上端・下端の横線
+  line(-HG_W / 2, -HG_H / 2, HG_W / 2, -HG_H / 2);
+  line(-HG_W / 2, HG_H / 2, HG_W / 2, HG_H / 2);
+}
+
+function mousePressed() {
+  if (isFlipping) return;
+
+  totalFlips++;
+  flipStart = flipAngle;
+  flipEnd = flipAngle + PI;
+  flipProgress = 0;
+  isFlipping = true;
+  gravDir *= -1;
+
+  for (let g of grains) {
+    g.settled = false;
+    g.vy += random(-0.8, 0.8);
+    g.vx += random(-0.4, 0.4);
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '171',
+  title: 'Hourglass',
+  detail: 'クリックで砂時計をひっくり返す。280粒の砂がくびれをゆっくり通って落ちていく。各粒子に重力と壁の当たり判定を持たせた。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
