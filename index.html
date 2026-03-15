@@ -544,9 +544,12 @@
     const emptyState = document.getElementById('empty-state');
 
     works.forEach(w => {
+      const techs    = Array.isArray(w.tech) ? w.tech : [w.tech];
+      const techLabel = techs.join(' · ');
+
       const li = document.createElement('li');
       li.className = 'work-item';
-      li.dataset.tech = w.tech;
+      li.dataset.tech = techs.join(',');
 
       const thumbContent = w.thumb
         ? `<img class="work-thumb" src="${w.thumb}" alt="${w.title}" onerror="this.style.display='none';this.parentElement.querySelector('.work-fallback').style.display='flex'">`
@@ -554,14 +557,14 @@
         : `<div class="work-fallback">${w.num}</div>`;
 
       li.innerHTML = `
-        <a class="work-link" href="${w.path}" aria-label="${w.title} — ${w.tech}">
+        <a class="work-link" href="${w.path}" aria-label="${w.title} — ${techLabel}">
           ${thumbContent}
           <div class="work-overlay">
             <div class="overlay-num">${w.num}</div>
             <div class="overlay-desc">${w.description || ''}</div>
             <div class="overlay-meta">
               <span class="overlay-title">${w.title}</span>
-              <span class="overlay-tech">${w.tech}</span>
+              <span class="overlay-tech">${techLabel}</span>
             </div>
           </div>
         </a>
@@ -570,7 +573,7 @@
           <span class="list-desc">${w.description || w.title}</span>
           <span class="list-meta">
             <span class="list-title">${w.title}</span>
-            <span class="list-sub">${w.tech} · ${formatDate(w.date)}</span>
+            <span class="list-sub">${techLabel} · ${formatDate(w.date)}</span>
           </span>
         </a>
       `;
@@ -613,7 +616,7 @@
     currentFilter = filter;
     let visible = 0;
     document.querySelectorAll('.work-item[data-tech]').forEach(item => {
-      const match = filter === 'all' || item.dataset.tech === filter;
+      const match = filter === 'all' || item.dataset.tech.split(',').includes(filter);
       item.toggleAttribute('data-hidden', !match);
       if (match) visible++;
     });
