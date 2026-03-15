@@ -42,6 +42,8 @@ if (targets.length === 0) {
       '--use-angle=swiftshader',
       '--enable-webgl',
       '--ignore-gpu-blocklist',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
     ]
   });
   const page    = await browser.newPage();
