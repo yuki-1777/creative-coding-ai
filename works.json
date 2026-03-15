@@ -1305,6 +1305,33 @@
     "thumb": "img/thumb_145.png"
   },
   {
+    "num": "146",
+    "title": "Crystal",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/146_crystal/",
+    "description": "正八面体が5×5×5の格子状に並んでいる。それぞれ違うリズムで回転していて、マウスを動かすと格子全体が傾く。カーソルの近くにある結晶が少し明るく見える。",
+    "thumb": "img/thumb_146.png"
+  },
+  {
+    "num": "147",
+    "title": "Vortex",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/147_vortex/",
+    "description": "5本のアームが中心から外へ螺旋を描いている。マウスを左右に動かすとアームのねじれ具合が変わる。上下に動かすと見る角度が変わり、渦の形が変化する。",
+    "thumb": "img/thumb_147.png"
+  },
+  {
+    "num": "148",
+    "title": "Lattice",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/148_lattice/",
+    "description": "格子状の線が波に揺れている。複数の波が重なって、布が風を受けているような動きになる。マウスを動かすと波のパターンが変化し、カメラがゆっくり周回して格子を立体的に見せる。",
+    "thumb": "img/thumb_148.png"
+  },
+  {
     "num": "155",
     "title": "Breath Ring",
     "tech": "p5.js",
@@ -1312,5 +1339,14 @@
     "path": "sketches/155_breath_ring/",
     "description": "同心円が中心から外へ向かって、波のように膨らんだり縮んだりしている。マウスを中心に近づけると呼吸が速くなる。円だけで作った。",
     "thumb": "img/thumb_155.png"
+  },
+  {
+    "num": "156",
+    "title": "Orbit",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/156_orbit/",
+    "description": "5つの点がそれぞれ異なる軌道を回り、後ろに軌跡を引く。マウスでドラッグすると視点が変わり、軌跡が3D空間に広がっているのがわかる。",
+    "thumb": "img/thumb_156.png"
   }
 ]
