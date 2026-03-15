@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>302 – Suture</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeece8; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const W = window.innerWidth, H = window.innerHeight;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xeeece8);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 200);
+  camera.position.set(0, 0, 10);
+  camera.lookAt(0, 0, 0);
+
+  // Suture path: the wound line (straight horizontal)
+  const WOUND_LENGTH = 9;
+  const NUM_STITCHES = 10;
+  const STITCH_SPACING = WOUND_LENGTH / (NUM_STITCHES - 1);
+
+  // Wound line
+  const woundMat = new THREE.LineBasicMaterial({ color: 0x888888, linewidth: 1 });
+  const woundPts = [
+    new THREE.Vector3(-WOUND_LENGTH / 2, 0, 0),
+    new THREE.Vector3(WOUND_LENGTH / 2, 0, 0)
+  ];
+  const woundGeo = new THREE.BufferGeometry().setFromPoints(woundPts);
+  scene.add(new THREE.Line(woundGeo, woundMat));
+
+  // Each stitch: two anchor dots + the over-crossing suture loop
+  // A stitch pattern: top left anchor → crosses over wound → top right anchor
+  // thread goes: left anchor (above) → left skin → below wound → right skin → right anchor (above)
+
+  const stitchMat = new THREE.LineBasicMaterial({ color: 0x222222, linewidth: 1 });
+  const ghostMat = new THREE.LineBasicMaterial({ color: 0xcccccc, linewidth: 1 });
+
+  const stitches = [];
+
+  for (let i = 0; i < NUM_STITCHES; i++) {
+    const cx = -WOUND_LENGTH / 2 + i * STITCH_SPACING;
+
+    // Stitch parameters
+    const sw = 0.5;  // half width of stitch
+    const sh = 0.35; // height above wound
+    const sd = 0.08; // depth below wound (going through tissue)
+
+    // Suture path: interrupted mattress-style
+    // Left entry point (above, left of wound)
+    // Crosses diagonally to right side of wound
+    const stitchPts = [
+      // Left knot side
+      new THREE.Vector3(cx - sw, sh + 0.05, 0.01),
+      new THREE.Vector3(cx - sw * 0.6, sh, 0.01),
+      // cross over wound diagonally
+      new THREE.Vector3(cx + sw * 0.6, sh, 0.01),
+      new THREE.Vector3(cx + sw, sh + 0.05, 0.01),
+    ];
+
+    // Below-wound hidden path (dashed look via shorter line)
+    const underPts = [
+      new THREE.Vector3(cx + sw * 0.5, -sh * 0.5, -0.01),
+      new THREE.Vector3(cx + sw * 0.2, -sd, -0.01),
+      new THREE.Vector3(cx - sw * 0.2, -sd, -0.01),
+      new THREE.Vector3(cx - sw * 0.5, -sh * 0.5, -0.01),
+    ];
+
+    // Vertical needle entry lines
+    const entryLeftPts = [
+      new THREE.Vector3(cx - sw * 0.6, sh, 0.01),
+      new THREE.Vector3(cx - sw * 0.5, 0, 0.01),
+      new THREE.Vector3(cx - sw * 0.5, -sh * 0.5, -0.01),
+    ];
+    const entryRightPts = [
+      new THREE.Vector3(cx + sw * 0.6, sh, 0.01),
+      new THREE.Vector3(cx + sw * 0.5, 0, 0.01),
+      new THREE.Vector3(cx + sw * 0.5, -sh * 0.5, -0.01),
+    ];
+
+    const stitchGeo = new THREE.BufferGeometry().setFromPoints(stitchPts);
+    const underGeo  = new THREE.BufferGeometry().setFromPoints(underPts);
+    const leftGeo   = new THREE.BufferGeometry().setFromPoints(entryLeftPts);
+    const rightGeo  = new THREE.BufferGeometry().setFromPoints(entryRightPts);
+
+    const stitchLine = new THREE.Line(stitchGeo, stitchMat.clone());
+    const underLine  = new THREE.Line(underGeo, ghostMat.clone());
+    const leftLine   = new THREE.Line(leftGeo, stitchMat.clone());
+    const rightLine  = new THREE.Line(rightGeo, stitchMat.clone());
+
+    // Knot: small cross at top of each stitch
+    const knotPts = [
+      new THREE.Vector3(cx - sw - 0.08, sh + 0.12, 0.02),
+      new THREE.Vector3(cx - sw + 0.08, sh - 0.02, 0.02),
+    ];
+    const knotPts2 = [
+      new THREE.Vector3(cx - sw - 0.08, sh - 0.02, 0.02),
+      new THREE.Vector3(cx - sw + 0.08, sh + 0.12, 0.02),
+    ];
+    const knotGeo1 = new THREE.BufferGeometry().setFromPoints(knotPts);
+    const knotGeo2 = new THREE.BufferGeometry().setFromPoints(knotPts2);
+    const knotLine1 = new THREE.Line(knotGeo1, stitchMat.clone());
+    const knotLine2 = new THREE.Line(knotGeo2, stitchMat.clone());
+
+    const group = new THREE.Group();
+    group.add(stitchLine, underLine, leftLine, rightLine, knotLine1, knotLine2);
+    group.userData.index = i;
+    group.userData.phase = 0;         // 0=hidden, 0→1=appearing, 1=full, 1→2=dissolving
+    group.userData.speed = 0.012 + Math.random() * 0.004;
+
+    // start invisible
+    group.children.forEach(c => {
+      c.material.opacity = 0;
+      c.material.transparent = true;
+    });
+
+    scene.add(group);
+    stitches.push(group);
+  }
+
+  // Timeline: stitches appear sequentially, then all dissolve
+  const APPEAR_INTERVAL = 60;  // frames between each stitch appearing
+  let frame = 0;
+  const HOLD_FRAMES = 180;  // hold before dissolving
+
+  // Camera subtle parallax
+  let mouseX = 0, mouseY = 0;
+  window.addEventListener('mousemove', e => {
+    mouseX = (e.clientX / W - 0.5) * 2;
+    mouseY = (e.clientY / H - 0.5) * 2;
+  });
+
+  let dissolving = false;
+  let dissolveStart = 0;
+
+  function animate() {
+    requestAnimationFrame(animate);
+    frame++;
+
+    // Appear sequence
+    stitches.forEach((g, i) => {
+      const appearFrame = i * APPEAR_INTERVAL;
+      const dissolveFrame = dissolveStart;
+
+      if (!dissolving) {
+        if (frame >= appearFrame) {
+          const t = Math.min((frame - appearFrame) / 40, 1);
+          g.children.forEach(c => {
+            c.material.opacity = t;
+          });
+        }
+      } else {
+        const t = Math.max(1 - (frame - dissolveStart) / 80, 0);
+        g.children.forEach(c => {
+          c.material.opacity = t * (i < stitches.length ? 1 : 0);
+        });
+      }
+    });
+
+    // Check if all stitches are shown, then after hold, dissolve
+    const allShown = frame >= (NUM_STITCHES - 1) * APPEAR_INTERVAL + 40;
+    if (allShown && !dissolving && frame >= (NUM_STITCHES - 1) * APPEAR_INTERVAL + 40 + HOLD_FRAMES) {
+      dissolving = true;
+      dissolveStart = frame;
+    }
+
+    // After dissolve, restart
+    if (dissolving && frame >= dissolveStart + 100) {
+      frame = 0;
+      dissolving = false;
+      stitches.forEach(g => {
+        g.children.forEach(c => { c.material.opacity = 0; });
+      });
+    }
+
+    // Camera tilt
+    camera.position.x += (mouseX * 1.5 - camera.position.x) * 0.04;
+    camera.position.y += (-mouseY * 0.8 - camera.position.y) * 0.04;
+    camera.lookAt(0, 0, 0);
+
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  });
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '302',
+  title:  'Suture',
+  detail: '縫合糸が左から右へ、一針ずつ置かれていく。針の形は描かれていない。糸の跡だけが残る。全部縫い終わるとしばらくして糸が解かれ、また縫い始める。マウスで視点が動く。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
