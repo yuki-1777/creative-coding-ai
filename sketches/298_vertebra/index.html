@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>298 – Vertebra</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0eeea; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const W = window.innerWidth, H = window.innerHeight;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xf0eeea);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 200);
+  camera.position.set(5, 0, 24);
+  camera.lookAt(0, 0, 0);
+
+  // Vertebra parameters
+  const NUM_VERTEBRAE = 14;
+  const SPACING = 1.6;
+  const vertebrae = [];
+
+  // Build each vertebra as a wireframe unit:
+  // - central body (flattened cylinder outline)
+  // - transverse processes (two arms)
+  // - spinous process (upward spike)
+  function buildVertebra() {
+    const group = new THREE.Group();
+    const mat = new THREE.LineBasicMaterial({ color: 0x333333, linewidth: 1 });
+
+    // Body ring (octagon)
+    const bodyPts = [];
+    const R = 0.55, seg = 12;
+    for (let i = 0; i <= seg; i++) {
+      const a = (i / seg) * Math.PI * 2;
+      bodyPts.push(new THREE.Vector3(Math.cos(a) * R, Math.sin(a) * R * 0.7, 0));
+    }
+    const bodyGeo = new THREE.BufferGeometry().setFromPoints(bodyPts);
+    group.add(new THREE.Line(bodyGeo, mat));
+
+    // Inner ring (spinal canal)
+    const canalPts = [];
+    const Rc = 0.28;
+    for (let i = 0; i <= seg; i++) {
+      const a = (i / seg) * Math.PI * 2;
+      canalPts.push(new THREE.Vector3(Math.cos(a) * Rc * 0.8, Math.sin(a) * Rc, 0));
+    }
+    const canalGeo = new THREE.BufferGeometry().setFromPoints(canalPts);
+    group.add(new THREE.Line(canalGeo, mat));
+
+    // Transverse processes (left and right arms)
+    const leftPts = [
+      new THREE.Vector3(-R, 0, 0),
+      new THREE.Vector3(-R - 0.5, 0.15, 0),
+      new THREE.Vector3(-R - 0.8, 0.1, 0),
+    ];
+    const leftGeo = new THREE.BufferGeometry().setFromPoints(leftPts);
+    group.add(new THREE.Line(leftGeo, mat));
+
+    const rightPts = [
+      new THREE.Vector3(R, 0, 0),
+      new THREE.Vector3(R + 0.5, 0.15, 0),
+      new THREE.Vector3(R + 0.8, 0.1, 0),
+    ];
+    const rightGeo = new THREE.BufferGeometry().setFromPoints(rightPts);
+    group.add(new THREE.Line(rightGeo, mat));
+
+    // Spinous process (posterior spike)
+    const spinePts = [
+      new THREE.Vector3(0, Rc, 0),
+      new THREE.Vector3(0, Rc + 0.3, 0.2),
+      new THREE.Vector3(0, Rc + 0.55, 0.35),
+      new THREE.Vector3(0, Rc + 0.7, 0.3),
+    ];
+    const spineGeo = new THREE.BufferGeometry().setFromPoints(spinePts);
+    group.add(new THREE.Line(spineGeo, mat));
+
+    // Superior articular facets (top connectors)
+    const supPts = [
+      new THREE.Vector3(-0.2, R * 0.65, 0),
+      new THREE.Vector3(-0.22, R * 0.65 + 0.18, 0.12),
+    ];
+    const supGeo = new THREE.BufferGeometry().setFromPoints(supPts);
+    group.add(new THREE.Line(supGeo, mat));
+    const supRPts = [
+      new THREE.Vector3(0.2, R * 0.65, 0),
+      new THREE.Vector3(0.22, R * 0.65 + 0.18, 0.12),
+    ];
+    const supRGeo = new THREE.BufferGeometry().setFromPoints(supRPts);
+    group.add(new THREE.Line(supRGeo, mat));
+
+    return group;
+  }
+
+  // Intervertebral disc connector (pair of lines)
+  function buildDisc(y1, y2) {
+    const mat = new THREE.LineBasicMaterial({ color: 0x888888, linewidth: 1 });
+    const pts = [
+      new THREE.Vector3(-0.15, y1, 0),
+      new THREE.Vector3(-0.15, y2, 0),
+    ];
+    const pts2 = [
+      new THREE.Vector3(0.15, y1, 0),
+      new THREE.Vector3(0.15, y2, 0),
+    ];
+    const g1 = new THREE.BufferGeometry().setFromPoints(pts);
+    const g2 = new THREE.BufferGeometry().setFromPoints(pts2);
+    const l1 = new THREE.Line(g1, mat);
+    const l2 = new THREE.Line(g2, mat);
+    const group = new THREE.Group();
+    group.add(l1, l2);
+    return group;
+  }
+
+  // Assemble spine
+  const spineGroup = new THREE.Group();
+  const totalH = (NUM_VERTEBRAE - 1) * SPACING;
+
+  for (let i = 0; i < NUM_VERTEBRAE; i++) {
+    const v = buildVertebra();
+    const y = (NUM_VERTEBRAE - 1 - i) * SPACING - totalH / 2;
+    v.position.y = y;
+    // slight random lateral offset per vertebra (initial)
+    v.userData.baseY = y;
+    v.userData.index = i;
+    v.userData.phase = (i / NUM_VERTEBRAE) * Math.PI * 2;
+    vertebrae.push(v);
+    spineGroup.add(v);
+
+    if (i < NUM_VERTEBRAE - 1) {
+      const discY1 = y - SPACING * 0.3;
+      const discY2 = y - SPACING * 0.7;
+      spineGroup.add(buildDisc(discY1, discY2));
+    }
+  }
+  scene.add(spineGroup);
+
+  // Mouse rotation
+  let mouseX = 0, mouseY = 0;
+  let targetRotX = 0, targetRotY = 0;
+  window.addEventListener('mousemove', e => {
+    mouseX = (e.clientX / W - 0.5) * 2;
+    mouseY = (e.clientY / H - 0.5) * 2;
+  });
+
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    t += 0.008;
+
+    // Gentle spine undulation: S-curve
+    vertebrae.forEach((v, i) => {
+      const frac = i / (NUM_VERTEBRAE - 1);
+      // Lateral wave
+      const wave = Math.sin(t + frac * Math.PI * 2) * 0.18 * Math.sin(frac * Math.PI);
+      v.position.x = wave;
+      // Tiny tilt
+      v.rotation.z = wave * 0.3;
+      // Breathing (depth)
+      v.position.z = Math.sin(t * 0.7 + frac * Math.PI) * 0.08;
+    });
+
+    // Camera parallax
+    targetRotY += (mouseX * 0.4 - targetRotY) * 0.05;
+    targetRotX += (mouseY * 0.2 - targetRotX) * 0.05;
+    spineGroup.rotation.y = targetRotY;
+    spineGroup.rotation.x = targetRotX * 0.3;
+
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  });
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '298',
+  title:  'Vertebra',
+  detail: '14個の椎骨が縦に連なり、ゆっくりS字に揺れている。マウスを動かすと脊椎の向きが変わり、横から見た形や奥行きが確認できる。面は一切使わず、輪郭の線だけで描いた。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
