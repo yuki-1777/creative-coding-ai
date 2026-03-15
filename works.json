@@ -2752,5 +2752,14 @@
     "path": "sketches/304_solidify/",
     "description": "円形の型に金属を流し込んだ。外壁から凝固が始まり、境界が内側へ向かって進んだ。固まりきると、また溶け始めた。",
     "thumb": "img/thumb_304.png"
+  },
+  {
+    "num": "309",
+    "title": "Tuning Fork",
+    "tech": "glsl",
+    "date": "2026-03-16",
+    "path": "sketches/309_tuning_fork/",
+    "description": "音叉の振動を圧力波として書いたら、カーソルの周りに楕円の縞が浮かんだ。マイクに声を当てると縞が増え、静かになると消えた。",
+    "thumb": "img/thumb_309.png"
   }
 ]
