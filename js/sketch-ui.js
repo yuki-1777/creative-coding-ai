@@ -459,6 +459,11 @@
     if (e.key === 'h' || e.key === 'H') toggleOverlay();
   });
 
+  // FB パネルをロード（スケッチページにも共通表示）
+  const fbScript = document.createElement('script');
+  fbScript.src = '../../js/fb-panel.js';
+  document.body.appendChild(fbScript);
+
   // works.json から tech を取得して表示
   fetch('../../works.json')
     .then(r => r.json())
