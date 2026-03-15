@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>268 – Spindle</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe4; overflow: hidden; cursor: crosshair; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Spindle center
+let cx, cy;
+function updateCenter() {
+  cx = canvas.width / 2;
+  cy = canvas.height / 2;
+}
+updateCenter();
+
+// Spindle state
+const MAX_LAYERS = 240;
+let rotation = 0;
+let spinSpeed = 0;
+const BASE_SPEED = 0.018;
+const LAYER_THICKNESS = 1.8;
+let currentLayer = 0;
+
+// Thread that has been wound
+let woundAngles = [];  // array of {r, a} wound positions
+let maxWound = 600;
+
+// Drag state
+let dragging = false;
+let dragX = 0, dragY = 0;
+let dragPrev = { x: 0, y: 0 };
+let threadLength = 0;
+let maxThread = 300;
+
+// Accumulated thread winding as a trail
+let trailPoints = [];
+let windingRadius = 18;
+
+window.addEventListener('mousedown', (e) => {
+  dragging = true;
+  dragX = e.clientX;
+  dragY = e.clientY;
+  dragPrev = { x: dragX, y: dragY };
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (dragging) {
+    dragX = e.clientX;
+    dragY = e.clientY;
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  if (dragging) {
+    // Release: thread snaps back, adding to wound coils
+    spinning = true;
+    spinMomentum = 0.9;
+  }
+  dragging = false;
+  threadLength = 0;
+});
+
+// Touch support
+window.addEventListener('touchstart', (e) => {
+  dragging = true;
+  const t = e.touches[0];
+  dragX = t.clientX; dragY = t.clientY;
+  dragPrev = { x: dragX, y: dragY };
+  e.preventDefault();
+}, { passive: false });
+
+window.addEventListener('touchmove', (e) => {
+  if (dragging) {
+    const t = e.touches[0];
+    dragX = t.clientX; dragY = t.clientY;
+  }
+  e.preventDefault();
+}, { passive: false });
+
+window.addEventListener('touchend', () => {
+  dragging = false;
+  threadLength = 0;
+  spinning = true;
+  spinMomentum = 0.9;
+});
+
+let spinning = true;
+let spinMomentum = 1.0;
+let totalWound = 0;
+let time = 0;
+
+// Pre-build a coil structure
+// Each coil layer is stored as angle offset
+let coilHistory = []; // {angle, radius, alpha}
+
+function drawSpindle() {
+  // Draw the spindle body (thin vertical rod)
+  const spindleH = Math.min(canvas.height * 0.55, 320);
+  const spindleW = 6;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  // Rod
+  ctx.strokeStyle = 'rgba(80, 70, 58, 0.7)';
+  ctx.lineWidth = spindleW;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, -spindleH / 2);
+  ctx.lineTo(0, spindleH / 2);
+  ctx.stroke();
+
+  // Top whorl (disc)
+  ctx.strokeStyle = 'rgba(80, 70, 58, 0.5)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(0, -spindleH / 2 + 8, 10, 4, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Bottom whorl (larger disc / flywheel)
+  ctx.beginPath();
+  ctx.ellipse(0, spindleH / 2 - 12, 22, 7, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawWoundThread() {
+  if (coilHistory.length < 2) return;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  // Draw wound coils as a spiral
+  ctx.strokeStyle = 'rgba(140, 110, 75, 0.55)';
+  ctx.lineWidth = 0.8;
+
+  for (let i = 1; i < coilHistory.length; i++) {
+    const prev = coilHistory[i - 1];
+    const curr = coilHistory[i];
+    const px = Math.cos(prev.angle) * prev.radius;
+    const py = Math.sin(prev.angle) * prev.radius * 0.35 + prev.yOff;
+    const qx = Math.cos(curr.angle) * curr.radius;
+    const qy = Math.sin(curr.angle) * curr.radius * 0.35 + curr.yOff;
+    ctx.globalAlpha = curr.alpha;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(qx, qy);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawDragThread() {
+  if (!dragging) return;
+  const dx = dragX - cx;
+  const dy = dragY - cy;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 15) return;
+
+  // Draw thread from spindle surface to drag point
+  const angle = Math.atan2(dy, dx);
+  const sx = Math.cos(angle) * windingRadius + cx;
+  const sy = Math.sin(angle) * windingRadius * 0.35 + cy;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(140, 110, 75, 0.8)';
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([]);
+
+  // Catenary-like sag
+  const mid = 0.5;
+  const sag = dist * 0.06;
+  const mx = (sx + dragX) / 2 + Math.cos(angle + Math.PI / 2) * sag;
+  const my = (sy + dragY) / 2 + Math.sin(angle + Math.PI / 2) * sag;
+
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.quadraticCurveTo(mx, my, dragX, dragY);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  time += 1;
+
+  ctx.fillStyle = 'rgba(238, 235, 228, 0.18)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  updateCenter();
+
+  // Spin the spindle (only when not dragging)
+  if (!dragging && spinning) {
+    rotation += BASE_SPEED * spinMomentum;
+    spinMomentum = Math.min(spinMomentum + 0.004, 1.0);
+
+    // Add coil point
+    if (time % 2 === 0) {
+      const layer = Math.floor(coilHistory.length / 72) % 12;
+      const r = windingRadius + layer * LAYER_THICKNESS;
+      const yOff = (Math.random() - 0.5) * (Math.min(canvas.height, canvas.width) * 0.28);
+      coilHistory.push({
+        angle: rotation,
+        radius: r,
+        yOff: yOff,
+        alpha: 0.55 + Math.random() * 0.25
+      });
+      if (coilHistory.length > 900) coilHistory.shift();
+    }
+  } else if (dragging) {
+    spinMomentum *= 0.97;
+  }
+
+  drawSpindle();
+  drawWoundThread();
+  drawDragThread();
+}
+
+animate();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '268',
+  title:  'Spindle',
+  detail: 'スピンドル（糸を巻く道具）が回転しながら、糸が螺旋状に積み重なっていきます。画面をクリック・ドラッグすると糸を引っ張ることができます。離すと再び巻き取りが始まります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
