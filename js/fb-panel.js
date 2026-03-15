@@ -95,6 +95,8 @@
       border-bottom: 1px solid rgba(42,42,42,0.06);
     }
     .fb-row:last-child { border-bottom: none; }
+    .fb-row.fb-row-current { background: rgba(42,42,42,0.04); }
+    .fb-row.fb-row-current .fb-title { color: rgba(42,42,42,0.75); }
     .fb-status {
       font-size: 0.55rem;
       flex-shrink: 0;
@@ -167,6 +169,8 @@
     overlay.style.right  = '32px';
   }
 
+  const currentNum = isSketchPage ? window.SKETCH_META.num : null;
+
   function renderFb(all) {
     const list    = document.getElementById('fb-list');
     const entries = Object.entries(all).sort((a, b) => Number(a[0]) - Number(b[0]));
@@ -189,7 +193,7 @@
         : `<span class="fb-title">${title}</span>`;
 
       return `
-        <div class="fb-row">
+        <div class="fb-row${num === currentNum ? ' fb-row-current' : ''}">
           <span class="fb-status ${stClass}">${status}</span>
           <div class="fb-content">
             ${titleEl}
