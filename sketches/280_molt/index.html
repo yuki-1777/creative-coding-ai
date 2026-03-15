@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Molt</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f2f1ee; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// --- 脱皮 ---
+// 一枚の膜が張っている。ドラッグで引っ張ると破れる。
+// 破れた跡が残る。時間が経つと新しい膜が張り直す。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+canvas.width  = window.innerWidth;
+canvas.height = window.innerHeight;
+gl.viewport(0, 0, canvas.width, canvas.height);
+
+window.addEventListener('resize', () => {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+});
+
+const vert = `
+attribute vec2 a_pos;
+void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+`;
+
+const frag = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_time;
+uniform vec2  u_drag;      // ドラッグ位置 (0〜1)
+uniform float u_drag_len;  // ドラッグ強度 (0〜1)
+uniform float u_tear;      // 破れ度 (0〜1)
+uniform float u_regrow;    // 再生成度 (0〜1)
+
+// ハッシュ
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// 値ノイズ
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+// フラクタルノイズ（fbm）
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 4; i++) {
+    v += a * noise(p);
+    p = p * 2.1 + vec2(3.7, 1.3);
+    a *= 0.5;
+  }
+  return v;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  vec2 center = vec2(0.5);
+
+  // --- 膜のテクスチャ ---
+  // 薄い半透明の層（干渉色なし・セピア系）
+  float membrane = fbm(uv * 4.2 + u_time * 0.05);
+  float membrane2 = fbm(uv * 8.5 - u_time * 0.03 + vec2(1.3, 2.7));
+  float membraneTex = membrane * 0.65 + membrane2 * 0.35;
+
+  // 膜の輪郭（楕円形）
+  vec2 aspect = vec2(u_res.x / u_res.y, 1.0);
+  float ellipse = length((uv - center) * aspect * vec2(0.9, 1.05));
+  float membraneMask = smoothstep(0.46, 0.42, ellipse);
+  membraneMask *= 1.0 - smoothstep(0.30, 0.42, ellipse) * 0.35;
+
+  // --- ドラッグによる引張り変形 ---
+  float dragEffect = 0.0;
+  if (u_drag_len > 0.01) {
+    float distToDrag = length(uv - u_drag);
+    dragEffect = exp(-distToDrag * 8.0) * u_drag_len;
+  }
+
+  // --- 破れパターン ---
+  // 破れはドラッグ点を起点にフラクタル的に広がる
+  float tearNoise = fbm(uv * 6.0 + u_drag * 3.0);
+  float tearDist = length((uv - u_drag) * aspect);
+  float tearShape = smoothstep(0.0, 0.35 * u_tear, tearDist * (1.0 - tearNoise * 0.5));
+  float tear = (1.0 - tearShape) * membraneMask;
+  tear *= u_tear;
+
+  // 破れた縁の強調（細い縁線）
+  float tearEdge = abs(tearShape - 0.5) < 0.08 ? 1.0 : 0.0;
+  tearEdge *= u_tear * membraneMask;
+
+  // --- 再生成（新しい膜） ---
+  float newMembrane = fbm(uv * 4.8 - u_time * 0.04 + vec2(5.0, 2.0));
+  newMembrane = newMembrane * 0.6 + fbm(uv * 9.0 + u_time * 0.02) * 0.4;
+
+  // --- 色の合成 ---
+  vec3 paper = vec3(0.949, 0.945, 0.933); // 紙の色
+  vec3 membraneColor = vec3(0.90, 0.88, 0.84); // 膜（わずかにセピア）
+
+  // 膜の内部のテクスチャ密度
+  float memDensity = membraneTex * 0.25 + dragEffect * 0.15;
+  memDensity *= (membraneMask - tear);
+  memDensity *= (1.0 - u_regrow * 0.5);
+
+  vec3 col = paper;
+
+  // 膜を乗せる（薄い）
+  col = mix(col, membraneColor, memDensity * 0.4);
+
+  // 破れた縁（少し暗い）
+  col -= vec3(tearEdge * 0.12);
+
+  // 再生成の新しい膜
+  if (u_regrow > 0.01) {
+    float newMembraneMask = smoothstep(0.46, 0.42, ellipse) * u_regrow;
+    float newDensity = newMembrane * 0.20 * newMembraneMask;
+    col = mix(col, membraneColor, newDensity);
+    // 再生成中の縁
+    float newEdge = abs(ellipse - 0.42) < 0.015 ? u_regrow * 0.25 : 0.0;
+    col -= vec3(newEdge);
+  }
+
+  // 膜の縁線（正常時）
+  float edgeLine = abs(ellipse - 0.43) < 0.008 ? 1.0 : 0.0;
+  edgeLine *= (1.0 - u_tear * 0.8) * (1.0 - u_regrow * 0.5);
+  col -= vec3(edgeLine * 0.15);
+
+  // ヴィネット（弱め）
+  float vign = 1.0 - length(uv * 2.0 - 1.0) * 0.10;
+  col *= max(vign, 0.94);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compile(src, type) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(vert, gl.VERTEX_SHADER));
+gl.attachShader(prog, compile(frag, gl.FRAGMENT_SHADER));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1, 1,-1, -1,1, 1,1
+]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes     = gl.getUniformLocation(prog, 'u_res');
+const uTime    = gl.getUniformLocation(prog, 'u_time');
+const uDrag    = gl.getUniformLocation(prog, 'u_drag');
+const uDragLen = gl.getUniformLocation(prog, 'u_drag_len');
+const uTear    = gl.getUniformLocation(prog, 'u_tear');
+const uRegrow  = gl.getUniformLocation(prog, 'u_regrow');
+
+gl.uniform2f(uRes, canvas.width, canvas.height);
+gl.uniform2f(uDrag, 0.5, 0.5);
+gl.uniform1f(uDragLen, 0.0);
+gl.uniform1f(uTear, 0.0);
+gl.uniform1f(uRegrow, 0.0);
+
+// 状態
+let isDragging = false;
+let dragStart = { x: 0.5, y: 0.5 };
+let dragCurrent = { x: 0.5, y: 0.5 };
+let dragLength = 0;
+let tearLevel = 0;
+let regrowLevel = 0;
+let regrowTimer = 0;
+let tornTime = -1;
+
+function toUV(clientX, clientY) {
+  return {
+    x: clientX / canvas.width,
+    y: 1.0 - clientY / canvas.height
+  };
+}
+
+canvas.addEventListener('mousedown', e => {
+  if (tearLevel > 0.3) return; // 破れていたら無視
+  isDragging = true;
+  const uv = toUV(e.clientX, e.clientY);
+  dragStart = uv;
+  dragCurrent = uv;
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  dragCurrent = toUV(e.clientX, e.clientY);
+  const dx = dragCurrent.x - dragStart.x;
+  const dy = dragCurrent.y - dragStart.y;
+  dragLength = Math.min(1, Math.sqrt(dx * dx + dy * dy) * 4);
+  gl.uniform2f(uDrag, dragCurrent.x, dragCurrent.y);
+  gl.uniform1f(uDragLen, dragLength);
+
+  // 引っ張り強さが閾値を超えたら破れ始める
+  if (dragLength > 0.4 && tearLevel < 0.01) {
+    tornTime = performance.now();
+  }
+});
+
+canvas.addEventListener('mouseup', () => {
+  if (isDragging && dragLength > 0.4) {
+    // 破れ確定
+    tearLevel = 0;
+    tornTime = performance.now();
+  }
+  isDragging = false;
+  dragLength = 0;
+  gl.uniform1f(uDragLen, 0.0);
+});
+
+canvas.addEventListener('mouseleave', () => {
+  isDragging = false;
+  dragLength = 0;
+  gl.uniform1f(uDragLen, 0.0);
+});
+
+const start = performance.now();
+
+function loop() {
+  requestAnimationFrame(loop);
+  const now = performance.now();
+  const t = (now - start) / 1000;
+
+  // 破れアニメーション
+  if (tornTime > 0) {
+    const elapsed = (now - tornTime) / 1000;
+    if (tearLevel < 1.0) {
+      tearLevel = Math.min(1.0, elapsed * 1.8);
+    }
+    // 破れ完了後、再生成開始（3秒後）
+    if (tearLevel >= 1.0 && regrowLevel < 1.0) {
+      const regrowElapsed = elapsed - 1.0 / 1.8;
+      if (regrowElapsed > 3.0) {
+        regrowLevel = Math.min(1.0, (regrowElapsed - 3.0) * 0.5);
+      }
+    }
+    // 再生成完了→リセット
+    if (regrowLevel >= 1.0) {
+      tearLevel = 0;
+      regrowLevel = 0;
+      tornTime = -1;
+      gl.uniform2f(uDrag, 0.5, 0.5);
+    }
+  }
+
+  gl.uniform1f(uTime, t);
+  gl.uniform1f(uTear, tearLevel);
+  gl.uniform1f(uRegrow, regrowLevel);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+loop();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '280',
+  title: 'Molt',
+  detail: '半透明の膜が張っています。マウスでドラッグして引っ張ると、膜が破れます。しばらくすると新しい膜が張り直します。昆虫が脱皮するとき、古い外皮が破れて新しい体が現れる様子から作りました。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
