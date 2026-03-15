@@ -2700,6 +2700,15 @@
     "thumb": "img/thumb_300.png"
   },
   {
+    "num": "301",
+    "title": "Hold",
+    "tech": "p5.js",
+    "date": "2026-03-16",
+    "path": "sketches/301_hold/",
+    "description": "保留音を絵にした。音は出なかった。リングが広がって、また止まる。",
+    "thumb": "img/thumb_301.png"
+  },
+  {
     "num": "302",
     "title": "Suture",
     "tech": "three.js",
@@ -2716,5 +2725,14 @@
     "path": "sketches/306_screen/",
     "description": "網戸に指を当てると、メッシュが奥へへこんだ。指の形は見えない。押しつけた跡だけが残る。",
     "thumb": "img/thumb_306.png"
+  },
+  {
+    "num": "304",
+    "title": "Solidify",
+    "tech": "canvas",
+    "date": "2026-03-16",
+    "path": "sketches/304_solidify/",
+    "description": "円形の型に金属を流し込んだ。外壁から凝固が始まり、境界が内側へ向かって進んだ。固まりきると、また溶け始めた。",
+    "thumb": "img/thumb_304.png"
   }
 ]
