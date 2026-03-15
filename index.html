@@ -407,12 +407,24 @@
 
     /* ─── RESPONSIVE ─── */
     @media (max-width: 640px) {
-      header { padding: 18px 24px; }
-      .filter-bar { gap: 16px; }
+      header {
+        padding: 14px 24px;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .header-left { order: 1; flex: 1; }
+      .header-right { order: 2; }
+      .filter-bar {
+        order: 3;
+        width: 100%;
+        gap: 20px;
+      }
+      .view-toggle { gap: 10px; }
       .view-list .work-link { padding: 18px 24px; }
       .list-sub { display: none; }
       .list-desc { font-size: 1.2rem; }
       footer { padding: 18px 24px; }
+      main { padding-top: 88px; }
     }
   </style>
 </head>
@@ -420,7 +432,7 @@
 
 <header>
   <div class="header-left">
-    <div class="site-name">Creative Coding</div>
+    <h1 class="site-name">Creative Coding</h1>
     <div class="site-count"><span id="work-count">0</span> works</div>
   </div>
   <div class="header-right">
@@ -458,7 +470,7 @@
 
 <main>
   <ul class="work-list view-grid" id="gallery">
-    <li class="empty" id="empty-state">no works found</li>
+    <li class="empty" id="empty-state" style="display:block">loading...</li>
   </ul>
 </main>
 
@@ -514,8 +526,9 @@
   }
 
   function loadState() {
+    const isMobile = window.matchMedia('(max-width: 640px)').matches;
     return {
-      view:   sessionStorage.getItem('gallery_view')   || 'grid',
+      view:   isMobile ? 'grid' : (sessionStorage.getItem('gallery_view') || 'grid'),
       filter: sessionStorage.getItem('gallery_filter') || 'all',
       scroll: parseInt(sessionStorage.getItem('gallery_scroll') || '0', 10),
     };
@@ -628,11 +641,17 @@
   fetch('works.json')
     .then(r => r.json())
     .then(works => {
+      document.getElementById('empty-state').textContent = 'no works found';
       renderWorks(works);
       const s = loadState();
       applyView(s.view, false);
       applyFilter(s.filter, false);
       if (s.scroll > 0) window.scrollTo(0, s.scroll);
+    })
+    .catch(() => {
+      const el = document.getElementById('empty-state');
+      el.textContent = 'failed to load works';
+      el.style.display = 'block';
     });
 </script>
 

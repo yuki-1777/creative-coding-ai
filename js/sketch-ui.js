@@ -48,7 +48,9 @@
       max-width: 480px;
     }
     #sketch-overlay-title {
+      margin: 0;
       font-size: 1.1rem;
+      font-weight: 300;
       letter-spacing: 0.2em;
       color: rgba(255,255,255,0.7);
     }
@@ -102,7 +104,7 @@
   overlay.id = 'sketch-overlay';
   overlay.innerHTML = `
     <div id="sketch-overlay-left">
-      <div id="sketch-overlay-title">${meta.num} — ${meta.title}</div>
+      <h1 id="sketch-overlay-title">${meta.num} — ${meta.title}</h1>
       <div id="sketch-overlay-desc">${meta.desc}</div>
     </div>
     <div id="sketch-overlay-right">
