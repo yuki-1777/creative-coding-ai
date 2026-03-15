@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>124 — Tangle</title>
+  <meta name="description" content="マウスで線を引くと、線が自分で絡まっていく。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="124 — Tangle | Creative Coding">
+  <meta property="og:description" content="マウスで線を引くと、線が自分で絡まっていく。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/124_tangle/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_124.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="124 — Tangle | Creative Coding">
+  <meta name="twitter:description" content="マウスで線を引くと、線が自分で絡まっていく。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_124.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  redraw();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// A rope simulation: user draws a path, then the path is simulated as a chain of nodes
+// Each node pulls toward neighbors, and the whole chain slowly tangles via self-attraction
+
+const NODE_COUNT = 120;
+const REST_LEN = 8;
+const STIFFNESS = 0.4;
+const DAMPING = 0.82;
+const GRAVITY_Y = 0.04;
+
+let nodes = [];
+let isDrawing = false;
+let drawPath = [];
+let hasTangle = false;
+let t = 0;
+
+function initNodes(path) {
+  // Interpolate path into NODE_COUNT nodes
+  if (path.length < 2) return;
+
+  // Compute total length
+  let totalLen = 0;
+  for (let i = 1; i < path.length; i++) {
+    const dx = path[i].x - path[i-1].x;
+    const dy = path[i].y - path[i-1].y;
+    totalLen += Math.sqrt(dx*dx + dy*dy);
+  }
+
+  nodes = [];
+  const step = totalLen / (NODE_COUNT - 1);
+  let traveled = 0;
+  let segIdx = 0;
+  let segStart = path[0];
+
+  for (let i = 0; i < NODE_COUNT; i++) {
+    const target = i * step;
+    while (segIdx < path.length - 2) {
+      const dx = path[segIdx+1].x - path[segIdx].x;
+      const dy = path[segIdx+1].y - path[segIdx].y;
+      const segLen = Math.sqrt(dx*dx + dy*dy);
+      if (traveled + segLen >= target) break;
+      traveled += segLen;
+      segIdx++;
+    }
+    const dx = path[segIdx+1] ? path[segIdx+1].x - path[segIdx].x : 0;
+    const dy = path[segIdx+1] ? path[segIdx+1].y - path[segIdx].y : 0;
+    const segLen = Math.sqrt(dx*dx + dy*dy) || 1;
+    const t_seg = (target - traveled) / segLen;
+    const x = path[segIdx].x + dx * t_seg;
+    const y = path[segIdx].y + dy * t_seg;
+
+    nodes.push({ x, y, px: x, py: y, vx: 0, vy: 0 });
+  }
+}
+
+function updateNodes() {
+  if (nodes.length < 2) return;
+
+  // Apply forces
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+
+    // Spring to previous node
+    if (i > 0) {
+      const prev = nodes[i-1];
+      const dx = n.x - prev.x;
+      const dy = n.y - prev.y;
+      const dist = Math.sqrt(dx*dx + dy*dy) || 0.001;
+      const force = (dist - REST_LEN) * STIFFNESS;
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      n.vx -= fx;
+      n.vy -= fy;
+      prev.vx += fx;
+      prev.vy += fy;
+    }
+
+    // Light gravity
+    n.vy += GRAVITY_Y;
+
+    // Slow autonomous drift — each node has a unique curl
+    const angle = t * 0.002 + i * 0.15;
+    n.vx += Math.cos(angle) * 0.04;
+    n.vy += Math.sin(angle) * 0.04;
+  }
+
+  // Integrate
+  for (const n of nodes) {
+    n.vx *= DAMPING;
+    n.vy *= DAMPING;
+    n.x += n.vx;
+    n.y += n.vy;
+
+    // Boundary bounce (soft)
+    const margin = 40;
+    if (n.x < margin) n.vx += (margin - n.x) * 0.05;
+    if (n.x > W - margin) n.vx -= (n.x - (W - margin)) * 0.05;
+    if (n.y < margin) n.vy += (margin - n.y) * 0.05;
+    if (n.y > H - margin) n.vy -= (n.y - (H - margin)) * 0.05;
+  }
+}
+
+function redraw() {
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawNodes() {
+  if (nodes.length < 2) return;
+
+  ctx.beginPath();
+  ctx.moveTo(nodes[0].x, nodes[0].y);
+  for (let i = 1; i < nodes.length; i++) {
+    // Catmull-Rom style smoothing via quadratic bezier
+    if (i < nodes.length - 1) {
+      const mx = (nodes[i].x + nodes[i+1].x) / 2;
+      const my = (nodes[i].y + nodes[i+1].y) / 2;
+      ctx.quadraticCurveTo(nodes[i].x, nodes[i].y, mx, my);
+    } else {
+      ctx.lineTo(nodes[i].x, nodes[i].y);
+    }
+  }
+  ctx.strokeStyle = 'rgba(42, 42, 42, 0.75)';
+  ctx.lineWidth = 1.2;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Draw endpoints
+  ctx.beginPath();
+  ctx.arc(nodes[0].x, nodes[0].y, 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(42, 42, 42, 0.5)';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(nodes[nodes.length-1].x, nodes[nodes.length-1].y, 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(42, 42, 42, 0.5)';
+  ctx.fill();
+}
+
+function drawInProgress() {
+  if (drawPath.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(drawPath[0].x, drawPath[0].y);
+  for (let i = 1; i < drawPath.length; i++) {
+    ctx.lineTo(drawPath[i].x, drawPath[i].y);
+  }
+  ctx.strokeStyle = 'rgba(42, 42, 42, 0.35)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function drawHint() {
+  ctx.font = '14px Georgia, serif';
+  ctx.fillStyle = 'rgba(42, 42, 42, 0.22)';
+  const text = 'drag to draw a line';
+  const tw = ctx.measureText(text).width;
+  ctx.fillText(text, W / 2 - tw / 2, H / 2);
+}
+
+// Mouse / touch
+canvas.addEventListener('mousedown', (e) => {
+  isDrawing = true;
+  drawPath = [{ x: e.clientX, y: e.clientY }];
+  nodes = [];
+  hasTangle = false;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!isDrawing) return;
+  drawPath.push({ x: e.clientX, y: e.clientY });
+});
+
+canvas.addEventListener('mouseup', () => {
+  if (!isDrawing) return;
+  isDrawing = false;
+  if (drawPath.length > 5) {
+    initNodes(drawPath);
+    hasTangle = true;
+  }
+  drawPath = [];
+});
+
+canvas.addEventListener('mouseleave', () => {
+  if (isDrawing && drawPath.length > 5) {
+    isDrawing = false;
+    initNodes(drawPath);
+    hasTangle = true;
+    drawPath = [];
+  }
+});
+
+// Touch support
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  isDrawing = true;
+  drawPath = [{ x: touch.clientX, y: touch.clientY }];
+  nodes = [];
+  hasTangle = false;
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (!isDrawing) return;
+  const touch = e.touches[0];
+  drawPath.push({ x: touch.clientX, y: touch.clientY });
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (!isDrawing) return;
+  isDrawing = false;
+  if (drawPath.length > 5) {
+    initNodes(drawPath);
+    hasTangle = true;
+  }
+  drawPath = [];
+}, { passive: false });
+
+// Generate a demo spiral path for initial display
+function initDemoPath() {
+  const cx = W / 2;
+  const cy = H / 2;
+  const path = [];
+  const turns = 3.5;
+  const steps = 200;
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * turns * Math.PI * 2;
+    const r = 30 + (i / steps) * Math.min(W, H) * 0.28;
+    path.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r * 0.6 });
+  }
+  initNodes(path);
+  hasTangle = true;
+}
+
+initDemoPath();
+
+function tick() {
+  requestAnimationFrame(tick);
+  t++;
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  if (isDrawing) {
+    drawInProgress();
+  } else if (hasTangle) {
+    updateNodes();
+    drawNodes();
+  } else {
+    drawHint();
+  }
+}
+
+tick();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '124',
+  title:  'Tangle',
+  desc:   'マウスで線を引くと、その線が生き物みたいに動き始める。引っ張ってもほどけない。',
+  detail: 'マウスをドラッグして任意の形の線を引いてください。離した瞬間から、線は鎖のように振る舞い始めます。重力と微妙なうねりで、少しずつ絡まっていきます。もう一度引き直すと新しい線に置き換わります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

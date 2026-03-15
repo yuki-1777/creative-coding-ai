@@ -1006,5 +1006,113 @@
     "path": "sketches/112_weave/",
     "description": "縦と横が交差する。どちらが上かだけで、布の模様が変わる。クリックで模様が変わる。",
     "thumb": "img/thumb_112.png"
+  },
+  {
+    "num": "113",
+    "title": "Scatter",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/113_scatter/",
+    "thumb": "img/thumb_113.png",
+    "description": "キーを押すと、文字の代わりに粒が散る。打ち込んだはずのものは、何も残らない。カーソルだけが、打ったふりをしながら右へ進む。"
+  },
+  {
+    "num": "114",
+    "title": "Tides",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/114_tides/",
+    "thumb": "img/thumb_114.png",
+    "description": "今の時刻が、波の本数を決めている。深夜は1本だけ。正午は最も多い。刻一刻と、ゆっくり変わっている。"
+  },
+  {
+    "num": "115",
+    "title": "Echo",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/115_echo/",
+    "thumb": "img/thumb_115.png",
+    "description": "動いた跡が、少し遅れて繰り返す。繰り返すたびに薄くなり、最後は消える。同じ軌跡が3回、時間差で流れる。"
+  },
+  {
+    "num": "116",
+    "title": "Membrane",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/116_membrane/",
+    "description": "薄い膜を張った。触ると沈む。離すと戻る。",
+    "thumb": "img/thumb_116.png"
+  },
+  {
+    "num": "117",
+    "title": "Flock",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/117_flock/",
+    "description": "120個の点に3つのルールを与えた。近すぎたら離れる。隣と同じ向きに揃える。群れの中心に近づく。それだけで群れができた。",
+    "thumb": "img/thumb_117.png"
+  },
+  {
+    "num": "118",
+    "title": "Lattice Crack",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/118_lattice_crack/",
+    "description": "整列した格子に、ひびを入れた。ひびは伝わり、少しずつ枝分かれする。",
+    "thumb": "img/thumb_118.png"
+  },
+  {
+    "num": "119",
+    "title": "Fold Shadow",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/119_fold_shadow/",
+    "description": "紙を折ったら、影が残った。",
+    "thumb": "img/thumb_119.png"
+  },
+  {
+    "num": "120",
+    "title": "Moiré",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/120_moire/",
+    "description": "2枚を重ねたら、3枚目の模様が現れた。",
+    "thumb": "img/thumb_120.png"
+  },
+  {
+    "num": "121",
+    "title": "Grain",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/121_grain/",
+    "description": "止まっているとノイズ。動いていると何かに見える。",
+    "thumb": "img/thumb_121.png"
+  },
+  {
+    "num": "122",
+    "title": "Typewriter",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/122_typewriter/",
+    "description": "キーを押すと文字が現れる。しばらくすると、粒になって落ちる。書いたものは消えていく。",
+    "thumb": "img/thumb_122.png"
+  },
+  {
+    "num": "123",
+    "title": "Margin",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/123_margin/",
+    "description": "1本の線だけがある。余白が主役で、線は添え物。",
+    "thumb": "img/thumb_123.png"
+  },
+  {
+    "num": "124",
+    "title": "Tangle",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/124_tangle/",
+    "description": "マウスで線を引くと、その線が生き物みたいに動き始める。引っ張ってもほどけない。",
+    "thumb": "img/thumb_124.png"
   }
 ]

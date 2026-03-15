@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>123 — Margin</title>
+  <meta name="description" content="1本の線だけがある。それだけ。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="123 — Margin | Creative Coding">
+  <meta property="og:description" content="1本の線だけがある。それだけ。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/123_margin/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_123.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="123 — Margin | Creative Coding">
+  <meta name="twitter:description" content="1本の線だけがある。それだけ。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_123.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// One horizontal line that breathes vertically
+// Constraint: only one moving element, only one visual element
+
+let t = 0;
+let mouseX = -1;
+let mouseY = -1;
+
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+canvas.addEventListener('mouseleave', () => {
+  mouseX = -1;
+  mouseY = -1;
+});
+
+// The line is a polyline that follows a slow sine wave
+// but also responds to mouse proximity — the line curves toward or away from the cursor
+
+const SEGMENTS = 200;
+
+function getLineY(x, t, mouseX, mouseY) {
+  const baseY = H * 0.5;
+
+  // Breathing: slow sine
+  const breath = Math.sin(t * 0.008) * H * 0.04;
+
+  // Secondary slow oscillation
+  const secondary = Math.sin(t * 0.003 + x * 0.002) * H * 0.012;
+
+  let y = baseY + breath + secondary;
+
+  // Mouse influence: if mouse is near the line, push it away
+  if (mouseX >= 0) {
+    const dist = Math.abs(x - mouseX);
+    const influence = Math.exp(-dist * dist / (W * W * 0.003));
+    const pushDir = (y > mouseY) ? 1 : -1;
+    const pushStrength = H * 0.12 * influence;
+    y += pushDir * pushStrength;
+  }
+
+  return y;
+}
+
+function tick() {
+  requestAnimationFrame(tick);
+  t++;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw the single line
+  const margin = W * 0.1;
+  const segW = (W - margin * 2) / SEGMENTS;
+
+  ctx.beginPath();
+  for (let i = 0; i <= SEGMENTS; i++) {
+    const x = margin + i * segW;
+    const y = getLineY(x, t, mouseX, mouseY);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = 'rgba(42, 42, 42, 0.7)';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  // Draw two small endpoint dots
+  const x0 = margin;
+  const xN = margin + SEGMENTS * segW;
+  const y0 = getLineY(x0, t, mouseX, mouseY);
+  const yN = getLineY(xN, t, mouseX, mouseY);
+
+  ctx.beginPath();
+  ctx.arc(x0, y0, 1.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(42, 42, 42, 0.45)';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(xN, yN, 1.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(42, 42, 42, 0.45)';
+  ctx.fill();
+}
+
+tick();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '123',
+  title:  'Margin',
+  desc:   '1本の線だけがある。余白が主役で、線は添え物。',
+  detail: '水平線が1本、ゆっくりと呼吸しています。マウスを近づけると、線がそこから逃げます。それだけです。意図的に1本だけに絞りました。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
