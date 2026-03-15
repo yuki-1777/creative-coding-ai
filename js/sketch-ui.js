@@ -192,7 +192,7 @@
     /* DEV トグル：localhost のみ */
     #sketch-dev-toggle {
       position: fixed;
-      top: 24px;
+      bottom: 32px;
       right: 32px;
       z-index: 9999;
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
@@ -212,7 +212,7 @@
     /* save thumb：デバッグモード時のみ */
     #sketch-capture-btn {
       position: fixed;
-      bottom: 32px;
+      bottom: 66px;
       right: 32px;
       z-index: 9999;
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
@@ -232,7 +232,7 @@
     /* FB パネル：デバッグモード時のみ */
     #sketch-fb-panel {
       position: fixed;
-      bottom: 70px;
+      bottom: 106px;
       right: 32px;
       z-index: 9999;
       width: 260px;
