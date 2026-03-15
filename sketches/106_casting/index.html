@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>106 — Casting</title>
+  <meta name="description" content="形ではなく、輪郭だけを見せた。何があるかはわからない。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="106 — Casting | Creative Coding">
+  <meta property="og:description" content="形ではなく、輪郭だけを見せた。何があるかはわからない。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/106_casting/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_106.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="106 — Casting | Creative Coding">
+  <meta name="twitter:description" content="形ではなく、輪郭だけを見せた。何があるかはわからない。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_106.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 7);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // 輪郭線だけを描画するための設定
+    // 手法1: 背面膨らませでアウトライン
+    // 手法2: 正面向きは背景色で塗りつぶして内部を隠す
+
+    // 現在の形状インデックス
+    let currentShapeIdx = 0;
+
+    // 3種類の形状
+    const shapeDefs = [
+      () => new THREE.IcosahedronGeometry(1.8, 1),
+      () => new THREE.TorusGeometry(1.4, 0.55, 8, 32),
+      () => new THREE.OctahedronGeometry(1.9, 2),
+    ];
+
+    // グループ（形状のコンテナ）
+    const group = new THREE.Group();
+    scene.add(group);
+
+    // アウトラインマテリアル（背面を膨らませて輪郭として表示）
+    const outlineMat = new THREE.MeshBasicMaterial({
+      color: 0x2A2826,
+      side: THREE.BackSide,
+    });
+
+    // 内部を隠す塗りつぶしマテリアル（背景色と同色）
+    const fillMat = new THREE.MeshBasicMaterial({
+      color: 0xF5F3EE,
+      side: THREE.FrontSide,
+    });
+
+    // 現在のメッシュ
+    let outlineMesh = null;
+    let fillMesh = null;
+
+    function buildShape(idx) {
+      // 古いメッシュを削除
+      if (outlineMesh) group.remove(outlineMesh);
+      if (fillMesh) group.remove(fillMesh);
+
+      const geo = shapeDefs[idx]();
+
+      // アウトライン（背面膨らませ手法）
+      const outlineGeo = geo.clone();
+      const posAttr = outlineGeo.attributes.position;
+      const normalAttr = outlineGeo.attributes.normal;
+      const OUTLINE_WIDTH = 0.04;
+      for (let i = 0; i < posAttr.count; i++) {
+        const nx = normalAttr.getX(i);
+        const ny = normalAttr.getY(i);
+        const nz = normalAttr.getZ(i);
+        posAttr.setXYZ(
+          i,
+          posAttr.getX(i) + nx * OUTLINE_WIDTH,
+          posAttr.getY(i) + ny * OUTLINE_WIDTH,
+          posAttr.getZ(i) + nz * OUTLINE_WIDTH
+        );
+      }
+      posAttr.needsUpdate = true;
+
+      outlineMesh = new THREE.Mesh(outlineGeo, outlineMat);
+      group.add(outlineMesh);
+
+      // 内部塗りつぶし（背景色と同色で内部を隠す）
+      fillMesh = new THREE.Mesh(geo, fillMat);
+      group.add(fillMesh);
+    }
+
+    buildShape(0);
+
+    // マウスで回転速度に影響
+    const mouse = new THREE.Vector2(0, 0);
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    // クリックで形状を切り替える
+    window.addEventListener('click', () => {
+      currentShapeIdx = (currentShapeIdx + 1) % shapeDefs.length;
+      buildShape(currentShapeIdx);
+    });
+
+    let time = 0;
+    let transitioning = false;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.006;
+
+      // 基本回転 + マウスで傾き
+      group.rotation.y = time * 0.35 + mouse.x * 0.3;
+      group.rotation.x = time * 0.18 + mouse.y * 0.15;
+      group.rotation.z = time * 0.11;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:    '106',
+    title:  'Casting',
+    desc:   '形ではなく、輪郭だけを見せた。何があるかはわからない。回っているうちに、少しわかる気がしてくる。',
+    detail: '3種類の立体形状が、輪郭線だけの姿で回転しています。マウスで傾きを変えられます。クリックすると形状が切り替わります。輪郭しか見えないと、立体であることを脳が補完しようとする。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
