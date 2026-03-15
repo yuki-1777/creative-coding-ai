@@ -567,6 +567,7 @@
       const li = document.createElement('li');
       li.className = 'work-item';
       li.dataset.tech = techs.join(',');
+      li.dataset.num = w.num;
 
       const thumbContent = w.thumb
         ? `<img class="work-thumb" src="${w.thumb}" alt="${w.title}" onerror="this.style.display='none';this.parentElement.querySelector('.work-fallback').style.display='flex'">`
@@ -628,9 +629,12 @@
 
   function applyFilter(filter, save = true) {
     currentFilter = filter;
+    const favs = getFavorites();
     let visible = 0;
     document.querySelectorAll('.work-item[data-tech]').forEach(item => {
-      const match = filter === 'all' || item.dataset.tech.split(',').includes(filter);
+      const match = filter === 'all'
+        || (filter === 'fav' && favs.includes(item.dataset.num))
+        || item.dataset.tech.split(',').includes(filter);
       item.toggleAttribute('data-hidden', !match);
       if (match) visible++;
     });
@@ -654,10 +658,24 @@
     btn.addEventListener('click', () => applyFilter(btn.dataset.filter));
   });
 
+  // ─── Favorites helpers ───
+  function getFavorites() {
+    try { return JSON.parse(localStorage.getItem('favorites') || '[]'); } catch { return []; }
+  }
+
   // ─── Dev toggle ───
   (function () {
     const isLocalhost = ['localhost', '127.0.0.1', ''].includes(location.hostname);
     const isDebug = localStorage.getItem('debug_mode') === 'true';
+
+    // fav フィルターボタン（DEVモード時のみ）
+    if (isDebug) {
+      const favFilterBtn = document.createElement('button');
+      favFilterBtn.className = 'tag-btn';
+      favFilterBtn.dataset.filter = 'fav';
+      favFilterBtn.textContent = '★';
+      document.querySelector('.filter-bar').appendChild(favFilterBtn);
+    }
 
     // DEV トグルボタン（localhost のみ）
     if (isLocalhost) {

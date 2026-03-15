@@ -209,6 +209,26 @@
     #sketch-dev-toggle:hover { color: rgba(42,42,42,0.7); border-color: rgba(42,42,42,0.3); }
     #sketch-dev-toggle.on { color: rgba(42,42,42,0.75); border-color: rgba(42,42,42,0.4); }
 
+    /* fav：デバッグモード時のみ */
+    #sketch-fav-btn {
+      position: fixed;
+      bottom: 32px;
+      right: 248px;
+      z-index: 9999;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-weight: 300;
+      font-size: 0.8rem;
+      letter-spacing: 0.18em;
+      background: rgba(245,243,238,0.85);
+      border: 1px solid rgba(42,42,42,0.15);
+      color: rgba(42,42,42,0.35);
+      cursor: pointer;
+      padding: 4px 10px;
+      transition: color 0.2s ease, border-color 0.2s ease;
+    }
+    #sketch-fav-btn:hover { color: rgba(42,42,42,0.7); border-color: rgba(42,42,42,0.3); }
+    #sketch-fav-btn.on { color: rgba(42,42,42,0.75); border-color: rgba(42,42,42,0.4); }
+
     /* save thumb：デバッグモード時のみ */
     #sketch-capture-btn {
       position: fixed;
@@ -497,6 +517,36 @@
       document.body.appendChild(fbScript);
     };
     document.body.appendChild(fsBridgeScript);
+  }
+
+  // fav（デバッグモード時のみ）
+  if (isDebug) {
+    function getFavorites() {
+      try { return JSON.parse(localStorage.getItem('favorites') || '[]'); } catch { return []; }
+    }
+    function setFavorites(arr) { localStorage.setItem('favorites', JSON.stringify(arr)); }
+
+    const favBtn = document.createElement('button');
+    favBtn.id = 'sketch-fav-btn';
+    const isFav = getFavorites().includes(meta.num);
+    favBtn.textContent = isFav ? '★ fav' : '☆ fav';
+    if (isFav) favBtn.classList.add('on');
+    document.body.appendChild(favBtn);
+
+    favBtn.addEventListener('click', () => {
+      const favs = getFavorites();
+      const idx = favs.indexOf(meta.num);
+      if (idx === -1) {
+        favs.push(meta.num);
+        favBtn.textContent = '★ fav';
+        favBtn.classList.add('on');
+      } else {
+        favs.splice(idx, 1);
+        favBtn.textContent = '☆ fav';
+        favBtn.classList.remove('on');
+      }
+      setFavorites(favs);
+    });
   }
 
   // save thumb（デバッグモード時のみ）
