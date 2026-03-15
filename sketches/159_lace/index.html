@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>159 — Lace</title>
+  <meta name="description" content="繰り返す線がレースになった。マウスで折り目が変わる。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="159 — Lace | Creative Coding">
+  <meta property="og:description" content="繰り返す線がレースになった。マウスで折り目が変わる。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/159_lace/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_159.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="159 — Lace | Creative Coding">
+  <meta name="twitter:description" content="繰り返す線がレースになった。マウスで折り目が変わる。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_159.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Lace: polar Lissajous-like curves drawn with rotational symmetry.
+// Mouse X controls the A:B frequency ratio, Mouse Y controls phase.
+// The curve is drawn once per frame with alpha trail for smooth animation.
+// Constraint: one closed parametric curve + N-fold symmetry only.
+
+let t = 0;
+let targetA = 3, targetB = 2;
+let currentA = 3, currentB = 2;
+let targetPhase = 0, currentPhase = 0;
+
+const SYMMETRY = 6;  // rotational symmetry copies
+const POINTS = 400;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  strokeCap(ROUND);
+  noFill();
+}
+
+function draw() {
+  // Soft fade trail
+  background(245, 243, 238, 40);
+
+  const cx = width / 2;
+  const cy = height / 2;
+  const R  = min(width, height) * 0.36;
+
+  // Update params from mouse
+  if (mouseX > 0 && mouseX < width) {
+    targetA = map(mouseX, 0, width, 2, 7);
+    targetB = map(mouseY, 0, height, 1, 5);
+  }
+  currentA += (targetA - currentA) * 0.03;
+  currentB += (targetB - currentB) * 0.03;
+
+  t += 0.004;
+  currentPhase = t;
+
+  // Draw N-fold symmetric lace
+  for (let sym = 0; sym < SYMMETRY; sym++) {
+    const angle = (sym / SYMMETRY) * TWO_PI;
+
+    beginShape();
+    for (let i = 0; i <= POINTS; i++) {
+      const theta = (i / POINTS) * TWO_PI;
+      // Polar lissajous: r varies with two frequencies
+      const r = R * (0.5 + 0.5 * sin(currentA * theta + currentPhase));
+      const phi = theta * currentB;
+
+      const px = r * cos(phi);
+      const py = r * sin(phi);
+
+      // Rotate by symmetry angle
+      const rx = cx + px * cos(angle) - py * sin(angle);
+      const ry = cy + px * sin(angle) + py * cos(angle);
+
+      vertex(rx, ry);
+    }
+    endShape(CLOSE);
+  }
+
+  // Draw current curves fresh with thin line
+  strokeWeight(0.6);
+  const alpha = 110;
+  stroke(42, 42, 42, alpha);
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '159',
+  title:  'Lace',
+  detail: '一本の曲線を6回折りたたんで描いている。マウスを左右に動かすと曲線の周波数が変わり、形が変わる。上下に動かすと別の変数が動く。しばらく置いておくと、ゆっくり変化し続ける。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

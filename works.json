@@ -1411,5 +1411,14 @@
     "path": "sketches/158_grid_pulse/",
     "description": "格子状の点に波が通ると、点が膨らんで縮む。クリックすると新しい波が発生する。複数の波が重なるとリズムが乱れる。",
     "thumb": "img/thumb_158.png"
+  },
+  {
+    "num": "159",
+    "title": "Lace",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/159_lace/",
+    "description": "一本の曲線を6回折りたたんで描くと、レースみたいになった。マウスを左右に動かすと形が変わる。",
+    "thumb": "img/thumb_159.png"
   }
 ]
