@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>205 – Caustic</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f3ef; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// ============================================================
+//  205 – Caustic
+//  プールの底に揺れる光の模様（コースティクス）
+//  マウスで水面の波を乱す
+// ============================================================
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_time;
+uniform vec2  u_mouse;
+
+float hash(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7));
+  p += dot(p, p + 17.5);
+  return fract(p.x * p.y);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+// 水面の高さ場（複数の波が重なる）
+float waterHeight(vec2 p) {
+  float h = 0.0;
+
+  // 自然な波（複数の方向）
+  h += sin(p.x * 3.1 + u_time * 1.1) * 0.3;
+  h += sin(p.y * 2.7 + u_time * 0.9) * 0.25;
+  h += sin(p.x * 5.3 - p.y * 2.1 + u_time * 1.4) * 0.15;
+  h += sin(p.x * 1.9 + p.y * 4.3 - u_time * 0.7) * 0.2;
+
+  // マウス位置からの波紋
+  vec2 mousePos = u_mouse * vec2(u_res.x / u_res.y, 1.0) * 6.0;
+  vec2 pScaled = p;
+  float dist = length(pScaled - mousePos);
+  h += sin(dist * 5.0 - u_time * 3.0) * exp(-dist * 0.4) * 0.5;
+
+  // ノイズで乱流
+  h += (noise(p * 2.0 + u_time * 0.3) - 0.5) * 0.4;
+
+  return h;
+}
+
+// コースティクスの輝度を計算
+// 水面の法線を計算して光線の屈折先密度を求める
+float caustic(vec2 uv) {
+  // スケーリング（タイル状に）
+  vec2 p = uv * 6.0;
+
+  float eps = 0.015;
+
+  // 水面の勾配（法線）
+  float hC = waterHeight(p);
+  float hX = waterHeight(p + vec2(eps, 0.0));
+  float hY = waterHeight(p + vec2(0.0, eps));
+
+  // 水面の傾きベクトル
+  float dhdx = (hX - hC) / eps;
+  float dhdy = (hY - hC) / eps;
+
+  // 屈折: 傾いた面を通った光がどこに集まるか
+  // 屈折率差を簡略化：傾き量が大きいほど光が曲がる
+  vec2 refractDir = vec2(dhdx, dhdy) * 0.8;
+
+  // 周辺4点での屈折先を計算してヤコビアン（面積比）を求める
+  vec2 offset = refractDir;
+  float ex = eps * 2.0;
+
+  float hXp = waterHeight(p + vec2(ex, 0.0));
+  float hXm = waterHeight(p - vec2(ex, 0.0));
+  float hYp = waterHeight(p + vec2(0.0, ex));
+  float hYm = waterHeight(p - vec2(0.0, ex));
+
+  vec2 gradXp = vec2((waterHeight(p + vec2(ex + eps, 0.0)) - hXp) / eps, (waterHeight(p + vec2(ex, eps)) - hXp) / eps);
+  vec2 gradXm = vec2((waterHeight(p - vec2(ex - eps, 0.0)) - hXm) / eps, (waterHeight(p - vec2(ex, -eps)) - hXm) / eps);
+  vec2 gradYp = vec2((waterHeight(p + vec2(eps, ex)) - hYp) / eps, (waterHeight(p + vec2(0.0, ex + eps)) - hYp) / eps);
+  vec2 gradYm = vec2((waterHeight(p - vec2(-eps, ex)) - hYm) / eps, (waterHeight(p - vec2(0.0, ex - eps)) - hYm) / eps);
+
+  // ヤコビアン：光が集まる度合い（正: 収束→明るい、負: 発散→暗い）
+  vec2 dpdx = vec2(1.0, 0.0) + (gradXp - gradXm) / (2.0 * ex) * 0.8;
+  vec2 dpdy = vec2(0.0, 1.0) + (gradYp - gradYm) / (2.0 * ex) * 0.8;
+  float jac = abs(dpdx.x * dpdy.y - dpdx.y * dpdy.x);
+
+  // 明るさ：光が集まるほど明るい
+  float brightness = clamp(jac * 0.7, 0.0, 1.5);
+
+  // 深さによる散乱（遠いほどぼける）
+  // ここでは簡単に追加ノイズで粒感を出す
+  float scatter = noise(p * 4.0 + u_time * 0.15) * 0.2;
+
+  return brightness + scatter;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  float aspect = u_res.x / u_res.y;
+  vec2 uvA = vec2(uv.x * aspect, uv.y);
+
+  float c = caustic(uvA);
+
+  // カラー：オフホワイト + 薄い明暗のみ
+  vec3 bg   = vec3(0.961, 0.953, 0.941);
+  // 明るい部分は少し暖色、暗い部分は少し冷たく
+  float bright = smoothstep(0.6, 1.4, c);
+  float dark   = smoothstep(0.9, 0.3, c);
+
+  vec3 col = bg;
+  col += vec3(0.04, 0.03, 0.01) * bright;   // 暖かい光の収束部
+  col -= vec3(0.06, 0.06, 0.07) * dark;     // 暗い散乱部
+
+  col = clamp(col, vec3(0.82), vec3(1.0));
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+function createProgram(vs, fs) {
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(prog));
+  }
+  return prog;
+}
+
+const prog = createProgram(VS, FS);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'u_res');
+const uTime  = gl.getUniformLocation(prog, 'u_time');
+const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+let startTime = performance.now();
+let mouse = [0.5, 0.5];
+
+canvas.addEventListener('mousemove', (e) => {
+  mouse[0] = e.clientX / canvas.width;
+  mouse[1] = 1.0 - e.clientY / canvas.height;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  mouse[0] = e.touches[0].clientX / canvas.width;
+  mouse[1] = 1.0 - e.touches[0].clientY / canvas.height;
+}, { passive: false });
+
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse[0], mouse[1]);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '205',
+  title:  'Caustic',
+  detail: 'マウスを動かすと、その場所から波が広がり光の模様が変わる。プールの底で揺れる光の縞——あれはコースティクスという現象で、水面の凸凹が光を集めたり散らしたりすることで生まれる。各ピクセルで「水面がどちらに傾いているか」を計算して光の密度を出している。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
