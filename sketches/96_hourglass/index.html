@@ -69,8 +69,13 @@ function inHourglass(row, col) {
 // Simulate falling sand
 function update() {
   // Iterate bottom-up to simulate gravity
+  // Column scan direction randomized per row to avoid left-side bias
   for (let row = ROWS - 2; row >= 0; row--) {
-    for (let col = 0; col < COLS; col++) {
+    const ltr = Math.random() < 0.5;
+    const colStart = ltr ? 0 : COLS - 1;
+    const colEnd   = ltr ? COLS : -1;
+    const colStep  = ltr ? 1 : -1;
+    for (let col = colStart; col !== colEnd; col += colStep) {
       if (grid[row][col] !== 1) continue;
 
       const below = row + 1;
