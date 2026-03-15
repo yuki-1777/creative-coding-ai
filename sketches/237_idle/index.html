@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>237 – Idle</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// Idle — 手持ち無沙汰
+// 触られていない棒は重力に負けて倒れていく。
+// マウスが近づくと少し起き上がろうとする。
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf0ede8);
+
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 4, 12);
+camera.lookAt(0, 0, 0);
+
+// 棒の数と初期配置
+const NUM_STICKS = 6;
+const STICK_LENGTH = 3.5;
+const STICK_RADIUS = 0.04;
+
+// カラー
+const COLOR_DARK   = new THREE.Color(0x2a2420);
+const COLOR_ACCENT = new THREE.Color(0x8b4a35);
+
+// 棒クラス
+class Stick {
+  constructor(index) {
+    const spread = 5.5;
+    const xPos = ((index / (NUM_STICKS - 1)) - 0.5) * spread;
+    const zPos = (Math.random() - 0.5) * 1.5;
+
+    // 棒のジオメトリ（下端を軸に回転）
+    const geo = new THREE.CylinderGeometry(STICK_RADIUS, STICK_RADIUS * 1.3, STICK_LENGTH, 8);
+    geo.translate(0, STICK_LENGTH / 2, 0); // 下端を原点に
+
+    const isAccent = index === Math.floor(NUM_STICKS / 2);
+    this.color = isAccent ? COLOR_ACCENT : COLOR_DARK;
+    const mat = new THREE.MeshBasicMaterial({ color: this.color });
+    this.mesh = new THREE.Mesh(geo, mat);
+
+    // ピボットグループ（下端が原点）
+    this.pivot = new THREE.Group();
+    this.pivot.position.set(xPos, 0, zPos);
+    this.pivot.add(this.mesh);
+    scene.add(this.pivot);
+
+    // 物理状態
+    this.angle = 0;           // 傾き角度（ラジアン、0=直立）
+    this.angVel = 0;          // 角速度
+    this.fallDir = (Math.random() < 0.5 ? 1 : -1); // 倒れる方向
+    this.fallDir *= Math.random() * 0.3 + 0.85;     // 少しランダム
+
+    // 倒れる軸方向
+    this.axisAngle = Math.random() * Math.PI * 2;   // XZ平面での向き
+
+    // インタラクション状態
+    this.attention = 0;  // マウスの注目度 0〜1
+
+    // 個別の遅延（最初は少し時間をおいてから倒れ始める）
+    this.idleTimer = 0.5 + Math.random() * 1.5;
+
+    // 下端の小さい球（地面接点）
+    const dotGeo = new THREE.SphereGeometry(STICK_RADIUS * 1.8, 8, 8);
+    const dotMesh = new THREE.Mesh(dotGeo, mat);
+    this.pivot.add(dotMesh);
+  }
+
+  update(dt, mouseInfluence) {
+    // マウスの影響（近いほど大きい）
+    const dx = this.pivot.position.x - mouseInfluence.x;
+    const dz = this.pivot.position.z - mouseInfluence.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    const targetAttention = Math.max(0, 1 - dist / 3.5);
+    this.attention += (targetAttention - this.attention) * dt * 4;
+
+    // 重力（倒れる力）vs 注目（起き上がろうとする力）
+    if (this.idleTimer > 0) {
+      this.idleTimer -= dt;
+    } else {
+      // 重力トルク（sin(angle)に比例）
+      const gravity = 0.35 * Math.sin(this.angle + 0.05) * (1 - this.attention * 0.8);
+      // 注目による復元力（直立に引き戻す）
+      const restore = -this.angle * this.attention * 2.5;
+      // 減衰
+      const damping = -this.angVel * (0.8 + this.attention * 1.5);
+
+      this.angVel += (gravity + restore + damping) * dt;
+      this.angle += this.angVel * dt;
+
+      // 最大傾きを制限
+      const maxAngle = Math.PI / 2 * 0.92;
+      if (this.angle > maxAngle) {
+        this.angle = maxAngle;
+        this.angVel = 0;
+      }
+      if (this.angle < -0.05) {
+        this.angle = -0.05;
+        this.angVel = Math.abs(this.angVel) * 0.3;
+      }
+    }
+
+    // ピボットの回転を適用（傾き方向に回転）
+    const qx = new THREE.Quaternion();
+    qx.setFromAxisAngle(
+      new THREE.Vector3(Math.sin(this.axisAngle), 0, Math.cos(this.axisAngle)),
+      this.angle * this.fallDir
+    );
+    this.pivot.quaternion.copy(qx);
+  }
+}
+
+const sticks = [];
+for (let i = 0; i < NUM_STICKS; i++) {
+  sticks.push(new Stick(i));
+}
+
+// 地面の薄い線
+const floorGeo = new THREE.BufferGeometry();
+const floorPts = [];
+for (let x = -6; x <= 6; x += 0.5) {
+  floorPts.push(x, 0, -2, x, 0, 2);
+}
+floorGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(floorPts), 3));
+const floorMat = new THREE.LineBasicMaterial({ color: new THREE.Color(0xc8c2ba) });
+const floorLines = new THREE.LineSegments(floorGeo, floorMat);
+scene.add(floorLines);
+
+// マウス位置をワールド座標に変換
+const mouse3D = new THREE.Vector3(999, 0, 999); // 初期は画面外
+const raycaster = new THREE.Raycaster();
+const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+window.addEventListener('mousemove', (e) => {
+  const ndc = new THREE.Vector2(
+    (e.clientX / window.innerWidth) * 2 - 1,
+    -(e.clientY / window.innerHeight) * 2 + 1
+  );
+  raycaster.setFromCamera(ndc, camera);
+  const target = new THREE.Vector3();
+  if (raycaster.ray.intersectPlane(plane, target)) {
+    mouse3D.copy(target);
+  }
+});
+
+// クリックで全棒を少し起こす
+renderer.domElement.addEventListener('click', () => {
+  sticks.forEach(stick => {
+    stick.angVel -= 1.2 * stick.fallDir;
+    stick.attention = 1;
+  });
+});
+
+// アニメーション
+let lastTime = 0;
+
+function animate(time) {
+  requestAnimationFrame(animate);
+
+  const t = time / 1000;
+  const dt = Math.min(t - lastTime, 0.05);
+  lastTime = t;
+
+  sticks.forEach(stick => stick.update(dt, mouse3D));
+
+  renderer.render(scene, camera);
+}
+
+animate(0);
+
+// リサイズ対応
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '237',
+  title:  'Idle',
+  detail: 'マウスを近づけると棒が起き上がろうとします。クリックすると全部が一瞬起き上がります。触っていると倒れません。放っておくと、少しずつ傾いていきます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
