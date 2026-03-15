@@ -24,52 +24,16 @@
   </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
 <script>
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-
-let W, H;
-function resize() {
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
-}
-window.addEventListener('resize', resize);
-resize();
-
-// Ring buffer of mouse positions
 const HISTORY_LEN = 300;
-const history = [];
+const LAYERS = 6;
+const LAYER_DELAY = 28;
+
+let history = [];
 let historyHead = 0;
-let historyCount = 0;
-
-let mx = W / 2, my = H / 2;
-let mouseIn = false;
 let hasRealMouse = false;
-
-canvas.addEventListener('mousemove', e => {
-  mx = e.clientX;
-  my = e.clientY;
-  mouseIn = true;
-  hasRealMouse = true;
-  pushHistory(mx, my);
-});
-canvas.addEventListener('mouseleave', () => { mouseIn = false; });
-canvas.addEventListener('mouseenter', () => { mouseIn = true; });
-
-// Auto-demo: simulate a gentle figure-8 path when no mouse
-let demoT = 0;
-function updateDemo() {
-  if (hasRealMouse) return;
-  demoT += 0.018;
-  const cx = W / 2, cy = H / 2;
-  const rx = Math.min(W, H) * 0.28;
-  const ry = Math.min(W, H) * 0.16;
-  // Lissajous figure-8
-  const dx = Math.sin(demoT) * rx;
-  const dy = Math.sin(demoT * 2) * ry;
-  pushHistory(cx + dx, cy + dy);
-}
+let demoT = -3.0; // start offset so echoes are spread across canvas at capture time
 
 function pushHistory(x, y) {
   if (history.length < HISTORY_LEN) {
@@ -78,13 +42,7 @@ function pushHistory(x, y) {
     history[historyHead] = { x, y };
     historyHead = (historyHead + 1) % HISTORY_LEN;
   }
-  historyCount = Math.min(historyCount + 1, HISTORY_LEN);
 }
-
-// Number of echo layers
-const LAYERS = 6;
-// Delay in frames between each layer
-const LAYER_DELAY = 28;
 
 function getHistorical(stepsBack) {
   const len = history.length;
@@ -93,66 +51,65 @@ function getHistorical(stepsBack) {
   return history[idx] || null;
 }
 
-let frame = 0;
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+
+function mouseMoved() {
+  hasRealMouse = true;
+  pushHistory(mouseX, mouseY);
+}
 
 function draw() {
-  requestAnimationFrame(draw);
-  frame++;
+  background('#F5F3EE');
 
-  ctx.fillStyle = '#F5F3EE';
-  ctx.fillRect(0, 0, W, H);
-
-  // Auto-demo runs if no real mouse
-  updateDemo();
-
-  if (!mouseIn && historyCount === 0 && hasRealMouse) {
-    // Idle hint (only shown if real mouse was previously detected and left)
-    ctx.fillStyle = 'rgba(42, 42, 42, 0.15)';
-    ctx.font = '13px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('move mouse', W / 2, H / 2);
-    return;
+  // Auto-demo: Lissajous figure-8 when no real mouse
+  if (!hasRealMouse) {
+    demoT += 0.018;
+    const cx = width / 2, cy = height / 2;
+    const rx = min(width, height) * 0.28;
+    const ry = min(width, height) * 0.16;
+    pushHistory(cx + sin(demoT) * rx, cy + sin(demoT * 2) * ry);
   }
 
-  // Draw from oldest to newest layer (so newest is on top)
+  // Draw echo layers from oldest to newest
   for (let l = LAYERS - 1; l >= 0; l--) {
     const delay = l * LAYER_DELAY;
-    // How far back in history for this layer
     const alphaRatio = 1 - l / LAYERS;
-    const alpha = alphaRatio * 0.75 + 0.12;
+    const a = alphaRatio * 0.75 + 0.12;
     const radius = 4 + l * 5;
 
     const pos = getHistorical(delay);
     if (!pos) continue;
 
-    ctx.beginPath();
-    ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(42, 42, 42, ${alpha * 0.15})`;
-    ctx.fill();
-    ctx.strokeStyle = `rgba(42, 42, 42, ${alpha})`;
-    ctx.lineWidth = 0.8 + alphaRatio * 1.2;
-    ctx.stroke();
+    // Fill
+    noStroke();
+    fill(42, 42, 42, a * 0.15 * 255);
+    ellipse(pos.x, pos.y, radius * 2);
+
+    // Stroke ring
+    noFill();
+    stroke(42, 42, 42, a * 255);
+    strokeWeight(0.8 + alphaRatio * 1.2);
+    ellipse(pos.x, pos.y, radius * 2);
   }
 
-  // Draw path between echo positions
+  // Connecting lines between echo positions
   for (let l = LAYERS - 1; l >= 1; l--) {
-    const delay1 = l * LAYER_DELAY;
-    const delay2 = (l - 1) * LAYER_DELAY;
-    const p1 = getHistorical(delay1);
-    const p2 = getHistorical(delay2);
+    const p1 = getHistorical(l * LAYER_DELAY);
+    const p2 = getHistorical((l - 1) * LAYER_DELAY);
     if (!p1 || !p2) continue;
 
-    const alpha = (1 - l / LAYERS) * 0.2;
-    ctx.beginPath();
-    ctx.moveTo(p1.x, p1.y);
-    ctx.lineTo(p2.x, p2.y);
-    ctx.strokeStyle = `rgba(42, 42, 42, ${alpha})`;
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
+    const a = (1 - l / LAYERS) * 0.2;
+    stroke(42, 42, 42, a * 255);
+    strokeWeight(0.5);
+    line(p1.x, p1.y, p2.x, p2.y);
   }
 }
-
-draw();
 </script>
 <script>
 window.SKETCH_META = {
