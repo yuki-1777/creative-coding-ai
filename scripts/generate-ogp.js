@@ -19,6 +19,13 @@ const thumbNums = [
   '71','73','75','76','78','80','32','47'
 ];
 
+// 画像をbase64に変換してHTMLに埋め込む
+const thumbDataURLs = thumbNums.map(n => {
+  const p = path.join(ROOT, 'img', `thumb_${n}.png`);
+  const data = fs.readFileSync(p).toString('base64');
+  return `data:image/png;base64,${data}`;
+});
+
 const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -93,9 +100,9 @@ const html = `<!DOCTYPE html>
 </head>
 <body>
   <div class="grid">
-    ${thumbNums.map(n => `
+    ${thumbDataURLs.map(src => `
     <div class="cell">
-      <img src="file://${ROOT}/img/thumb_${n}.png" alt="">
+      <img src="${src}" alt="">
     </div>`).join('')}
   </div>
   <div class="overlay">
