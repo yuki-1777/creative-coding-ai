@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>101 — Ripple Memory</title>
+  <meta name="description" content="触れた場所から波紋が広がる。新しいものが来るたびに、古いものが薄れていく。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="101 — Ripple Memory | Creative Coding">
+  <meta property="og:description" content="触れた場所から波紋が広がる。新しいものが来るたびに、古いものが薄れていく。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/101_ripple_memory/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_101.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="101 — Ripple Memory | Creative Coding">
+  <meta name="twitter:description" content="触れた場所から波紋が広がる。新しいものが来るたびに、古いものが薄れていく。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_101.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+const MAX_RIPPLES = 12;
+let ripples = [];
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  noFill();
+  // 初期波紋を数カ所に配置
+  const pts = [
+    [width * 0.25, height * 0.4],
+    [width * 0.6, height * 0.3],
+    [width * 0.45, height * 0.65],
+    [width * 0.75, height * 0.55],
+  ];
+  for (const [x, y] of pts) {
+    const rp = { x, y, r: 0, age: 0 };
+    // 少し成長させて重なりを見せる
+    rp.r = random(20, 120);
+    rp.age = Math.floor(rp.r / 1.8);
+    ripples.push(rp);
+  }
+}
+
+function addRipple(x, y) {
+  ripples.push({ x, y, r: 0, age: 0 });
+  if (ripples.length > MAX_RIPPLES) {
+    ripples.shift();
+  }
+}
+
+function draw() {
+  background(245, 243, 238);
+
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    const rp = ripples[i];
+    rp.r += 1.8;
+    rp.age += 1;
+
+    const maxR = Math.sqrt(width * width + height * height) * 0.6;
+    const progress = rp.r / maxR;
+    if (progress > 1) {
+      ripples.splice(i, 1);
+      continue;
+    }
+
+    // 古さに応じて透明度を下げる（新しいほど濃く）
+    const idx = ripples.indexOf(rp);
+    const recency = (idx + 1) / ripples.length; // 0=古い, 1=新しい
+    const alpha = recency * 180 * (1 - progress * 0.7);
+
+    stroke(42, 42, 42, alpha);
+    strokeWeight(0.8);
+    ellipse(rp.x, rp.y, rp.r * 2, rp.r * 2);
+
+    // 2本目の輪（少し遅れて）
+    if (rp.r > 30) {
+      const r2 = rp.r - 30;
+      const progress2 = r2 / maxR;
+      const alpha2 = recency * 100 * (1 - progress2 * 0.7);
+      stroke(42, 42, 42, alpha2);
+      strokeWeight(0.5);
+      ellipse(rp.x, rp.y, r2 * 2, r2 * 2);
+    }
+  }
+}
+
+function mousePressed() {
+  addRipple(mouseX, mouseY);
+}
+
+function mouseDragged() {
+  if (frameCount % 8 === 0) {
+    addRipple(mouseX, mouseY);
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '101',
+  title:  'Ripple Memory',
+  desc:   '触れた場所から波紋が広がる。新しいものが来るたびに、古いものが薄れていく。たくさん触ると、画面が記憶で埋まる。',
+  detail: 'クリックまたはドラッグで波紋を発生させます。最大12個まで記憶し、古いものから透明になっていきます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
