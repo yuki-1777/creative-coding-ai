@@ -43,7 +43,7 @@ resize();
 // Bird state
 let bird = null;
 const trails = []; // Array of completed trail paths
-const MAX_TRAILS = 6;
+const MAX_TRAILS = 10;
 
 function spawnBird() {
   const margin = Math.min(W, H) * 0.15;
@@ -63,7 +63,7 @@ function spawnBird() {
     turnRate: 0.015 + Math.random() * 0.01,
     targetAngle: angle,
     path: [{ x, y }],
-    life: 400 + Math.random() * 300,
+    life: 700 + Math.random() * 500,
     age: 0
   };
 }
@@ -95,12 +95,26 @@ function updateBird() {
     bird.path.push({ x: bird.x, y: bird.y });
   }
 
-  // Edge attraction: steer away from edges
-  const margin = 80;
-  if (bird.x < margin) bird.targetAngle += 0.05;
-  if (bird.x > W - margin) bird.targetAngle -= 0.05;
-  if (bird.y < margin) bird.targetAngle += 0.05 * Math.sign(Math.PI / 2 - Math.abs(bird.angle % Math.PI - Math.PI / 2));
-  if (bird.y > H - margin) bird.targetAngle -= 0.05 * Math.sign(Math.PI / 2 - Math.abs(bird.angle % Math.PI - Math.PI / 2));
+  // Edge repulsion: steer strongly back toward center near edges
+  const margin = 120;
+  if (bird.x < margin) {
+    const strength = 0.04 + 0.12 * (1 - bird.x / margin);
+    bird.targetAngle += strength;
+  }
+  if (bird.x > W - margin) {
+    const strength = 0.04 + 0.12 * (1 - (W - bird.x) / margin);
+    bird.targetAngle -= strength;
+  }
+  if (bird.y < margin) {
+    const strength = 0.04 + 0.12 * (1 - bird.y / margin);
+    // Push downward: target angle toward π/2 (downward)
+    if (Math.sin(bird.targetAngle) < 0.5) bird.targetAngle += strength;
+  }
+  if (bird.y > H - margin) {
+    const strength = 0.04 + 0.12 * (1 - (H - bird.y) / margin);
+    // Push upward: target angle toward -π/2 (upward)
+    if (Math.sin(bird.targetAngle) > -0.5) bird.targetAngle -= strength;
+  }
 
   // Die
   if (bird.age > bird.life) {
@@ -205,7 +219,7 @@ window.SKETCH_META = {
   num:   '99',
   title: 'Trail',
   desc:  '一羽が飛ぶ。軌跡が残る。しばらく経つと、また別の場所から飛び始める。',
-  detail: '小さな矢印の形をした鳥が画面を自由に飛び回り、通った道が薄い線として残る。鳥はときおり方向を変えながら、画面の端に近づくと内側へ戻ろうとする。しばらく飛ぶと消え、少しの間を置いて別の端から新しい鳥が飛び出す。過去の軌跡は最大6本まで重なって残り、古いものから消えていく。'
+  detail: '小さな矢印の形をした鳥が画面を自由に飛び回り、通った道が薄い線として残る。鳥はときおり方向を変えながら、画面の端に近づくと強く内側へ引き戻される。しばらく飛ぶと消え、少しの間を置いて別の端から新しい鳥が飛び出す。過去の軌跡は最大10本まで重なって残り、古いものから消えていく。'
 };
 </script>
 <script src="../../js/sketch-ui.js"></script>

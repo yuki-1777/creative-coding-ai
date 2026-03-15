@@ -82,7 +82,7 @@
         this.generation = generation;
         this.alive = true;
         this.length = 0;
-        this.maxLength = random(40, 90) / depth;
+        this.maxLength = random(80, 160) / (depth * 0.6);
         this.speed = random(0.8, 1.4);
         this.noiseOffset = random(1000);
         this.thickness = max(0.3, 2.0 - depth * 0.35);

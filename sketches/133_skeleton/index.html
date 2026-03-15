@@ -209,8 +209,8 @@
       headMesh.position.copy(worldPos[4]);
 
       // グループ全体をマウスで回転
-      group.rotation.y += (mouse.x * 1.2 - group.rotation.y) * 0.04;
-      group.rotation.x += (mouse.y * 0.4 - group.rotation.x) * 0.04;
+      group.rotation.y += (mouse.x * 3.0 - group.rotation.y) * 0.04;
+      group.rotation.x += (mouse.y * 1.5 - group.rotation.x) * 0.04;
       // 上下に揺れる
       group.position.y = 0.05 * Math.sin(time * 1.2);
 

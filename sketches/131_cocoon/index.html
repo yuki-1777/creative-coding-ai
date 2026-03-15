@@ -131,8 +131,8 @@
       group.scale.set(breathe, 1.0 + 0.015 * Math.sin(time * 0.5), breathe);
 
       // マウスで回転
-      group.rotation.y += (mouse.x * 0.8 - group.rotation.y) * 0.05;
-      group.rotation.x += (mouse.y * 0.3 - group.rotation.x) * 0.05;
+      group.rotation.y += (mouse.x * 2.5 - group.rotation.y) * 0.05;
+      group.rotation.x += (mouse.y * 1.2 - group.rotation.x) * 0.05;
 
       renderer.render(scene, camera);
     }

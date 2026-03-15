@@ -72,15 +72,15 @@ void main() {
   float ang1 = t * 0.7 + 0.3;
   vec2 dir1 = vec2(cos(ang1), sin(ang1));
   float d1 = dot(p, dir1) + noise(p * 3.0 + t * 0.3) * 0.04;
-  float crease1 = smoothstep(0.004, 0.0, abs(d1));
-  float shade1 = smoothstep(0.0, 0.08, d1) * smoothstep(0.14, 0.0, d1) * 0.28;
+  float crease1 = smoothstep(0.007, 0.0, abs(d1));
+  float shade1 = smoothstep(0.0, 0.15, d1) * smoothstep(0.14, 0.0, d1) * 0.45;
 
   // 折り目2
   float ang2 = t * 0.5 + 2.1;
   vec2 dir2 = vec2(cos(ang2), sin(ang2));
   float d2 = dot(p, dir2) + noise(p * 3.0 + t * 0.3 + 5.0) * 0.04;
-  float crease2 = smoothstep(0.004, 0.0, abs(d2));
-  float shade2 = smoothstep(0.0, 0.08, d2) * smoothstep(0.14, 0.0, d2) * 0.22;
+  float crease2 = smoothstep(0.007, 0.0, abs(d2));
+  float shade2 = smoothstep(0.0, 0.15, d2) * smoothstep(0.14, 0.0, d2) * 0.38;
 
   // 折り目3（マウスのX位置で傾きが変わる直線）
   float ang3 = (uMouse.x - 0.5) * 2.5 + t * 0.3 + 1.1;
@@ -88,8 +88,8 @@ void main() {
   // マウスのY位置で折り目の位置（オフセット）をずらす
   float offset3 = (uMouse.y - 0.5) * 0.3;
   float d3 = dot(p, dir3) + offset3 + noise(p * 2.5 + t * 0.2 + 10.0) * 0.05;
-  float crease3 = smoothstep(0.004, 0.0, abs(d3));
-  float shade3 = smoothstep(0.0, 0.1, d3) * smoothstep(0.18, 0.0, d3) * 0.18;
+  float crease3 = smoothstep(0.007, 0.0, abs(d3));
+  float shade3 = smoothstep(0.0, 0.15, d3) * smoothstep(0.18, 0.0, d3) * 0.32;
 
   fold = max(max(crease1, crease2), crease3);
   shadow = shade1 + shade2 + shade3;

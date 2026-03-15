@@ -151,11 +151,33 @@ function tick() {
   // Composite trail onto main canvas
   ctx.drawImage(trailCanvas, 0, 0);
 
-  // Draw live cursor dot (faint)
-  ctx.beginPath();
+  // Draw pendulum body (pivot → arm → bob)
   const cur = getPos(t);
-  ctx.arc(cur.x, cur.y, 1.5, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(42,42,42,0.4)';
+  const amp = Math.exp(-pendulums.x1.decay * t);
+  const pendulumAlpha = Math.min(1, amp * 3); // fade out as oscillation decays
+
+  const pivotX = W / 2;
+  const pivotY = H / 2;
+
+  // Arm: pivot → bob
+  ctx.beginPath();
+  ctx.moveTo(pivotX, pivotY);
+  ctx.lineTo(cur.x, cur.y);
+  ctx.strokeStyle = `rgba(42,42,42,${(pendulumAlpha * 0.35).toFixed(3)})`;
+  ctx.lineWidth = 0.8;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Bob (weight)
+  ctx.beginPath();
+  ctx.arc(cur.x, cur.y, 4, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(42,42,42,${(pendulumAlpha * 0.7).toFixed(3)})`;
+  ctx.fill();
+
+  // Pivot point
+  ctx.beginPath();
+  ctx.arc(pivotX, pivotY, 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(42,42,42,${(pendulumAlpha * 0.5).toFixed(3)})`;
   ctx.fill();
 
   // Hint

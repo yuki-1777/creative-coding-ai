@@ -205,15 +205,17 @@ function applyWind() {
     if (erodedY > H) { heightMap[c] = H; continue; }
 
     // Spawn a grain from eroded surface
-    if (Math.random() < influence * 0.4 && activeGrains.length < MAX_ACTIVE * 1.5) {
+    if (Math.random() < influence * 0.12 && activeGrains.length < MAX_ACTIVE * 1.5) {
       const g = new Grain(cx);
       g.x = cx;
       g.y = surfY;
       g.vx = mouseVX * influence * 0.4 + (Math.random() - 0.5) * 2;
       g.vy = mouseVY * influence * 0.3 - Math.random() * 2;
       activeGrains.push(g);
-      heightMap[c] = Math.min(H, surfY + GR * 2.2 * influence);
     }
+    // Erode the surface regardless of spawn (確実に削れる)
+    const newSurfY = surfY + GR * 4.0 * influence;
+    heightMap[c] = Math.min(H, newSurfY);
   }
 }
 

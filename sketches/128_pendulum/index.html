@@ -26,7 +26,7 @@
 <body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
 <script>
-const G = 0.002;
+const G = 0.0008;
 const MAX_TRAIL = 800;
 
 let pivotX, pivotY, length;
@@ -39,7 +39,7 @@ function resetPendulum(initAngle) {
   length = min(width, height) * 0.42;
   angle = initAngle !== undefined ? initAngle : (PI / 4 + random(0.4));
   angleVel = 0;
-  angleDamping = 0.9985;
+  angleDamping = 0.9992;
   trail = [];
 }
 
