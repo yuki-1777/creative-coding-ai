@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>155 — Breath Ring</title>
+  <meta name="description" content="輪が呼吸する。近づくと速くなる。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="155 — Breath Ring | Creative Coding">
+  <meta property="og:description" content="輪が呼吸する。近づくと速くなる。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/155_breath_ring/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_155.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="155 — Breath Ring | Creative Coding">
+  <meta name="twitter:description" content="輪が呼吸する。近づくと速くなる。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_155.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Breath Ring: concentric rings that expand and contract like breathing.
+// Mouse proximity increases breathing speed.
+// Constraint: circles only. No fill. Phase offsets create depth.
+
+const NUM_RINGS = 18;
+const BASE_R = 40;
+const R_STEP = 22;
+
+let phase = 0;
+let mouseInfluence = 0;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  noFill();
+  strokeCap(ROUND);
+}
+
+function draw() {
+  background('#F5F3EE');
+
+  const cx = width / 2;
+  const cy = height / 2;
+
+  // Mouse proximity to center
+  const dx = mouseX - cx;
+  const dy = mouseY - cy;
+  const dist = sqrt(dx * dx + dy * dy);
+  const maxDist = sqrt(cx * cx + cy * cy);
+  // Closer to center = faster breathing
+  const proximity = max(0, 1 - dist / (maxDist * 0.7));
+  mouseInfluence += (proximity - mouseInfluence) * 0.05;
+
+  const breathSpeed = 0.008 + mouseInfluence * 0.032;
+  phase += breathSpeed;
+
+  for (let i = 0; i < NUM_RINGS; i++) {
+    // Each ring has a phase offset — creates wave traveling outward
+    const ringPhase = phase - i * 0.22;
+    const breathAmt = sin(ringPhase);
+
+    // Radius oscillates
+    const baseR = BASE_R + i * R_STEP;
+    const r = baseR + breathAmt * (10 + i * 1.4);
+
+    // Opacity: inner rings darker when inhaling, outer when exhaling
+    const alpha = map(breathAmt, -1, 1, 40, 160);
+
+    // Line weight varies slightly
+    const sw = map(abs(breathAmt), 0, 1, 0.4, 1.4);
+
+    stroke(42, 42, 42, alpha);
+    strokeWeight(sw);
+    ellipse(cx, cy, r * 2, r * 2);
+  }
+
+  // Draw small breath indicator: tiny dot at center that pulses
+  const pulse = sin(phase) * 0.5 + 0.5;
+  fill(42, 42, 42, map(pulse, 0, 1, 60, 160));
+  noStroke();
+  circle(cx, cy, 3 + pulse * 3);
+  noFill();
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '155',
+  title:  'Breath Ring',
+  detail: '同心円が、中心から外に向かって波のように膨らんだり縮んだりしている。マウスを中心に近づけると呼吸が速くなる。円だけで作った。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

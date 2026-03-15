@@ -1294,5 +1294,23 @@
     "path": "sketches/144_erosion/",
     "description": "砂粒が上から降り積もる。しばらく待つと砂山ができる。マウスをドラッグすると、砂が吹き飛ばされる。また積もり始める。",
     "thumb": "img/thumb_144.png"
+  },
+  {
+    "num": "145",
+    "title": "Ribbon",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/145_ribbon/",
+    "description": "3本のリボンが空中を漂っている。マウスを左右に動かすとリボンの揺れ方が変わり、上下に動かすと振れ幅が広がったり縮んだりする。",
+    "thumb": "img/thumb_145.png"
+  },
+  {
+    "num": "155",
+    "title": "Breath Ring",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/155_breath_ring/",
+    "description": "同心円が中心から外へ向かって、波のように膨らんだり縮んだりしている。マウスを中心に近づけると呼吸が速くなる。円だけで作った。",
+    "thumb": "img/thumb_155.png"
   }
 ]
