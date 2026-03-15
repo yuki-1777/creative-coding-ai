@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spirit Level</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0eeea; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const W = window.innerWidth, H = window.innerHeight;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xf0eeea);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(35, W / H, 0.1, 100);
+  camera.position.set(0, 1.5, 8);
+  camera.lookAt(0, 0, 0);
+
+  // 管のパラメータ
+  const TUBE_LEN = 4.0;
+  const TUBE_RAD = 0.18;
+  const BUBBLE_RAD = 0.13;
+
+  // 管のアウトライン（円筒の端の輪）を線で描く
+  const tubeGroup = new THREE.Group();
+  scene.add(tubeGroup);
+
+  // 管の左右端のリング
+  function makeRing(radius, segments) {
+    const pts = [];
+    for (let i = 0; i <= segments; i++) {
+      const a = (i / segments) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, 0));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    return new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x444440 }));
+  }
+
+  // 管の上下の長辺（アウトライン）
+  const outlineMat = new THREE.LineBasicMaterial({ color: 0x444440 });
+
+  // 上側の線
+  const topPts = [
+    new THREE.Vector3(-TUBE_LEN / 2, TUBE_RAD, 0),
+    new THREE.Vector3(TUBE_LEN / 2, TUBE_RAD, 0)
+  ];
+  const topGeo = new THREE.BufferGeometry().setFromPoints(topPts);
+  tubeGroup.add(new THREE.Line(topGeo, outlineMat));
+
+  // 下側の線
+  const botPts = [
+    new THREE.Vector3(-TUBE_LEN / 2, -TUBE_RAD, 0),
+    new THREE.Vector3(TUBE_LEN / 2, -TUBE_RAD, 0)
+  ];
+  const botGeo = new THREE.BufferGeometry().setFromPoints(botPts);
+  tubeGroup.add(new THREE.Line(botGeo, outlineMat));
+
+  // 左端リング
+  const leftRing = makeRing(TUBE_RAD, 32);
+  leftRing.position.x = -TUBE_LEN / 2;
+  tubeGroup.add(leftRing);
+
+  // 右端リング
+  const rightRing = makeRing(TUBE_RAD, 32);
+  rightRing.position.x = TUBE_LEN / 2;
+  tubeGroup.add(rightRing);
+
+  // 中央の目盛り（3本の短い縦線）
+  const tickMat = new THREE.LineBasicMaterial({ color: 0x888880 });
+  for (let i = -1; i <= 1; i++) {
+    const hw = (i === 0) ? TUBE_RAD * 0.8 : TUBE_RAD * 0.5;
+    const tPts = [new THREE.Vector3(i * 0.3, -hw, 0), new THREE.Vector3(i * 0.3, hw, 0)];
+    const tGeo = new THREE.BufferGeometry().setFromPoints(tPts);
+    tubeGroup.add(new THREE.Line(tGeo, tickMat));
+  }
+
+  // 気泡（円のアウトライン）
+  const bubblePts = [];
+  const SEG = 48;
+  for (let i = 0; i <= SEG; i++) {
+    const a = (i / SEG) * Math.PI * 2;
+    bubblePts.push(new THREE.Vector3(Math.cos(a) * BUBBLE_RAD, Math.sin(a) * BUBBLE_RAD, 0.01));
+  }
+  const bubbleGeo = new THREE.BufferGeometry().setFromPoints(bubblePts);
+  const bubbleLine = new THREE.Line(bubbleGeo, new THREE.LineBasicMaterial({ color: 0x555550 }));
+  tubeGroup.add(bubbleLine);
+
+  // 気泡の内側に細いハイライト（小さい円弧）
+  const hlPts = [];
+  for (let i = 0; i <= 20; i++) {
+    const a = Math.PI * 0.55 + (i / 20) * Math.PI * 0.4;
+    hlPts.push(new THREE.Vector3(Math.cos(a) * BUBBLE_RAD * 0.7, Math.sin(a) * BUBBLE_RAD * 0.7, 0.02));
+  }
+  const hlGeo = new THREE.BufferGeometry().setFromPoints(hlPts);
+  const hlLine = new THREE.Line(hlGeo, new THREE.LineBasicMaterial({ color: 0x999994, opacity: 0.6, transparent: true }));
+  tubeGroup.add(hlLine);
+
+  // 気泡の物理状態
+  let bubbleX = 0;       // 管内のX位置 (-1〜1 正規化)
+  let bubbleVX = 0;
+  let tubeAngle = 0;     // 管の傾き角（ラジアン）
+  let tubeVAngle = 0;
+
+  // マウスインタラクション
+  let isDragging = false;
+  let prevMouseX = 0, prevMouseY = 0;
+  let targetAngle = 0;
+
+  renderer.domElement.addEventListener('mousedown', e => {
+    isDragging = true;
+    prevMouseX = e.clientX;
+    prevMouseY = e.clientY;
+  });
+  renderer.domElement.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    const dx = e.clientX - prevMouseX;
+    const dy = e.clientY - prevMouseY;
+    // 横ドラッグで傾き
+    targetAngle += dx * 0.008;
+    targetAngle = Math.max(-Math.PI * 0.4, Math.min(Math.PI * 0.4, targetAngle));
+    prevMouseX = e.clientX;
+    prevMouseY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+
+  // タッチ対応
+  renderer.domElement.addEventListener('touchstart', e => {
+    isDragging = true;
+    prevMouseX = e.touches[0].clientX;
+    prevMouseY = e.touches[0].clientY;
+  }, { passive: true });
+  renderer.domElement.addEventListener('touchmove', e => {
+    if (!isDragging) return;
+    const dx = e.touches[0].clientX - prevMouseX;
+    targetAngle += dx * 0.008;
+    targetAngle = Math.max(-Math.PI * 0.4, Math.min(Math.PI * 0.4, targetAngle));
+    prevMouseX = e.touches[0].clientX;
+  }, { passive: true });
+  window.addEventListener('touchend', () => { isDragging = false; });
+
+  function animate() {
+    requestAnimationFrame(animate);
+
+    // 管の角度をスムーズに追従
+    tubeAngle += (targetAngle - tubeAngle) * 0.07;
+    tubeGroup.rotation.z = tubeAngle;
+
+    // 気泡の物理: 傾きで滑る（浮力は重力の反対なので傾きに対して反対方向に移動）
+    // 管が右下がりなら気泡は右へ（高い方へ）
+    const gravity = Math.sin(tubeAngle);  // 傾きに応じた重力成分
+    const buoyancy = -gravity * 0.012;   // 気泡は逆方向に浮く
+    bubbleVX += buoyancy;
+    bubbleVX *= 0.92;  // 粘性ダンピング
+
+    // 壁との衝突
+    const maxX = (TUBE_LEN / 2 - BUBBLE_RAD - 0.05);
+    bubbleX += bubbleVX;
+    if (bubbleX > maxX) { bubbleX = maxX; bubbleVX *= -0.3; }
+    if (bubbleX < -maxX) { bubbleX = -maxX; bubbleVX *= -0.3; }
+
+    // 気泡位置を更新
+    bubbleLine.position.x = bubbleX;
+    hlLine.position.x = bubbleX;
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  window.addEventListener('resize', () => {
+    const nW = window.innerWidth, nH = window.innerHeight;
+    renderer.setSize(nW, nH);
+    camera.aspect = nW / nH;
+    camera.updateProjectionMatrix();
+  });
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '257',
+  title:  'Spirit Level',
+  detail: '横にドラッグすると管が傾き、気泡が高い方へ移動します。気泡が中央の目盛りに来たとき、水平になっています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
