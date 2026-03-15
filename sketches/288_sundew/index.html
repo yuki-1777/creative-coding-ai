@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>288 – Sundew</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #f5f3ef;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// モウセンゴケ（Sundew）：腺毛がマウスホバーで閉じる
+// 腺毛 = 棒の先に粘液の球
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0xf5f3ef);
+document.body.appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 6, 14);
+camera.lookAt(0, 0, 0);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ─── マテリアル ───────────────────────────────────
+const stalkMat = new THREE.LineBasicMaterial({ color: 0x2a2620 });
+const tipMat   = new THREE.MeshBasicMaterial({ color: 0x2a2620 });
+const dropMat  = new THREE.MeshBasicMaterial({
+  color: 0x8a9a7a,   // 淡い緑
+  transparent: true,
+  opacity: 0.55
+});
+
+// ─── 腺毛の生成 ───────────────────────────────────
+const TENTACLE_COUNT = 34;
+const TENTACLE_ROWS  = 4;
+
+const tentacles = [];
+
+// 葉の中心にランダムに配置（楕円状）
+function makeTentacle(bx, bz) {
+  const baseLen   = 0.6 + Math.random() * 0.6;
+  const segments  = 8;
+
+  // ジョイント角（静止時は外側に開く）
+  const radialAngle  = Math.atan2(bz, bx);
+  const openTiltX    = Math.sin(radialAngle) * 0.3;
+  const openTiltZ    = Math.cos(radialAngle) * 0.3;
+
+  // 各腺毛のグループ
+  const group = new THREE.Group();
+  group.position.set(bx, 0, bz);
+  scene.add(group);
+
+  // 茎（折れ曲がりは上半分のみ）
+  const points = [];
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const bendAmt = t * t; // 先端ほど曲がる
+    const x = openTiltX * bendAmt * baseLen;
+    const y = t * baseLen;
+    const z = openTiltZ * bendAmt * baseLen;
+    points.push(new THREE.Vector3(x, y, z));
+  }
+
+  const geom = new THREE.BufferGeometry().setFromPoints(points);
+  const line = new THREE.Line(geom, stalkMat);
+  group.add(line);
+
+  // 先端の粘液球
+  const dropR  = 0.06 + Math.random() * 0.04;
+  const dropG  = new THREE.SphereGeometry(dropR, 8, 8);
+  const dropM  = dropMat.clone();
+  const drop   = new THREE.Mesh(dropG, dropM);
+  const tip    = points[points.length - 1];
+  drop.position.copy(tip);
+  group.add(drop);
+
+  tentacles.push({
+    group,
+    points,
+    geom,
+    drop,
+    bx, bz,
+    baseLen,
+    openTiltX,
+    openTiltZ,
+    segments,
+    closeFraction: 0,   // 0=開, 1=閉
+    closeTarget:   0,
+    closeSpeed:    0.008 + Math.random() * 0.006
+  });
+}
+
+// 葉の中に腺毛を配置
+for (let r = 0; r < TENTACLE_ROWS; r++) {
+  const radius = 0.5 + r * 0.7;
+  const count  = 5 + r * 3;
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2 + r * 0.4;
+    const jitter = (Math.random() - 0.5) * 0.2;
+    const bx = Math.cos(angle) * (radius + jitter);
+    const bz = Math.sin(angle) * (radius + jitter) * 0.65;
+    makeTentacle(bx, bz);
+  }
+}
+
+// ─── 葉の輪郭（楕円）───────────────────────────────
+{
+  const leafPts = [];
+  for (let i = 0; i <= 64; i++) {
+    const a = (i / 64) * Math.PI * 2;
+    leafPts.push(new THREE.Vector3(Math.cos(a) * 2.8, -0.01, Math.sin(a) * 1.9));
+  }
+  const leafGeom = new THREE.BufferGeometry().setFromPoints(leafPts);
+  const leafLine = new THREE.Line(leafGeom, new THREE.LineBasicMaterial({ color: 0x2a2620, opacity: 0.25, transparent: true }));
+  scene.add(leafLine);
+}
+
+// ─── マウスレイキャスト ─────────────────────────────
+const raycaster = new THREE.Raycaster();
+const mouse     = new THREE.Vector2(-9999, -9999);
+const plane     = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+window.addEventListener('mousemove', (e) => {
+  mouse.x = (e.clientX / window.innerWidth)  * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+});
+
+// ─── 腺毛の形状更新 ────────────────────────────────
+function updateTentacle(t) {
+  const cf = t.closeFraction;
+  const pos = t.points;
+
+  // 閉じる動作：先端が内側・上向きに曲がる
+  for (let i = 0; i <= t.segments; i++) {
+    const progress = i / t.segments;
+    const bendAmt  = progress * progress;
+    const openX    = t.openTiltX * bendAmt * t.baseLen;
+    const openY    = progress * t.baseLen;
+    const openZ    = t.openTiltZ * bendAmt * t.baseLen;
+
+    // 閉じた状態：先端が中心に向かって内側に倒れる
+    const closeX   = -t.bx * bendAmt * 0.8 * progress;
+    const closeY   = progress * t.baseLen * (1.0 - bendAmt * 0.3);
+    const closeZ   = -t.bz * bendAmt * 0.8 * progress;
+
+    pos[i].x = THREE.MathUtils.lerp(openX, closeX, cf);
+    pos[i].y = THREE.MathUtils.lerp(openY, closeY, cf);
+    pos[i].z = THREE.MathUtils.lerp(openZ, closeZ, cf);
+  }
+
+  t.geom.setFromPoints(pos);
+  t.drop.position.copy(pos[t.segments]);
+
+  // 粘液の球は閉じると少し大きくなる（触れたものに付着する感じ）
+  const scale = 1.0 + cf * 0.4;
+  t.drop.scale.setScalar(scale);
+  t.drop.material.opacity = 0.55 + cf * 0.2;
+}
+
+// ─── アニメーションループ ──────────────────────────
+const target = new THREE.Vector3();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  // マウス位置を地面に投影
+  raycaster.setFromCamera(mouse, camera);
+  raycaster.ray.intersectPlane(plane, target);
+
+  // 各腺毛の閉じる判定
+  for (const t of tentacles) {
+    const dx = target.x - t.group.position.x;
+    const dz = target.z - t.group.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    const trigDist = t.baseLen * 1.2;
+
+    t.closeTarget = dist < trigDist ? 1.0 : 0.0;
+    t.closeFraction += (t.closeTarget - t.closeFraction) * t.closeSpeed;
+    updateTentacle(t);
+  }
+
+  // カメラがゆっくり周回
+  const time = performance.now() * 0.0002;
+  camera.position.x = Math.sin(time) * 14;
+  camera.position.z = Math.cos(time) * 14;
+  camera.lookAt(0, 1, 0);
+
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '288',
+  title:  'Sundew',
+  detail: 'モウセンゴケの腺毛（粘液のついた毛）を線だけで描いた。マウスを近づけると、腺毛がゆっくり内側に曲がって閉じる。食虫植物が獲物を捕まえる動きを再現した。カメラがゆっくり周回する。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
