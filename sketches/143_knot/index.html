@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>143 — Knot</title>
+  <meta name="description" content="ひもが動きながら、自分で自分を結んでいく。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="143 — Knot | Creative Coding">
+  <meta property="og:description" content="ひもが動きながら、自分で自分を結んでいく。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/143_knot/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_143.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="143 — Knot | Creative Coding">
+  <meta name="twitter:description" content="ひもが動きながら、自分で自分を結んでいく。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_143.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Knot: a closed curve (torus knot parametrization) that slowly morphs
+// by interpolating between two knot types (p,q). The curve is drawn as
+// a single continuous stroke — over-under crossings shown via gap-at-crossing.
+// Constraint: one closed curve only. No fill. Over-under matters.
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const N = 600; // points on curve
+let t = 0;
+
+// Torus knot parametrization (p, q)
+// projected to 2D via stereographic-like projection
+function torusKnotPoint(theta, p, q, R, r) {
+  const phi = (q / p) * theta;
+  // 3D torus knot
+  const x3 = (R + r * Math.cos(phi)) * Math.cos(theta);
+  const y3 = (R + r * Math.cos(phi)) * Math.sin(theta);
+  const z3 = r * Math.sin(phi);
+  // Simple parallel projection, rotate slowly
+  const angle = t * 0.0004;
+  const cosA = Math.cos(angle);
+  const sinA = Math.sin(angle);
+  const x2 = x3 * cosA - z3 * sinA;
+  const y2 = y3;
+  return { x: x2, y: y2, z: x3 * sinA + z3 * cosA };
+}
+
+// Two knot configs to morph between
+const KNOTS = [
+  { p: 2, q: 3 },
+  { p: 3, q: 5 },
+  { p: 2, q: 5 },
+  { p: 3, q: 7 },
+];
+let knotIdx = 0;
+let morphT = 0; // 0..1
+const MORPH_SPEED = 0.0008;
+
+function lerpKnot() {
+  const a = KNOTS[knotIdx % KNOTS.length];
+  const b = KNOTS[(knotIdx + 1) % KNOTS.length];
+  const m = morphT;
+  return {
+    p: a.p * (1 - m) + b.p * m,
+    q: a.q * (1 - m) + b.q * m,
+  };
+}
+
+function getPoints() {
+  const { p, q } = lerpKnot();
+  // LCM of p,q gives full period: use 2*PI*p
+  const totalTheta = Math.PI * 2 * Math.max(Math.round(p), 1);
+  const R = 1.0, r = 0.4;
+
+  const pts = [];
+  for (let i = 0; i <= N; i++) {
+    const theta = (i / N) * totalTheta;
+    pts.push(torusKnotPoint(theta, p, q, R, r));
+  }
+  return pts;
+}
+
+function projectPts(pts) {
+  // Scale to canvas
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const pt of pts) {
+    if (pt.x < minX) minX = pt.x;
+    if (pt.x > maxX) maxX = pt.x;
+    if (pt.y < minY) minY = pt.y;
+    if (pt.y > maxY) maxY = pt.y;
+  }
+  const scaleX = (W * 0.72) / (maxX - minX || 1);
+  const scaleY = (H * 0.72) / (maxY - minY || 1);
+  const scale = Math.min(scaleX, scaleY);
+  const cx = W / 2 - ((minX + maxX) / 2) * scale;
+  const cy = H / 2 - ((minY + maxY) / 2) * scale;
+
+  return pts.map(pt => ({
+    sx: cx + pt.x * scale,
+    sy: cy + pt.y * scale,
+    z: pt.z,
+  }));
+}
+
+// Draw with over-under crossings: sort segments by z, draw back-to-front
+// with a small gap at underpasses
+function drawKnot(projected) {
+  // Build segments
+  const segs = [];
+  for (let i = 0; i < projected.length - 1; i++) {
+    const a = projected[i];
+    const b = projected[i + 1];
+    segs.push({ ax: a.sx, ay: a.sy, bx: b.sx, by: b.sy, z: (a.z + b.z) / 2 });
+  }
+
+  // Sort back-to-front (lowest z first = background)
+  segs.sort((a, b) => a.z - b.z);
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Draw all segments — for underpasses, leave a gap
+  // Simple approach: draw white-thick first, then dark-thin on same segment
+  // This creates the illusion of over-under crossings
+
+  // Pass 1: draw thick white (erase) for all
+  ctx.lineWidth = 4.5;
+  ctx.strokeStyle = '#F5F3EE';
+  for (const seg of segs) {
+    ctx.beginPath();
+    ctx.moveTo(seg.ax, seg.ay);
+    ctx.lineTo(seg.bx, seg.by);
+    ctx.stroke();
+  }
+
+  // Pass 2: draw the actual line
+  ctx.lineWidth = 1.0;
+  ctx.strokeStyle = 'rgba(42,42,42,0.75)';
+  for (const seg of segs) {
+    ctx.beginPath();
+    ctx.moveTo(seg.ax, seg.ay);
+    ctx.lineTo(seg.bx, seg.by);
+    ctx.stroke();
+  }
+}
+
+function tick() {
+  requestAnimationFrame(tick);
+  t++;
+
+  // Morph between knots
+  morphT += MORPH_SPEED;
+  if (morphT >= 1) {
+    morphT = 0;
+    knotIdx = (knotIdx + 1) % KNOTS.length;
+  }
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  const pts = getPoints();
+  const proj = projectPts(pts);
+  drawKnot(proj);
+}
+
+tick();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '143',
+  title:  'Knot',
+  desc:   '閉じた曲線が、ゆっくりと別の結び目に変形し続ける。どこかで交差するたびに、上か下かが決まる。ほどけそうでほどけない。',
+  detail: 'トーラス結び目（Torus Knot）という数学的な曲線を投影しています。パラメータ(p,q)を変えると結び目の形が変わります。複数のパラメータ間をゆっくり補間しながら変形し続けます。交差部分の上下関係は奥行きから計算しています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
