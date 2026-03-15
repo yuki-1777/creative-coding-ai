@@ -1377,6 +1377,15 @@
     "thumb": "img/thumb_153.png"
   },
   {
+    "num": "154",
+    "title": "Fold",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/154_fold/",
+    "description": "四角い紙が、複数の折り目に沿って変形し続けている。折り目は波のように動いて、紙が生き物のようにうねる。マウスを動かすと折り目の方向が変わり、違う形に折れる。",
+    "thumb": "img/thumb_154.png"
+  },
+  {
     "num": "155",
     "title": "Breath Ring",
     "tech": "p5.js",
