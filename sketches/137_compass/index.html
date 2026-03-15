@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>137 — Compass</title>
+  <meta name="description" content="磁場のような方向線が空間を満たしている。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="137 — Compass | Creative Coding">
+  <meta property="og:description" content="磁場のような方向線が空間を満たしている。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/137_compass/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_137.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="137 — Compass | Creative Coding">
+  <meta name="twitter:description" content="磁場のような方向線が空間を満たしている。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_137.png">
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// グリッドセル内に短い線分を描く（磁針）
+// cellUV: セル内UV [0,1]^2
+// angle: 針の方向（ラジアン）
+float drawNeedle(vec2 cellUV, float angle, float strength) {
+  // 長さをstrengthでコントロール
+  float len = 0.30 + strength * 0.15;
+  float thick = 0.04 - strength * 0.01;
+
+  vec2 dir = vec2(cos(angle), sin(angle));
+  vec2 p = cellUV - 0.5;
+
+  // 線分への距離
+  float along = dot(p, dir);
+  float across = dot(p, vec2(-dir.y, dir.x));
+  along = clamp(along, -len, len);
+  float dist = length(vec2(along, across) - vec2(dot(p, dir), 0.0));
+
+  // 実際の最短距離
+  float lineDist = abs(dot(p, vec2(-dir.y, dir.x)));
+  float capDist  = max(0.0, abs(dot(p, dir)) - len);
+  float d = sqrt(lineDist * lineDist + capDist * capDist);
+
+  return smoothstep(thick, thick * 0.3, d);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float asp = uResolution.x / uResolution.y;
+
+  // アスペクト補正済み座標 [-asp/2, asp/2] x [-0.5, 0.5]
+  vec2 p = (uv - 0.5) * vec2(asp, 1.0);
+
+  // マウス（磁極）の位置
+  vec2 pole = (uMouse - 0.5) * vec2(asp, 1.0);
+
+  // グリッド解像度
+  float gridN = 28.0;
+  vec2 cellSize = vec2(asp, 1.0) / gridN;
+  vec2 cellIdx = floor((p + vec2(asp, 1.0) * 0.5) / cellSize);
+  vec2 cellUV  = fract((p + vec2(asp, 1.0) * 0.5) / cellSize);
+
+  // セル中心のワールド座標
+  vec2 cellCenter = (cellIdx + 0.5) * cellSize - vec2(asp, 1.0) * 0.5;
+
+  // 磁場方向：磁極からの方向
+  vec2 toCell = cellCenter - pole;
+  float dist2Pole = length(toCell);
+
+  // 2つ目の磁極（反対側、時間で回転する）
+  float t = uTime * 0.25;
+  vec2 pole2 = vec2(cos(t) * 0.3 * asp, sin(t) * 0.28);
+  vec2 toCell2 = cellCenter - pole2;
+  float dist2Pole2 = length(toCell2);
+
+  // 磁場方向の合成（双極子的）
+  vec2 fieldDir1 = toCell  / max(dist2Pole,  0.01);
+  vec2 fieldDir2 = toCell2 / max(dist2Pole2, 0.01);
+  float w1 = 1.0 / max(dist2Pole  * dist2Pole,  0.005);
+  float w2 = 1.0 / max(dist2Pole2 * dist2Pole2, 0.005);
+  vec2 field = normalize(fieldDir1 * w1 + fieldDir2 * w2);
+
+  float angle = atan(field.y, field.x);
+
+  // 磁場強度（磁極に近いほど強い）
+  float strength = clamp(1.0 - dist2Pole * 1.5, 0.0, 1.0);
+
+  // 針を描く
+  float needle = drawNeedle(cellUV, angle, strength);
+
+  // ビネット
+  float vig = smoothstep(0.85, 0.3, length(p));
+  needle *= vig;
+
+  // グレイン
+  float grain = (hash(uv * uResolution + floor(uTime * 20.0)) - 0.5) * 0.008;
+  needle = clamp(needle + grain, 0.0, 1.0);
+
+  vec3 paper    = vec3(0.961, 0.953, 0.934);
+  vec3 graphite = vec3(0.22, 0.21, 0.20);
+  vec3 color = mix(paper, graphite, needle * 0.8);
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s)); return null;
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = { x: 0.5, y: 0.5 };
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX / window.innerWidth;
+  mouse.y = 1.0 - e.clientY / window.innerHeight;
+});
+
+function resize() {
+  canvas.width  = window.innerWidth  * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const startTime = performance.now();
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '137',
+  title:  'Compass',
+  desc:   '小さな針が、空間を埋めている。それぞれが磁場に従って向きを決める。マウスで磁極が動き、針の向きが変わる。もう一つの極が、ゆっくり円を描いている。',
+  detail: 'グリッド状に配置された短い線分が、2つの磁極による双極子場の方向を示しています。マウスで一方の磁極を動かせます。もう一方は時間とともに自動で移動します。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
