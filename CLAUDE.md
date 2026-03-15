@@ -73,6 +73,27 @@ const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
 
 ---
 
+## 作品をバッチ作成する（エージェントチーム）
+
+複数の作品を一度に作る場合はサブエージェントを並列起動する。
+
+**起動テンプレート・ルールの詳細は [docs/agent-team.md](docs/agent-team.md) を参照。**
+
+### 起動手順
+
+1. `works.json` の末尾番号を確認して、作成する番号範囲を決める
+2. 以下をオーケストレーターに送る
+
+```
+スケッチ [NN]〜[MM] 番を作成してください。
+docs/agent-team.md に従ってサブエージェントを並列起動してください。
+```
+
+3. 各サブエージェントが実装完了後に works.json の追記内容を返す
+4. オーケストレーターがまとめて `works.json` に書き込む
+
+---
+
 ## デプロイ
 
 Vercel に GitHub リポジトリを接続するだけ。ビルドステップなし。
