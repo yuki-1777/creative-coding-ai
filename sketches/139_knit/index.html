@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>139 — Knit</title>
+  <meta name="description" content="編み目のパターンが繰り返している。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="139 — Knit | Creative Coding">
+  <meta property="og:description" content="編み目のパターンが繰り返している。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/139_knit/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_139.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="139 — Knit | Creative Coding">
+  <meta name="twitter:description" content="編み目のパターンが繰り返している。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_139.png">
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// 1つの編み目（V字のループ）を描く
+// p: セル内座標 [0,1]^2
+// row: 行番号（偶数/奇数で交互に重なりを切り替え）
+float knitStitch(vec2 p, float row) {
+  // 横シフト（奇数行は半分ずれる）
+  float shift = mod(row, 2.0) * 0.5;
+
+  // V字の上半分と下半分をそれぞれ描く
+  // セル中心から上にV字
+  float result = 0.0;
+
+  // V字の左脚
+  vec2 left  = p - vec2(0.5, 0.0);
+  // ループの形：V字を正弦波で近似
+  float yV = abs(left.x) * 1.4 - left.y * 0.5 + 0.18;
+  float vShape = smoothstep(0.055, 0.01, abs(yV));
+
+  // 上部の丸み（ループの頂点）
+  float topY = left.y - 0.55;
+  float topX = left.x;
+  float topDist = sqrt(topX * topX * 1.5 + topY * topY);
+  float topLoop = smoothstep(0.075, 0.01, abs(topDist - 0.19));
+
+  // 縦糸（ステムの部分）
+  float stem = smoothstep(0.045, 0.008, abs(left.x)) *
+               smoothstep(0.0, 0.12, left.y + 0.5) *
+               smoothstep(0.0, 0.12, 0.15 - left.y);
+
+  result = max(max(vShape, topLoop), stem);
+
+  // セルの端でクリップ（隣のセルにはみ出さない）
+  float edgeClip = smoothstep(0.0, 0.04, p.x) * smoothstep(0.0, 0.04, 1.0 - p.x)
+                 * smoothstep(0.0, 0.04, p.y) * smoothstep(0.0, 0.04, 1.0 - p.y);
+
+  return result * edgeClip;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float asp = uResolution.x / uResolution.y;
+
+  float t = uTime * 0.08;
+
+  // マウスで目のサイズを変える
+  float mouseX = uMouse.x;
+  float scale = 12.0 + mouseX * 16.0;
+
+  // グリッド座標（アスペクト補正、少しゆっくりスクロール）
+  vec2 p = uv * vec2(asp * scale, scale * 1.2) + vec2(t * 0.3, t * 0.15);
+
+  // セルの行列
+  vec2 cellIdx = floor(p);
+  vec2 cellUV  = fract(p);
+
+  // 行番号で水平オフセット
+  float row = cellIdx.y;
+  float colShift = mod(row, 2.0) * 0.5;
+  vec2 shiftedP = p + vec2(colShift, 0.0);
+  vec2 shiftedCellIdx = floor(shiftedP);
+  vec2 shiftedCellUV  = fract(shiftedP);
+
+  // 編み目を描く
+  float stitch = knitStitch(shiftedCellUV, shiftedCellIdx.y);
+
+  // 隣接セルとの重なり（上の行のループが下の行の糸の上に乗る）
+  // 下の行（row+1）のループの下部も加算
+  vec2 aboveP = shiftedP + vec2(0.0, -1.0);
+  vec2 aboveCellUV = fract(aboveP);
+  vec2 aboveCellIdx = floor(aboveP);
+  float stitchAbove = knitStitch(aboveCellUV, aboveCellIdx.y);
+
+  // 奥行き感：行ごとに少し濃淡を変える
+  float depthRow = mod(shiftedCellIdx.y, 2.0);
+  float depth = mix(0.75, 1.0, depthRow);
+
+  // 合成
+  float ink = max(stitch, stitchAbove * 0.6);
+  ink *= depth;
+
+  // グレイン
+  float grain = (hash(uv * uResolution + floor(t * 40.0 + 0.5)) - 0.5) * 0.012;
+  ink = clamp(ink + grain, 0.0, 1.0);
+
+  // ビネット
+  float vig = smoothstep(0.85, 0.3, length((uv - 0.5) * vec2(asp, 1.0)));
+  ink *= vig;
+
+  vec3 paper    = vec3(0.961, 0.953, 0.934);
+  vec3 graphite = vec3(0.22, 0.21, 0.20);
+  vec3 color = mix(paper, graphite, ink * 0.85);
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s)); return null;
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = { x: 0.5, y: 0.5 };
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX / window.innerWidth;
+  mouse.y = 1.0 - e.clientY / window.innerHeight;
+});
+
+function resize() {
+  canvas.width  = window.innerWidth  * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const startTime = performance.now();
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '139',
+  title:  'Knit',
+  desc:   'V字のループが交互に並んで、編み物みたいになった。ゆっくりずれていく。マウスを左右に動かすと目の細かさが変わる。',
+  detail: 'SDF（符号付き距離関数）でV字ループを描き、行ごとに半セルずらして編み目のインターロック構造を再現しています。マウスのX座標で目のスケールを調整できます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
