@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>103 — Sandpile</title>
+  <meta name="description" content="砂を積む。4粒重なったら崩れて隣へ流れる。どこまで積めるか。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="103 — Sandpile | Creative Coding">
+  <meta property="og:description" content="砂を積む。4粒重なったら崩れて隣へ流れる。どこまで積めるか。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/103_sandpile/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_103.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="103 — Sandpile | Creative Coding">
+  <meta name="twitter:description" content="砂を積む。4粒重なったら崩れて隣へ流れる。どこまで積めるか。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_103.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Abelian Sandpile Model
+// セル1つのサイズ
+const CELL = 8;
+let cols, rows;
+let grid, nextGrid;
+let adding = false;
+let addX = 0, addY = 0;
+let totalGrains = 0;
+const ADD_RATE = 3; // フレームごとに追加する粒数
+
+// 砂の粒数による色（0〜3粒）
+// オフホワイトの紙の上にグラファイトで描く
+function grainColor(n) {
+  switch (n) {
+    case 0: return null; // 空
+    case 1: return [42, 42, 42, 50];
+    case 2: return [42, 42, 42, 110];
+    case 3: return [42, 42, 42, 190];
+    default: return [42, 42, 42, 255];
+  }
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  cols = Math.floor(width / CELL);
+  rows = Math.floor(height / CELL);
+  grid = new Array(cols * rows).fill(0);
+  nextGrid = new Array(cols * rows).fill(0);
+  noStroke();
+}
+
+function idx(x, y) {
+  return y * cols + x;
+}
+
+function topple() {
+  // 崩壊処理：4粒以上のセルは崩壊して隣へ1粒ずつ流す
+  let changed = false;
+  nextGrid.fill(0);
+  for (let i = 0; i < grid.length; i++) {
+    nextGrid[i] = grid[i];
+  }
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const n = grid[idx(x, y)];
+      if (n >= 4) {
+        changed = true;
+        nextGrid[idx(x, y)] -= 4;
+        // 4方向へ流す
+        if (x > 0)        nextGrid[idx(x - 1, y)] += 1;
+        if (x < cols - 1) nextGrid[idx(x + 1, y)] += 1;
+        if (y > 0)        nextGrid[idx(x, y - 1)] += 1;
+        if (y < rows - 1) nextGrid[idx(x, y + 1)] += 1;
+        // 端に流れた粒は消える（境界条件）
+      }
+    }
+  }
+
+  const tmp = grid;
+  grid = nextGrid;
+  nextGrid = tmp;
+  return changed;
+}
+
+function draw() {
+  background(245, 243, 238);
+
+  // 砂を追加
+  if (adding) {
+    const cx = Math.floor(addX / CELL);
+    const cy = Math.floor(addY / CELL);
+    for (let k = 0; k < ADD_RATE; k++) {
+      const nx = cx + Math.floor(random(-1, 2));
+      const ny = cy + Math.floor(random(-1, 2));
+      if (nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
+        grid[idx(nx, ny)] += 1;
+        totalGrains++;
+      }
+    }
+  } else {
+    // マウスがない時は中心に少しずつ追加
+    if (frameCount % 3 === 0) {
+      const cx = Math.floor(cols / 2);
+      const cy = Math.floor(rows / 2);
+      grid[idx(cx, cy)] += 1;
+    }
+  }
+
+  // 崩壊を繰り返す（最大20回/フレーム）
+  for (let iter = 0; iter < 20; iter++) {
+    if (!topple()) break;
+  }
+
+  // 描画
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const n = grid[idx(x, y)];
+      if (n === 0) continue;
+      const c = grainColor(Math.min(n, 3));
+      fill(c[0], c[1], c[2], c[3]);
+      rect(x * CELL, y * CELL, CELL - 1, CELL - 1);
+    }
+  }
+}
+
+function mousePressed() {
+  adding = true;
+  addX = mouseX;
+  addY = mouseY;
+}
+
+function mouseDragged() {
+  adding = true;
+  addX = mouseX;
+  addY = mouseY;
+}
+
+function mouseReleased() {
+  adding = false;
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  cols = Math.floor(width / CELL);
+  rows = Math.floor(height / CELL);
+  grid = new Array(cols * rows).fill(0);
+  nextGrid = new Array(cols * rows).fill(0);
+  totalGrains = 0;
+}
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '103',
+  title:  'Sandpile',
+  desc:   '砂を積む。4粒重なったら崩れて隣へ流れる。どこまで積めるか。マウスを押すと砂を追加できる。',
+  detail: 'Abelian Sandpile Modelという数学的なシステムです。各セルに4粒以上積まれると上下左右に1粒ずつ崩れます。マウスを押し続けるとその場所に砂を追加できます。放置すると画面中央に自動で積まれます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
