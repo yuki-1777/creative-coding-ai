@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cobweb</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xf5f4f0);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+  camera.position.set(0, 0, 5);
+
+  let W = window.innerWidth, H = window.innerHeight;
+  renderer.setSize(W, H);
+  const aspect = W / H;
+  camera.left = -aspect; camera.right = aspect;
+  camera.updateProjectionMatrix();
+
+  const SPOKES = 14;
+  const RINGS = 9;
+  const BASE_R = 0.82;
+  const mat = new THREE.LineBasicMaterial({ color: 0x888880, transparent: true, opacity: 0.7 });
+
+  // Spoke lines (radial)
+  const spokeLines = [];
+  for (let i = 0; i < SPOKES; i++) {
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(6);
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const line = new THREE.Line(geo, mat);
+    scene.add(line);
+    spokeLines.push(line);
+  }
+
+  // Ring line loops
+  const ringLines = [];
+  const ringSegs = 80;
+  for (let r = 0; r < RINGS; r++) {
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array((ringSegs + 1) * 3);
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const line = new THREE.LineLoop(geo, mat);
+    scene.add(line);
+    ringLines.push(line);
+  }
+
+  // Vibration state: each node on ring×spoke has a displacement
+  const vibDisplace = new Float32Array(RINGS * SPOKES);
+  let windTime = 0;
+  let shakeStrength = 0;
+
+  canvas.addEventListener('click', () => {
+    shakeStrength = 1.0;
+  });
+
+  function update(t) {
+    // Decay shake
+    shakeStrength *= 0.96;
+    windTime += 0.012;
+
+    // Update displacement: traveling waves + wind
+    for (let r = 0; r < RINGS; r++) {
+      for (let s = 0; s < SPOKES; s++) {
+        const phase = (r / RINGS) * Math.PI * 2 + (s / SPOKES) * Math.PI * 4;
+        const wind = Math.sin(windTime + phase) * 0.007 * (r + 1) / RINGS;
+        const shake = shakeStrength * Math.sin(t * 8 + phase) * 0.02;
+        vibDisplace[r * SPOKES + s] = wind + shake;
+      }
+    }
+
+    // Update spokes
+    for (let i = 0; i < SPOKES; i++) {
+      const angle = (i / SPOKES) * Math.PI * 2;
+      const pos = spokeLines[i].geometry.attributes.position.array;
+      pos[0] = 0; pos[1] = 0; pos[2] = 0;
+      const tip = 0.04 + vibDisplace[0 * SPOKES + i] * 3;
+      pos[3] = Math.cos(angle) * (BASE_R + tip);
+      pos[4] = Math.sin(angle) * (BASE_R + tip);
+      pos[5] = 0;
+      spokeLines[i].geometry.attributes.position.needsUpdate = true;
+    }
+
+    // Update rings
+    for (let r = 0; r < RINGS; r++) {
+      const radius = BASE_R * (r + 1) / RINGS;
+      const pos = ringLines[r].geometry.attributes.position.array;
+      for (let s = 0; s <= ringSegs; s++) {
+        const angle = (s / ringSegs) * Math.PI * 2;
+        const si = Math.floor((s / ringSegs) * SPOKES) % SPOKES;
+        const disp = vibDisplace[r * SPOKES + si];
+        const r2 = radius + disp;
+        pos[s * 3] = Math.cos(angle) * r2;
+        pos[s * 3 + 1] = Math.sin(angle) * r2;
+        pos[s * 3 + 2] = 0;
+      }
+      ringLines[r].geometry.attributes.position.needsUpdate = true;
+    }
+  }
+
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    t += 0.016;
+    update(t);
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    W = window.innerWidth; H = window.innerHeight;
+    renderer.setSize(W, H);
+    const aspect = W / H;
+    camera.left = -aspect; camera.right = aspect;
+    camera.updateProjectionMatrix();
+  });
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '195',
+  title:  'Cobweb',
+  detail: 'クリックすると蜘蛛の巣が揺れます。放射状の糸（スポーク）と同心円状の糸（リング）が、風と衝撃波の組み合わせで振動します。それぞれの交点が独自の位相で動き、巣全体が有機的にうねります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
