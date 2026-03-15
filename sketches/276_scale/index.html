@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scale</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f2f1ee; overflow: hidden; }
+canvas { display: block; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body>
+<script>
+// --- 体重計の針と目盛り ---
+// スクロールで「重さ」を加える。針がバネで跳ね返る。
+// 目盛りと針だけ。数字は表示しない。
+
+let angle = 0;        // 針の現在角度（ラジアン）
+let vel = 0;          // 角速度
+let targetAngle = 0;  // 目標角度（重さに対応）
+let weight = 0;       // 累積スクロール量（0〜1）
+
+const SPRING_K  = 0.08;
+const DAMPING   = 0.82;
+const MAX_ANGLE = Math.PI * 0.62; // 針の最大振れ幅（左端〜右端）
+
+// 目盛りの設定
+const NUM_MAJOR = 10;  // 主目盛り数
+const NUM_MINOR = 4;   // 主目盛り間の副目盛り数
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  angleMode(RADIANS);
+  noFill();
+  rectMode(CENTER);
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+
+// スクロールで重さを加える
+function mouseWheel(event) {
+  weight = constrain(weight + event.delta * 0.0004, 0, 1);
+  targetAngle = -MAX_ANGLE / 2 + weight * MAX_ANGLE;
+  return false; // スクロール防止
+}
+
+// クリックでリセット
+function mousePressed() {
+  weight = 0;
+  targetAngle = -MAX_ANGLE / 2;
+  vel = 0.005; // 少しだけ跳ねさせる
+}
+
+function draw() {
+  background('#f2f1ee');
+
+  const cx = width / 2;
+  const cy = height * 0.62;   // 文字盤の中心
+  const R  = min(width, height) * 0.34; // 文字盤の半径
+
+  // --- バネ・ダンパー物理 ---
+  const force = (targetAngle - angle) * SPRING_K;
+  vel = (vel + force) * DAMPING;
+  angle += vel;
+
+  // --- 文字盤の弧（薄い円弧） ---
+  stroke(58, 55, 50, 55);
+  strokeWeight(0.9);
+  arc(cx, cy, R * 2, R * 2, PI + 0.18, TWO_PI - 0.18);
+
+  // 外縁の弧（少し外側）
+  stroke(58, 55, 50, 28);
+  strokeWeight(0.6);
+  arc(cx, cy, R * 2.05, R * 2.05, PI + 0.18, TWO_PI - 0.18);
+
+  // --- 目盛り線 ---
+  const startAng = PI + 0.25;    // 文字盤の開始角度
+  const endAng   = TWO_PI - 0.25;
+  const totalRange = endAng - startAng;
+
+  for (let i = 0; i <= NUM_MAJOR; i++) {
+    const frac = i / NUM_MAJOR;
+    const a = startAng + frac * totalRange;
+    const cos_a = cos(a);
+    const sin_a = sin(a);
+
+    // 主目盛り（長め）
+    const outer = R * 0.97;
+    const inner = R * 0.80;
+    stroke(58, 55, 50, 160);
+    strokeWeight(1.1);
+    line(cx + cos_a * inner, cy + sin_a * inner, cx + cos_a * outer, cy + sin_a * outer);
+
+    // 副目盛り
+    if (i < NUM_MAJOR) {
+      for (let j = 1; j <= NUM_MINOR; j++) {
+        const frac2 = (i + j / (NUM_MINOR + 1)) / NUM_MAJOR;
+        const a2 = startAng + frac2 * totalRange;
+        const c2 = cos(a2);
+        const s2 = sin(a2);
+        const inner2 = R * (j === Math.ceil(NUM_MINOR / 2) ? 0.87 : 0.91);
+        stroke(58, 55, 50, 95);
+        strokeWeight(0.7);
+        line(cx + c2 * inner2, cy + s2 * inner2, cx + c2 * R * 0.97, cy + s2 * R * 0.97);
+      }
+    }
+  }
+
+  // 中央ゼロ線（軽い垂直ガイド）
+  stroke(58, 55, 50, 18);
+  strokeWeight(0.5);
+  const midA = startAng + totalRange / 2;
+  line(cx + cos(midA) * R * 0.72, cy + sin(midA) * R * 0.72,
+       cx + cos(midA) * R * 1.0, cy + sin(midA) * R * 1.0);
+
+  // --- 針の軸点 ---
+  // 針の基端は文字盤中心より少し下（体重計らしく）
+  const pivotY = cy + R * 0.12;
+
+  // 針の角度を計算
+  // angle は -MAX_ANGLE/2 (左端=0) 〜 MAX_ANGLE/2 (右端=最大)
+  // 対応する描画角は startAng+range/2 ± MAX_ANGLE/2
+  const needleBase = midA; // 文字盤の真上方向
+  const needleAng = needleBase + angle;
+
+  // 針（細い線）
+  const needleLen = R * 0.84;
+  const nx = cx + cos(needleAng) * needleLen;
+  const ny = cy + sin(needleAng) * needleLen;
+
+  // 針の本体（2本の細線でわずかに幅を出す）
+  stroke(58, 55, 50, 210);
+  strokeWeight(1.2);
+  line(cx, pivotY, nx, ny);
+
+  // 針先の小さな強調
+  stroke(58, 55, 50, 220);
+  strokeWeight(0.8);
+  const tipLen = R * 0.10;
+  line(nx, ny, nx + cos(needleAng) * tipLen, ny + sin(needleAng) * tipLen);
+
+  // 軸の小さな円
+  stroke(58, 55, 50, 80);
+  strokeWeight(0.8);
+  circle(cx, pivotY, 5);
+
+  // --- 軸下のシルエット（体重計の台座） ---
+  stroke(58, 55, 50, 18);
+  strokeWeight(0.7);
+  const baseW = R * 1.1;
+  const baseY = cy + R * 0.30;
+  line(cx - baseW, baseY, cx + baseW, baseY);
+
+  // ヒント（初回のみ薄く）
+  if (weight < 0.01 && frameCount < 180) {
+    const alpha = map(frameCount, 120, 180, 90, 0, true);
+    fill(58, 55, 50, alpha);
+    noStroke();
+    textAlign(CENTER);
+    textSize(11);
+    text('scroll to add weight · click to reset', cx, cy + R * 0.52);
+    noFill();
+  }
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '276',
+  title: 'Scale',
+  detail: 'マウスホイール（スクロール）を上下するたびに針が振れます。バネのように跳ね返ります。クリックでゼロに戻ります。目盛りと針だけで作りました。数字は表示しません。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
