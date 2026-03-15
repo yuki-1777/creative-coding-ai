@@ -49,7 +49,7 @@
       bottom: 32px;
       left: 32px;
       z-index: 9999;
-      width: min(340px, calc(100vw - 64px));
+      width: min(380px, calc(100vw - 64px));
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -64,6 +64,13 @@
     }
 
     /* detail パネル */
+    #sketch-tech {
+      margin-top: 10px;
+      font-size: 0.7rem;
+      letter-spacing: 0.14em;
+      color: rgba(42,42,42,0.4);
+    }
+
     #sketch-detail-panel {
       background: rgba(245,243,238,0.95);
       border: 1px solid rgba(42,42,42,0.1);
@@ -225,6 +232,7 @@
   // info カード
   const overlay = document.createElement('div');
   overlay.id = 'sketch-overlay';
+  const techLabel = Array.isArray(meta.tech) ? meta.tech.join(' · ') : (meta.tech || '');
   overlay.innerHTML = `
     <div id="sketch-overlay-header">
       <h1 id="sketch-overlay-title">
@@ -234,6 +242,7 @@
       <button id="sketch-close-btn">×</button>
     </div>
     <div id="sketch-overlay-desc">${meta.desc}</div>
+    ${techLabel ? `<div id="sketch-tech">${techLabel}</div>` : ''}
   `;
   container.appendChild(overlay);
   document.body.appendChild(container);

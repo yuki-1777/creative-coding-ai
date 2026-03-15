@@ -243,13 +243,13 @@
     }
 
     .overlay-title {
-      font-size: 0.52rem;
+      font-size: 0.65rem;
       letter-spacing: 0.1em;
       color: var(--mid);
     }
 
     .overlay-tech {
-      font-size: 0.52rem;
+      font-size: 0.65rem;
       letter-spacing: 0.1em;
       color: var(--dim);
     }
@@ -338,13 +338,13 @@
     /* ─── LIST HOVER CARD ─── */
     .hover-card {
       position: fixed;
-      width: 260px;
+      width: 280px;
       pointer-events: none;
       z-index: 500;
       opacity: 0;
       transition: opacity 0.2s ease;
-      border: 1px solid var(--rule);
-      background: var(--paper);
+      border: 1px solid rgba(42,42,42,0.1);
+      background: #f5f3ee;
     }
 
     .hover-card.visible { opacity: 1; }
@@ -354,7 +354,7 @@
       height: 154px;
       object-fit: cover;
       display: block;
-      border-bottom: 1px solid var(--rule);
+      border-bottom: 1px solid rgba(42,42,42,0.08);
     }
 
     .hover-card-num {
@@ -363,7 +363,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      border-bottom: 1px solid var(--rule);
+      border-bottom: 1px solid rgba(42,42,42,0.08);
       font-family: 'Cormorant Garamond', serif;
       font-weight: 300;
       font-size: 5rem;
@@ -372,12 +372,31 @@
       font-style: italic;
     }
 
-    .hover-card-desc {
+    .hover-card-body {
       padding: 14px 16px;
-      font-size: 0.55rem;
-      line-height: 1.75;
-      color: var(--mid);
-      letter-spacing: 0.04em;
+    }
+
+    .hover-card-header {
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      color: rgba(42,42,42,0.5);
+      margin-bottom: 8px;
+    }
+
+    .hover-card-desc {
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 300;
+      font-size: 1.1rem;
+      line-height: 1.6;
+      color: rgba(42,42,42,0.65);
+      letter-spacing: 0.02em;
+      margin-bottom: 10px;
+    }
+
+    .hover-card-tech {
+      font-size: 0.65rem;
+      letter-spacing: 0.14em;
+      color: rgba(42,42,42,0.35);
     }
 
     /* ─── EMPTY STATE ─── */
@@ -465,7 +484,11 @@
 <div class="hover-card" id="hover-card">
   <div class="hover-card-num" id="hover-card-num"></div>
   <img class="hover-card-thumb" id="hover-card-thumb" src="" alt="" style="display:none">
-  <div class="hover-card-desc" id="hover-card-desc"></div>
+  <div class="hover-card-body">
+    <div class="hover-card-header" id="hover-card-header"></div>
+    <div class="hover-card-desc" id="hover-card-desc"></div>
+    <div class="hover-card-tech" id="hover-card-tech"></div>
+  </div>
 </div>
 
 <main>
@@ -481,10 +504,12 @@
 
 <script>
   // ─── Hover card (list view) ───
-  const hoverCard     = document.getElementById('hover-card');
-  const hoverCardNum  = document.getElementById('hover-card-num');
+  const hoverCard      = document.getElementById('hover-card');
+  const hoverCardNum   = document.getElementById('hover-card-num');
   const hoverCardThumb = document.getElementById('hover-card-thumb');
-  const hoverCardDesc = document.getElementById('hover-card-desc');
+  const hoverCardHeader = document.getElementById('hover-card-header');
+  const hoverCardDesc  = document.getElementById('hover-card-desc');
+  const hoverCardTech  = document.getElementById('hover-card-tech');
 
   document.addEventListener('mousemove', e => {
     let x = e.clientX + 28;
@@ -497,6 +522,7 @@
   });
 
   function showHoverCard(w) {
+    const techs = Array.isArray(w.tech) ? w.tech : [w.tech];
     hoverCardNum.textContent = w.num;
     if (w.thumb) {
       hoverCardThumb.src = w.thumb;
@@ -510,7 +536,9 @@
       hoverCardThumb.style.display = 'none';
       hoverCardNum.style.display   = 'flex';
     }
-    hoverCardDesc.textContent = w.description || '';
+    hoverCardHeader.textContent = `${w.num} — ${w.title}`;
+    hoverCardDesc.textContent   = w.description || '';
+    hoverCardTech.textContent   = techs.join(' · ');
     hoverCard.classList.add('visible');
   }
 
