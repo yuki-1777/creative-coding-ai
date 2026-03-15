@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>213 – Afterimage</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f3ef; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// ============================================================
+//  213 – Afterimage
+//  目を閉じたときに見える残像（フォスフェン）をGLSLで描く
+//  スペースキーで「まぶたを閉じる」→目を開けたときの残像が現れる
+//  制約：色なし（透明度と明暗のみ）
+// ============================================================
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_time;
+uniform float u_seed;
+uniform float u_phase;  // 0=開いている, 1=閉じている
+
+float hash(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7) + u_seed * 0.1);
+  p += dot(p, p + 17.5);
+  return fract(p.x * p.y);
+}
+
+float hash1(float n) {
+  return fract(sin(n + u_seed) * 43758.5453);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float amp = 0.5;
+  float freq = 1.0;
+  for (int i = 0; i < 4; i++) {
+    v += amp * noise(p * freq);
+    freq *= 2.2;
+    amp  *= 0.5;
+  }
+  return v;
+}
+
+// 残像のパターン（目を閉じた後に見える光の模様）
+// 同心円と放射状のパターン（フォスフェンの典型的な形）
+float phosphene(vec2 uv) {
+  vec2 center = vec2(0.5, 0.5);
+  vec2 diff = uv - center;
+  float dist = length(diff);
+  float angle = atan(diff.y, diff.x);
+
+  // 放射状のリング（光の輪）
+  float rings = 0.0;
+  for (int r = 0; r < 5; r++) {
+    float fr = float(r);
+    float ringR = 0.06 + fr * 0.09 + hash1(fr * 3.1) * 0.02;
+    float ringW = 0.005 + hash1(fr * 7.3) * 0.008;
+    float ring = smoothstep(ringW, 0.0, abs(dist - ringR));
+    // リングの強度は外側ほど弱い
+    ring *= (1.0 - fr * 0.15);
+    rings += ring;
+  }
+
+  // 放射状のスポーク（眼圧で出る放射線）
+  float spokes = 0.0;
+  for (int s = 0; s < 6; s++) {
+    float fs = float(s);
+    float spokeAngle = (fs / 6.0) * 3.14159 * 2.0 + u_seed * 0.3;
+    float angleDiff = mod(angle - spokeAngle + 3.14159 * 3.0, 3.14159 * 2.0) - 3.14159;
+    float spoke = smoothstep(0.06, 0.0, abs(angleDiff)) * smoothstep(0.45, 0.05, dist);
+    spokes += spoke * 0.4;
+  }
+
+  // 中心の輝点
+  float center_glow = smoothstep(0.05, 0.0, dist) * 0.8;
+
+  // ノイズによる不均一さ（実際の残像は完全に均一でない）
+  float noiseVal = fbm(uv * 5.0 + u_time * 0.5) * 0.3;
+
+  // 外周のにじみ（視野周辺の光）
+  float edge = smoothstep(0.5, 0.35, dist) * 0.15;
+
+  return clamp(rings + spokes + center_glow + noiseVal * (1.0 - dist * 2.0) + edge, 0.0, 1.0);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  float aspect = u_res.x / u_res.y;
+  vec2 uvNorm = vec2((uv.x - 0.5) / aspect + 0.5, uv.y);
+
+  // 目が閉じている間は真っ暗（まぶた）
+  float eyelid = smoothstep(0.0, 0.3, u_phase);
+
+  // 残像フェーズ
+  float afterPhase = smoothstep(0.0, 0.5, 1.0 - u_phase) * smoothstep(1.0, 0.3, 1.0 - u_phase);
+
+  // アイドル状態でもフォスフェンのパターンが薄く見える
+  float idleGlow = sin(u_time * 0.3) * 0.5 + 0.5;
+  float idlePhase = 0.30 * idleGlow * (1.0 - u_phase);  // インタラクション中は消す
+
+  float pattern = phosphene(uvNorm);
+
+  // まぶたの暗さ
+  float darken = eyelid * 0.85;
+
+  // 残像（透明度のみ、色なし）
+  float after = pattern * (afterPhase * 0.6 + idlePhase);
+
+  vec3 bg   = vec3(0.961, 0.953, 0.941);
+  vec3 dark = vec3(0.10, 0.10, 0.10);
+  vec3 afterCol = vec3(0.90, 0.88, 0.86);  // 残像は少し明るい（陽性残像）
+
+  vec3 col = bg;
+  col = mix(col, dark, darken);
+  col = mix(col, afterCol, after);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+function createProgram(vs, fs) {
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(prog));
+  }
+  return prog;
+}
+
+const prog = createProgram(VS, FS);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'u_res');
+const uTime  = gl.getUniformLocation(prog, 'u_time');
+const uSeed  = gl.getUniformLocation(prog, 'u_seed');
+const uPhase = gl.getUniformLocation(prog, 'u_phase');
+
+const startTime = performance.now();
+let seed = Math.random() * 100.0;
+
+// フェーズ: 0=open, 1=closed
+// スペースキーを押している間 = 目を閉じている
+let eyeClosedStart = null;
+let eyeClosedDuration = 0;
+let lastOpenTime = 0;
+
+// 目を閉じる時間（スペースキー押下中）
+let isPressed = false;
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !isPressed) {
+    e.preventDefault();
+    isPressed = true;
+    eyeClosedStart = performance.now();
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'Space') {
+    isPressed = false;
+    if (eyeClosedStart !== null) {
+      eyeClosedDuration = (performance.now() - eyeClosedStart) * 0.001;
+      eyeClosedStart = null;
+      lastOpenTime = performance.now();
+      seed = Math.random() * 100.0;
+    }
+  }
+});
+
+// タッチでも操作（タッチ中が「目を閉じている」）
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  isPressed = true;
+  eyeClosedStart = performance.now();
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  isPressed = false;
+  if (eyeClosedStart !== null) {
+    eyeClosedDuration = (performance.now() - eyeClosedStart) * 0.001;
+    eyeClosedStart = null;
+    lastOpenTime = performance.now();
+    seed = Math.random() * 100.0;
+  }
+});
+
+function getPhase() {
+  const now = performance.now();
+
+  if (isPressed) {
+    // 目を閉じていく（0→1）
+    const elapsed = (now - eyeClosedStart) * 0.001;
+    return Math.min(1.0, elapsed / 0.4);
+  } else if (lastOpenTime > 0) {
+    // 目を開けた後の残像期間
+    const sinceOpen = (now - lastOpenTime) * 0.001;
+    const afterDuration = Math.min(eyeClosedDuration * 1.5, 3.0);
+    // 残像は sinceOpen が 0 のときに u_phase が 0（open状態）
+    // ただし残像効果は u_phase が 0 付近でのみ出る
+    return Math.max(0.0, 1.0 - sinceOpen / afterDuration);
+  }
+  return 0.0;
+}
+
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  const phase = getPhase();
+
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform1f(uSeed, seed);
+  gl.uniform1f(uPhase, phase);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '213',
+  title:  'Afterimage',
+  detail: 'スペースキーを押している間まぶたを閉じる。離すと、目を開けた直後に残像が浮かんで消えていく。色はなく、明暗だけ。目を強く閉じると眼圧で光の輪が見える——あれをフォスフェンという。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
