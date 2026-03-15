@@ -68,10 +68,10 @@
 window.SKETCH_META = {
   num:    'NN',
   title:  '作品名',
-  tech:   'p5.js',   // 使用技術。複数の場合は ['p5.js', 'three.js']
   desc:   '説明文（200字程度）',
   detail: '操作方法と何が起きているかの解説。非専門家向けに。省略可（省略すると「? about」ボタンが非表示になる）'
 };
+// tech は works.json から自動取得するため SKETCH_META に書かなくてよい
 </script>
 <script src="../../js/sketch-ui.js"></script>
 ```

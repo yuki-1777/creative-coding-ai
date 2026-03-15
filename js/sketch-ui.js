@@ -232,7 +232,6 @@
   // info カード
   const overlay = document.createElement('div');
   overlay.id = 'sketch-overlay';
-  const techLabel = Array.isArray(meta.tech) ? meta.tech.join(' · ') : (meta.tech || '');
   overlay.innerHTML = `
     <div id="sketch-overlay-header">
       <h1 id="sketch-overlay-title">
@@ -242,7 +241,7 @@
       <button id="sketch-close-btn">×</button>
     </div>
     <div id="sketch-overlay-desc">${meta.desc}</div>
-    ${techLabel ? `<div id="sketch-tech">${techLabel}</div>` : ''}
+    <div id="sketch-tech"></div>
   `;
   container.appendChild(overlay);
   document.body.appendChild(container);
@@ -323,4 +322,15 @@
   document.addEventListener('keydown', e => {
     if (e.key === 'h' || e.key === 'H') toggleOverlay();
   });
+
+  // works.json から tech を取得して表示
+  fetch('../../works.json')
+    .then(r => r.json())
+    .then(works => {
+      const work = works.find(w => w.num === meta.num);
+      if (!work) return;
+      const techs = Array.isArray(work.tech) ? work.tech : [work.tech];
+      document.getElementById('sketch-tech').textContent = techs.join(' · ');
+    })
+    .catch(() => {});
 })();
