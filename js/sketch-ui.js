@@ -152,7 +152,7 @@
       position: fixed;
       bottom: 160px;
       left: 32px;
-      z-index: 9998;
+      z-index: 10001;
       width: min(340px, calc(100vw - 64px));
       background: rgba(245,243,238,0.95);
       border: 1px solid rgba(42,42,42,0.1);
