@@ -2041,5 +2041,41 @@
     "path": "sketches/227_signal/",
     "description": "ノイズの中に信号が混ざっている。マウスを左右に動かしてチューニングを合わせると、波形が浮かび上がる。少しでもずれると、ノイズに沈んでいく。",
     "thumb": "img/thumb_227.png"
+  },
+  {
+    "num": "228",
+    "title": "Draft",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/228_draft/",
+    "description": "マウスでドラッグすると筆跡が現れる。書いた跡は風に流されながら消えていく。何を書いても、残らない。",
+    "thumb": "img/thumb_228.png"
+  },
+  {
+    "num": "229",
+    "title": "Isobar",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/229_isobar/",
+    "description": "気圧の地図を描いた。高気圧と低気圧が漂い、その間に等圧線が浮かぶ。マウスを動かすと高気圧の中心が移動して、線が引き直される。",
+    "thumb": "img/thumb_229.png"
+  },
+  {
+    "num": "230",
+    "title": "Line Up",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/230_queue/",
+    "description": "クリックすると端から人が歩いてきて列に加わる。先頭の人は窓口で処理されて退場し、後ろの人が静かに前に詰める。人物は円と線だけで表現した。",
+    "thumb": "img/thumb_230.png"
+  },
+  {
+    "num": "231",
+    "title": "Eraser",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/231_eraser/",
+    "description": "ドラッグすると消しゴムが「WAIT」の文字を消す。手を離すと、少しずつ戻ってくる。消えたところに紙のざらつきが残る。",
+    "thumb": "img/thumb_231.png"
   }
 ]
