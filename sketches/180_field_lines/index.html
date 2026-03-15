@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>180 – Field Lines</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; overflow: hidden; width: 100vw; height: 100vh; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// Field Lines — 180
+// N極とS極の間に現れる磁力線をコードで描いた。
+// 磁石は描かず、見えない力の経路だけを可視化する。
+// マウスを左右に動かすと磁石の間隔が変わり、力線の形が変形する。
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0xf0ede8);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 0, 18);
+camera.lookAt(0, 0, 0);
+
+// 磁石の位置（N極 / S極）
+let poleDistance = 3.0; // マウスで変化する
+let mouseX = 0;
+
+// 磁力線の計算
+// 双極子磁場: B = (3(m・r)r/r^5 - m/r^3)
+// m = 磁気モーメント（z軸方向）
+function magneticField(x, y, z, posN, posS) {
+  // N極の寄与（正の点磁荷として近似）
+  const dxN = x - posN.x;
+  const dyN = y - posN.y;
+  const dzN = z - posN.z;
+  const rN = Math.sqrt(dxN * dxN + dyN * dyN + dzN * dzN);
+  const rN3 = rN * rN * rN + 0.001;
+
+  // S極の寄与（負の点磁荷として近似）
+  const dxS = x - posS.x;
+  const dyS = y - posS.y;
+  const dzS = z - posS.z;
+  const rS = Math.sqrt(dxS * dxS + dyS * dyS + dzS * dzS);
+  const rS3 = rS * rS * rS + 0.001;
+
+  return {
+    x: dxN / rN3 - dxS / rS3,
+    y: dyN / rN3 - dyS / rS3,
+    z: dzN / rN3 - dzS / rS3
+  };
+}
+
+// 力線を追跡してポイント列を返す
+function traceFieldLine(startX, startY, startZ, poleN, poleS, steps, stepSize, forward) {
+  const points = [];
+  let x = startX;
+  let y = startY;
+  let z = startZ;
+  const dir = forward ? 1 : -1;
+
+  // S極との初期距離（遠ざかり続けたら打ち切る）
+  let prevDistS = Math.sqrt((x - poleS.x) ** 2 + (y - poleS.y) ** 2 + (z - poleS.z) ** 2);
+  let divergeCount = 0;
+
+  for (let i = 0; i < steps; i++) {
+    points.push(new THREE.Vector3(x, y, z));
+
+    const b = magneticField(x, y, z, poleN, poleS);
+    const bLen = Math.sqrt(b.x * b.x + b.y * b.y + b.z * b.z);
+    if (bLen < 0.0001) break;
+
+    const nx = dir * b.x / bLen;
+    const ny = dir * b.y / bLen;
+    const nz = dir * b.z / bLen;
+
+    x += nx * stepSize;
+    y += ny * stepSize;
+    z += nz * stepSize;
+
+    // N極かS極に近すぎたら終了
+    const distN = Math.sqrt((x - poleN.x) ** 2 + (y - poleN.y) ** 2 + (z - poleN.z) ** 2);
+    const distS = Math.sqrt((x - poleS.x) ** 2 + (y - poleS.y) ** 2 + (z - poleS.z) ** 2);
+    if (distN < 0.3 || distS < 0.3) break;
+
+    // S極から遠ざかり続けたら（逃げていく線）打ち切り
+    if (distS > prevDistS) {
+      divergeCount++;
+      if (divergeCount > 20) break; // 20ステップ連続で遠ざかったら終了
+    } else {
+      divergeCount = 0;
+    }
+    prevDistS = distS;
+
+    // 遠すぎたら終了
+    if (x * x + y * y + z * z > 25) break;
+  }
+
+  return points;
+}
+
+// 力線グループを保持
+let linesGroup = new THREE.Group();
+scene.add(linesGroup);
+
+const lineMaterial = new THREE.LineBasicMaterial({
+  color: 0x2a2a2a,
+  transparent: true,
+  opacity: 0.55
+});
+
+function buildFieldLines(dist) {
+  // 古い力線を削除
+  while (linesGroup.children.length > 0) {
+    const child = linesGroup.children[0];
+    child.geometry.dispose();
+    linesGroup.remove(child);
+  }
+
+  const poleN = new THREE.Vector3(-dist, 0, 0);
+  const poleS = new THREE.Vector3(dist, 0, 0);
+
+  // N極を起点に、複数の角度から力線を放射
+  // 3D: 緯度・経度でサンプリング
+  const numLat = 5;  // 緯度方向（極付近の発散する線を減らす）
+  const numLon = 10; // 経度方向
+
+  for (let lat = 0; lat < numLat; lat++) {
+    // 極軸に平行な方向（theta=0, π）を避け、S極に戻る線だけ描く
+    const theta = (lat / (numLat - 1)) * Math.PI * 0.72 + 0.14; // 0.14〜0.86π
+    for (let lon = 0; lon < numLon; lon++) {
+      const phi = (lon / numLon) * Math.PI * 2;
+
+      const offset = 0.32;
+      const sx = poleN.x + offset * Math.sin(theta) * Math.cos(phi);
+      const sy = poleN.y + offset * Math.sin(theta) * Math.sin(phi);
+      const sz = poleN.z + offset * Math.cos(theta);
+
+      const pts = traceFieldLine(sx, sy, sz, poleN, poleS, 400, 0.06, true);
+      if (pts.length < 2) continue;
+
+      const geometry = new THREE.BufferGeometry().setFromPoints(pts);
+      const line = new THREE.Line(geometry, lineMaterial);
+      linesGroup.add(line);
+    }
+  }
+
+  // 極軸を通る2本の直線（最短経路の力線）
+  // N→S方向に直接
+  {
+    const axialPts = [];
+    const steps = 80;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      axialPts.push(new THREE.Vector3(
+        poleN.x + (poleS.x - poleN.x) * t,
+        0,
+        0
+      ));
+    }
+    const geometry = new THREE.BufferGeometry().setFromPoints(axialPts);
+    const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({
+      color: 0x2a2a2a,
+      transparent: true,
+      opacity: 0.2
+    }));
+    linesGroup.add(line);
+  }
+}
+
+// 初期構築
+buildFieldLines(poleDistance);
+
+// カメラの自動回転（極軸が水平に見える正面位置からスタート）
+let autoRotateAngle = 0; // x軸方向が正面に来る位置
+let autoRotateTilt = 0.28; // 少し上から見下ろす角度
+
+// マウス追跡
+window.addEventListener('mousemove', (e) => {
+  mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+});
+
+// リサイズ
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+let lastDist = poleDistance;
+let t = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  t += 0.005;
+
+  // マウスXで磁石間隔を制御（1.0〜5.0）
+  const targetDist = 1.0 + (mouseX + 1) * 0.5 * 4.0; // 1.0〜5.0
+  poleDistance += (targetDist - poleDistance) * 0.04;
+
+  // 間隔が大きく変わったら再構築
+  if (Math.abs(poleDistance - lastDist) > 0.08) {
+    buildFieldLines(poleDistance);
+    lastDist = poleDistance;
+  }
+
+  // カメラをゆっくり回転
+  autoRotateAngle += 0.003;
+  const radius = 18;
+  const tilt = autoRotateTilt;
+  camera.position.x = radius * Math.sin(autoRotateAngle) * Math.cos(tilt);
+  camera.position.y = radius * Math.sin(tilt);
+  camera.position.z = radius * Math.cos(autoRotateAngle) * Math.cos(tilt);
+  camera.lookAt(0, 0, 0);
+
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '180',
+  title:  'Field Lines',
+  detail: 'マウスを左右に動かすと、N極とS極の距離が変わり、磁力線の形が変形します。磁石自体は描かれていません。見えない力の経路だけをコードで追跡して描きました。カメラは自動で回転します。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
