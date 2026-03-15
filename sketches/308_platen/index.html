@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>308 – Platen</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function() {
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0xf0ede8);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 200);
+  camera.position.set(2, 10, 26);
+  camera.lookAt(0, 0, 0);
+
+  // ---- Materials ----
+  const MAT_LINE  = new THREE.LineBasicMaterial({ color: 0x2a2a2a });
+  const MAT_DRUM  = new THREE.LineBasicMaterial({ color: 0x3a3a3a });
+  const MAT_PAPER = new THREE.MeshBasicMaterial({ color: 0xfaf8f3, side: THREE.DoubleSide });
+  const MAT_EDGE  = new THREE.LineBasicMaterial({ color: 0xcccccc });
+  const MAT_TYPE  = new THREE.LineBasicMaterial({ color: 0x1a1a1a });
+
+  // ---- Paper ----
+  const PAPER_W = 18;
+  const PAPER_D = 10;
+  const paperGeo = new THREE.PlaneGeometry(PAPER_W, PAPER_D, 36, 20);
+  const paper = new THREE.Mesh(paperGeo, MAT_PAPER);
+  paper.rotation.x = -Math.PI / 2;
+  paper.position.y = -1.5;
+  scene.add(paper);
+
+  // Paper edge outline
+  const hw = PAPER_W / 2, hd = PAPER_D / 2;
+  scene.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-hw, -1.49, -hd),
+      new THREE.Vector3( hw, -1.49, -hd),
+      new THREE.Vector3( hw, -1.49,  hd),
+      new THREE.Vector3(-hw, -1.49,  hd),
+      new THREE.Vector3(-hw, -1.49, -hd),
+    ]),
+    MAT_EDGE
+  ));
+
+  // Original paper vertices for deformation
+  const paperPos  = paperGeo.attributes.position;
+  const paperOrig = Float32Array.from(paperPos.array);
+
+  function deformPaper(cx) {
+    const n = paperPos.count;
+    for (let i = 0; i < n; i++) {
+      const vx   = paperOrig[i * 3];
+      const dist = Math.abs(vx - cx);
+      const dip  = Math.max(0, 1 - dist / 2.2) * 0.14;
+      paperPos.setZ(i, paperOrig[i * 3 + 2] - dip);
+    }
+    paperPos.needsUpdate = true;
+  }
+
+  // ---- Drum group (rolls along X) ----
+  const DRUM_R   = 2.5;
+  const DRUM_LEN = 14;
+  const SEG      = 40;
+  const drumGroup = new THREE.Group();
+  drumGroup.position.y = DRUM_R - 1.5;
+  scene.add(drumGroup);
+
+  // Cylinder (axis along Z after rotation.x = PI/2)
+  const cylGeo  = new THREE.CylinderGeometry(DRUM_R, DRUM_R, DRUM_LEN, SEG, 1, true);
+  const cylEdge = new THREE.EdgesGeometry(cylGeo);
+  const cylMesh = new THREE.LineSegments(cylEdge, MAT_DRUM);
+  cylMesh.rotation.x = Math.PI / 2;
+  drumGroup.add(cylMesh);
+
+  // End caps
+  function addCap(z) {
+    const pts = [];
+    for (let i = 0; i <= SEG; i++) {
+      const a = (i / SEG) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * DRUM_R, Math.sin(a) * DRUM_R, 0));
+    }
+    const c = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      MAT_LINE
+    );
+    c.position.z = z;
+    drumGroup.add(c);
+  }
+  addCap(-DRUM_LEN / 2);
+  addCap( DRUM_LEN / 2);
+
+  // ---- Type blocks (rotate with drum) ----
+  // These live inside drumGroup so they inherit its X position + rotation
+  const NUM_TYPES = 14;
+  const typeBlocks = [];
+
+  for (let i = 0; i < NUM_TYPES; i++) {
+    const baseAngle = (i / NUM_TYPES) * Math.PI * 2;
+    const arcHalf   = 0.18 + Math.random() * 0.10;
+    const zOff      = (Math.random() - 0.5) * (DRUM_LEN * 0.5);
+    const z0 = zOff - 0.9;
+    const z1 = zOff + 0.9;
+    const r  = DRUM_R + 0.06;
+    const steps = 8;
+
+    const pts = [];
+    // top arc
+    for (let s = 0; s <= steps; s++) {
+      const a = baseAngle - arcHalf + (s / steps) * arcHalf * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, z0));
+    }
+    // right edge
+    for (let s = 0; s <= steps; s++) {
+      const a = baseAngle + arcHalf;
+      pts.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, z0 + (s / steps) * (z1 - z0)));
+    }
+    // bottom arc (reverse)
+    for (let s = 0; s <= steps; s++) {
+      const a = baseAngle + arcHalf - (s / steps) * arcHalf * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, z1));
+    }
+    // left edge
+    for (let s = 0; s <= steps; s++) {
+      const a = baseAngle - arcHalf;
+      pts.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, z1 - (s / steps) * (z1 - z0)));
+    }
+
+    const geo  = new THREE.BufferGeometry().setFromPoints(pts);
+    const line = new THREE.Line(geo, MAT_TYPE.clone());
+    drumGroup.add(line);
+    typeBlocks.push({ line, baseAngle, lastKey: -9999 });
+  }
+
+  // ---- Ink marks group ----
+  const inkGroup = new THREE.Group();
+  scene.add(inkGroup);
+
+  function addInk(cx) {
+    const hw2 = DRUM_LEN * 0.42;
+    const mat = new THREE.LineBasicMaterial({ color: 0x111111, transparent: true, opacity: 0.65 });
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(cx, -1.47, -hw2),
+      new THREE.Vector3(cx, -1.47,  hw2),
+    ]);
+    inkGroup.add(new THREE.Line(geo, mat));
+  }
+
+  // ---- State ----
+  // Start at center of paper: travel = PAPER_W/2, so angle = (PAPER_W/2)/DRUM_R
+  let rollAngle  = (PAPER_W / 2) / DRUM_R;
+  let speedMult  = 1.0;
+  const BASE_SPD = 0.010;
+
+  // Rolling: one radian of rotation moves drum by DRUM_R units
+  function getContactX(angle) {
+    const travel = angle * DRUM_R; // linear distance traveled
+    const pos    = ((travel % (PAPER_W * 2)) + PAPER_W * 2) % (PAPER_W * 2);
+    // ping-pong between -PAPER_W/2 and +PAPER_W/2
+    if (pos < PAPER_W) {
+      return pos - PAPER_W / 2;
+    } else {
+      return PAPER_W / 2 - (pos - PAPER_W);
+    }
+  }
+
+  window.addEventListener('wheel', e => {
+    e.preventDefault();
+    speedMult = Math.max(0.1, Math.min(6, speedMult + e.deltaY * 0.002));
+  }, { passive: false });
+
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  });
+
+  let camT = 0;
+
+  function animate() {
+    requestAnimationFrame(animate);
+    camT += 0.003;
+
+    rollAngle += BASE_SPD * speedMult;
+
+    const cx = getContactX(rollAngle);
+    drumGroup.position.x = cx;
+
+    // Rotate drum around its roll axis (Z axis in world = Y axis in local after rotation.x=PI/2)
+    // Rolling rightward → clockwise seen from +Z end → cylMesh.rotation.z increases
+    // But cylMesh already has rotation.x=PI/2. We add roll via drumGroup rotation.
+    // drumGroup has no initial rotation; set rotation.z for rolling
+    drumGroup.rotation.z = -rollAngle; // rolling on ground
+
+    // Deform paper
+    deformPaper(cx);
+
+    // Ink: check each type block hitting bottom
+    typeBlocks.forEach(tb => {
+      const eff = ((tb.baseAngle - rollAngle) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+      // bottom of drum circle ≈ 3*PI/2 (pointing downward in XY plane)
+      const bottom = Math.PI * 1.5;
+      const gap = Math.min(
+        Math.abs(eff - bottom),
+        Math.PI * 2 - Math.abs(eff - bottom)
+      );
+      if (gap < 0.20) {
+        const key = Math.round(rollAngle / 0.20);
+        if (key !== tb.lastKey) {
+          tb.lastKey = key;
+          addInk(cx);
+        }
+      }
+    });
+
+    // Fade ink
+    for (let i = inkGroup.children.length - 1; i >= 0; i--) {
+      const l = inkGroup.children[i];
+      l.material.opacity -= 0.0004;
+      if (l.material.opacity <= 0.01) inkGroup.remove(l);
+    }
+
+    // Camera float
+    camera.position.y = 10 + Math.sin(camT * 0.7) * 0.5;
+    camera.position.x =  2 + Math.sin(camT * 0.4) * 1.0;
+    camera.lookAt(0, 0, 0);
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+})();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '308',
+  title:  'Platen',
+  detail: 'スクロールホイールでドラムの回転速度を変えられます。凸版の付いた円筒が紙の上を転がり、接触のたびにインクの跡を残します。圧力で紙がわずかにへこむ様子を描いています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
