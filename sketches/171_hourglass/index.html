@@ -202,6 +202,14 @@ function drawHourglass() {
   line(-HG_W / 2, HG_H / 2, HG_W / 2, HG_H / 2);
 }
 
+function clampToWall(g) {
+  const halfH = HG_H / 2 - GRAIN_R;
+  if (g.y > halfH) g.y = halfH;
+  if (g.y < -halfH) g.y = -halfH;
+  const wallHW = hourglassWidth(g.y) / 2 - GRAIN_R;
+  if (wallHW > 0) g.x = constrain(g.x, -wallHW, wallHW);
+}
+
 function resolveCollisions() {
   const minDist = GRAIN_R * 2;
   for (let i = 0; i < grains.length; i++) {
@@ -216,8 +224,8 @@ function resolveCollisions() {
         const overlap = (minDist - d) * 0.5;
         const nx = dx / d;
         const ny = dy / d;
-        if (!a.settled) { a.x -= nx * overlap; a.y -= ny * overlap; }
-        if (!b.settled) { b.x += nx * overlap; b.y += ny * overlap; }
+        if (!a.settled) { a.x -= nx * overlap; a.y -= ny * overlap; clampToWall(a); }
+        if (!b.settled) { b.x += nx * overlap; b.y += ny * overlap; clampToWall(b); }
         const relVx = b.vx - a.vx;
         const relVy = b.vy - a.vy;
         const dot = relVx * nx + relVy * ny;

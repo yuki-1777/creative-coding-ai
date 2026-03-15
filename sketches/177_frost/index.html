@@ -71,7 +71,7 @@ let frame = 0;
 const STEPS_PER_FRAME = 8;
 
 // Probability an arm advances this tick
-const ADVANCE_PROB = 0.45;
+const ADVANCE_PROB = 0.28;
 
 // Probability a frozen cell spawns a side branch (per step)
 const BRANCH_PROB = 0.08;
@@ -167,7 +167,7 @@ function draw() {
   requestAnimationFrame(draw);
   frame++;
 
-  for (let s = 0; s < 2; s++) growStep();
+  growStep();
 
   ctx.fillStyle = '#F0EEE9';
   ctx.fillRect(0, 0, W, H);
