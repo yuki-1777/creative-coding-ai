@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>113 — Scatter</title>
+  <meta name="description" content="キーを押すと、文字の代わりに粒が散る。打ち込んだはずのものは、何も残らない。">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// キーを叩くたびに点が散る。文字は一切現れない。
+
+const MAX_PARTICLES = 800;
+let particles = [];
+
+// カーソル位置（文字を打っているふりをする場所）
+let cursorX, cursorY;
+
+// キーに応じた散り方のバリエーション（p5定数は使わず数値で）
+function getBurst(key) {
+  if (key === ' ')         return { count: 8,  speedScale: 1.2, angle: 0 };
+  if (key === 'Enter')     return { count: 14, speedScale: 0.8, angle: Math.PI / 2 };
+  if (key === 'Backspace') return { count: 6,  speedScale: 1.5, angle: Math.PI };
+  // 通常文字
+  return { count: 4 + Math.floor(Math.random() * 4), speedScale: 1.0, angle: null };
+}
+
+// オートデモ
+let autoDemo = true;
+let autoDemoTimer = 0;
+const DEMO_TEXT = 'the quick brown fox jumps over the lazy dog ';
+let autoKeyIndex = 0;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  noStroke();
+  resetCursor();
+}
+
+function resetCursor() {
+  cursorX = width * 0.12;
+  cursorY = height * 0.3 + Math.random() * height * 0.1;
+}
+
+function draw() {
+  background(245, 243, 238);
+
+  // ─── オートデモ ───
+  if (autoDemo) {
+    autoDemoTimer++;
+    if (autoDemoTimer % 3 === 0) {
+      const k = DEMO_TEXT[autoKeyIndex % DEMO_TEXT.length];
+      autoKeyIndex++;
+      emitBurst(cursorX, cursorY, k);
+      cursorX += (k === ' ') ? 16 : 11 + (Math.random() - 0.5) * 4;
+      if (cursorX > width * 0.88) {
+        cursorX = width * 0.12;
+        cursorY += 32 + (Math.random() - 0.5) * 6;
+        if (cursorY > height * 0.85) resetCursor();
+      }
+    }
+  }
+
+  // ─── カーソル ───
+  fill(42, 42, 42, frameCount % 50 < 25 ? 170 : 0);
+  rect(cursorX, cursorY - 14, 2, 18);
+
+  // ─── パーティクル ───
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x  += p.vx;
+    p.y  += p.vy;
+    p.vy += 0.035;  // 重力
+    p.vx *= 0.988;
+    p.vy *= 0.988;
+    p.life -= 1;
+
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+
+    const t = p.life / p.maxLife;
+    fill(42, 42, 42, 200 * t * t);
+    const sz = p.size * (0.4 + 0.6 * t);
+    circle(p.x, p.y, sz);
+  }
+}
+
+function emitBurst(x, y, key) {
+  const b = getBurst(key);
+  for (let i = 0; i < b.count; i++) {
+    const a = b.angle !== null
+      ? b.angle + (Math.random() - 0.5) * 1.2
+      : Math.random() * Math.PI * 2;
+    const speed = (1.8 + Math.random() * 4.0) * b.speedScale;
+    const life  = 80 + Math.floor(Math.random() * 80);
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * speed,
+      vy: Math.sin(a) * speed - Math.random() * 1.0,
+      size: 3 + Math.random() * 4,
+      life, maxLife: life,
+    });
+  }
+  while (particles.length > MAX_PARTICLES) particles.shift();
+}
+
+function keyPressed() {
+  autoDemo = false;
+  emitBurst(cursorX, cursorY, key);
+
+  if (key === 'Enter') {
+    cursorX = width * 0.12;
+    cursorY += 32;
+    if (cursorY > height * 0.85) resetCursor();
+  } else if (key === 'Backspace') {
+    cursorX = Math.max(width * 0.12, cursorX - 12);
+  } else {
+    cursorX += 11 + (Math.random() - 0.5) * 4;
+    if (cursorX > width * 0.88) {
+      cursorX = width * 0.12;
+      cursorY += 32;
+      if (cursorY > height * 0.85) resetCursor();
+    }
+  }
+  return false;
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  resetCursor();
+}
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '113',
+  title: 'Scatter',
+  desc:  'キーを押すと、文字の代わりに粒が散る。打ち込んだはずのものは、何も残らない。カーソルだけが、打ったふりをしながら右へ進む。',
+  detail: 'キーボードで何かを打ってみてください。文字は現れず、押したキーの種類によって異なる飛び散り方をします。スペースは横に広がり、Enterは下に落ち、Backspaceは逆方向に飛びます。粒は重力に引かれながら少しずつ消えていきます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

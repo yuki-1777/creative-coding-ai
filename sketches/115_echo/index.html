@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>115 — Echo</title>
+  <meta name="description" content="動いた跡が、少し遅れて繰り返す。繰り返すたびに薄くなり、最後は消える。">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// マウスの軌跡を記録し、一定フレーム後に「こだま」として再生する
+// こだまはさらに遅れてもう一度こだまする
+
+const TRAIL_LENGTH = 100;  // 現在の軌跡の保持長さ
+const ECHO_DELAY = 35;     // こだまの遅延フレーム数
+const ECHO_LAYERS = 3;     // こだまの層数
+
+// 生の位置履歴
+let posHistory = [];
+
+let frameCounter = 0;
+let lastMouseMove = -99999; // frameCountベース、起動直後からデモ開始
+
+// デモ用の仮想カーソル（ノイズで動く）
+let demoX, demoY;
+let demoNX = 0, demoNY = 100;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  noFill();
+  // 中央から始めることを保証（ノイズシードで偏りを防ぐ）
+  demoX = width / 2;
+  demoY = height / 2;
+  demoNX = 0.5;
+  demoNY = 50.5;
+}
+
+function draw() {
+  background(245, 243, 238);
+  frameCounter++;
+
+  const timeSinceMove = frameCounter - lastMouseMove;
+  const usingDemo = timeSinceMove > 30; // frameCount差で判定
+
+  let px, py;
+  if (usingDemo) {
+    // ノイズで滑らかに動く仮想カーソル（より速く広く）
+    demoNX += 0.018;
+    demoNY += 0.022;
+    const nx = noise(demoNX) * 2 - 1;
+    const ny = noise(demoNY) * 2 - 1;
+    demoX = constrain(demoX + nx * 14, width * 0.1, width * 0.9);
+    demoY = constrain(demoY + ny * 12, height * 0.1, height * 0.9);
+    px = demoX;
+    py = demoY;
+  } else {
+    px = mouseX;
+    py = mouseY;
+  }
+
+  // 現在位置を記録
+  posHistory.push({ x: px, y: py });
+  const maxHistory = TRAIL_LENGTH * (ECHO_LAYERS + 1) + ECHO_DELAY * ECHO_LAYERS + 10;
+  if (posHistory.length > maxHistory) {
+    posHistory.shift();
+  }
+
+  // ─── 現在の軌跡（最も濃い）───
+  drawTrail(posHistory, posHistory.length, TRAIL_LENGTH, 200, 1.8);
+
+  // ─── こだまレイヤー ───
+  for (let layer = 0; layer < ECHO_LAYERS; layer++) {
+    const delay = ECHO_DELAY * (layer + 1);
+    const endIdx = posHistory.length - delay;
+    if (endIdx < 2) continue;
+
+    const alpha = map(layer, 0, ECHO_LAYERS, 130, 50);
+    const weight = map(layer, 0, ECHO_LAYERS, 1.4, 0.8);
+    drawTrail(posHistory, endIdx, TRAIL_LENGTH, alpha, weight);
+  }
+
+  // ─── 小さな現在位置マーカー ───
+  stroke(42, 42, 42, 80);
+  strokeWeight(1);
+  noFill();
+  circle(px, py, 6);
+}
+
+function mouseMoved() {
+  lastMouseMove = frameCounter;
+  // デモ仮想カーソルをマウス位置に同期
+  demoX = mouseX;
+  demoY = mouseY;
+}
+
+function mouseDragged() {
+  lastMouseMove = frameCounter;
+  demoX = mouseX;
+  demoY = mouseY;
+}
+
+function drawTrail(history, endIdx, length, baseAlpha, weightScale) {
+  const startIdx = max(0, endIdx - length);
+  const count = endIdx - startIdx;
+  if (count < 2) return;
+
+  for (let i = startIdx + 1; i < endIdx; i++) {
+    const prev = history[i - 1];
+    const curr = history[i];
+    if (!prev || !curr) continue;
+
+    // 軌跡の末尾（古い側）ほど薄い
+    const progress = (i - startIdx) / count;
+    const alpha = baseAlpha * progress * progress;
+
+    // 速度に応じて線の太さを変える（最小値を上げて視認性確保）
+    const d = dist(prev.x, prev.y, curr.x, curr.y);
+    const w = map(d, 0, 20, 1.0, 3.0) * weightScale;
+
+    stroke(42, 42, 42, alpha);
+    strokeWeight(constrain(w, 0.8, 3.5));
+    line(prev.x, prev.y, curr.x, curr.y);
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '115',
+  title: 'Echo',
+  desc:  '動いた跡が、少し遅れて繰り返す。繰り返すたびに薄くなり、最後は消える。同じ軌跡が3回、時間差で流れる。',
+  detail: 'マウスを動かすと軌跡が残ります。その軌跡が約0.75秒後、1.5秒後、2.25秒後に薄いこだまとして繰り返されます。速く動かすほど線が太くなり、ゆっくりだと細くなります。止まると全てのこだまが消えていきます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

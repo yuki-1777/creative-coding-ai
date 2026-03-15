@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>114 — Tides</title>
+  <meta name="description" content="今の時刻で、波の満ち引きが決まる。朝は線が増え、夜は引いていく。">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 現在の時刻 → 波の満ち具合を決める
+// 深夜0時が最も引いた状態、正午が最も満ちた状態
+// 波線はゆっくりと左へ流れる
+
+let waveLines = [];
+const LINE_COUNT = 18; // 最大本数
+
+function getTideLevel() {
+  // 0:00 → 0.0, 6:00 → 0.5, 12:00 → 1.0, 18:00 → 0.5, 24:00 → 0.0
+  const now = new Date();
+  const hours = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+  // 0～12を 0→1、12～24を 1→0
+  const t = hours / 24; // 0.0 ~ 1.0
+  return 0.5 - 0.5 * cos(t * TWO_PI); // 0時が最低、12時が最高
+}
+
+function getTimeString() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  noFill();
+
+  // 波線を初期化
+  for (let i = 0; i < LINE_COUNT; i++) {
+    waveLines.push(createWaveLine(i));
+  }
+}
+
+function createWaveLine(index) {
+  return {
+    index,
+    offset: random(TWO_PI),       // 位相のずれ
+    speed: random(0.003, 0.007),   // 流れる速さ
+    amplitude: random(8, 22),      // 振れ幅
+    frequency: random(2.5, 5.5),   // 波の細かさ
+    xOffset: 0,                    // 横スクロール量
+  };
+}
+
+function draw() {
+  background(245, 243, 238);
+
+  const tide = getTideLevel(); // 0.0 ~ 1.0
+  const visibleCount = floor(tide * LINE_COUNT); // 表示する本数
+  const partialAlpha = (tide * LINE_COUNT) - visibleCount; // 次の線の透明度
+
+  const marginTop = height * 0.2;
+  const marginBottom = height * 0.8;
+  const spacing = (marginBottom - marginTop) / (LINE_COUNT - 1);
+
+  for (let i = 0; i < LINE_COUNT; i++) {
+    const wl = waveLines[i];
+    wl.xOffset += wl.speed;
+
+    // 表示判定
+    let lineAlpha;
+    if (i < visibleCount) {
+      // 完全表示 — 上の線ほど薄い（潮が引いた線のような感じ）
+      const depthFactor = (i + 1) / LINE_COUNT;
+      lineAlpha = 30 + depthFactor * 120;
+    } else if (i === visibleCount) {
+      // 半表示（満ちかけの1本）
+      lineAlpha = partialAlpha * 100;
+    } else {
+      continue;
+    }
+
+    const y = marginTop + i * spacing;
+
+    stroke(42, 42, 42, lineAlpha);
+    strokeWeight(0.8);
+
+    beginShape();
+    for (let x = -10; x <= width + 10; x += 4) {
+      const nx = (x / width) * wl.frequency + wl.xOffset;
+      const wave = sin(nx * TWO_PI + wl.offset) * wl.amplitude;
+      vertex(x, y + wave);
+    }
+    endShape();
+  }
+
+  // 時刻表示（右下）
+  const timeStr = getTimeString();
+  noStroke();
+  fill(42, 42, 42, 50);
+  textFont('monospace');
+  textSize(11);
+  textAlign(RIGHT, BOTTOM);
+  text(timeStr, width - 36, height - 32);
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '114',
+  title: 'Tides',
+  desc:  '今の時刻が、波の本数を決めている。深夜は1本だけ。正午は最も多い。刻一刻と、ゆっくり変わっている。',
+  detail: '操作は何もありません。ただ、見るだけです。現在時刻（0時=最も少ない、12時=最も多い）によって表示される波線の本数が変わります。波はそれぞれ異なる速さで左へ流れています。右下に現在時刻が表示されています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
