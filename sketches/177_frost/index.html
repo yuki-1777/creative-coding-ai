@@ -35,7 +35,7 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
 let W, H;
-const CELL = 3;  // pixels per grid cell
+const CELL = 2;  // pixels per grid cell
 let COLS, ROWS;
 
 // grid: null = empty, or {t: birthFrame, fromDir: [dx,dy]}
@@ -71,10 +71,10 @@ let frame = 0;
 const STEPS_PER_FRAME = 8;
 
 // Probability an arm advances this tick
-const ADVANCE_PROB = 0.7;
+const ADVANCE_PROB = 0.45;
 
 // Probability a frozen cell spawns a side branch (per step)
-const BRANCH_PROB = 0.04;
+const BRANCH_PROB = 0.08;
 
 // Max arm length before it dies
 const MAX_LEN = 180;
@@ -167,7 +167,7 @@ function draw() {
   requestAnimationFrame(draw);
   frame++;
 
-  for (let s = 0; s < 3; s++) growStep();
+  for (let s = 0; s < 2; s++) growStep();
 
   ctx.fillStyle = '#F0EEE9';
   ctx.fillRect(0, 0, W, H);
