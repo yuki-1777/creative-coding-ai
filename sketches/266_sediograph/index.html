@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sediograph</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe4; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// 泥水を静置する。大きい粒から先に沈んでいく。
+// 小さい粒は時間をかけて、ゆっくり底に届く。
+// 粒子は描かない。密度の変化だけで表現する。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+         || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const vsSource = `
+attribute vec2 a_position;
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}
+`;
+
+const fsSource = `
+precision highp float;
+uniform vec2  u_resolution;
+uniform float u_time;       // 経過秒
+uniform float u_settle;     // 0: 沈降開始 → 累積
+uniform float u_spread;     // 粒径の広がり（マウスX: 0〜1）
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u2 = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i),               hash(i + vec2(1.0, 0.0)), u2.x),
+    mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), u2.x),
+    u2.y
+  );
+}
+
+// あるサイズ(size)の粒子が時刻 t に到達する底からの高さ
+// Stokes の沈降則の近似: 大粒 → 速い → 早く底に着く
+// size: 0=最小粒(遅い), 1=最大粒(速い)
+float settleFront(float sz, float t) {
+  // 沈降速度はサイズの2乗に比例（ストークス則）
+  // 全体を遅くして長く楽しめるように
+  float speed = 0.015 + sz * sz * 0.12;
+  // 沈んだ割合: 0=まだ全域に浮遊, 1=全部底に堆積
+  return clamp(t * speed, 0.0, 1.0);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  float t = u_settle;
+  float spread = u_spread; // 0.2〜0.9
+
+  // --- 浮遊粒子の密度 ---
+  // 浮遊密度 = 粒径分布 × まだ浮いているフラクション
+  // ある高さ y に残っている粒子密度を積分で近似
+
+  // 粒径ビン: 5段階
+  // 各ビンについて、yより上にまだ浮いているか計算
+  float suspendedDensity = 0.0;
+  float settledDensity   = 0.0;
+
+  // ビン0: 最粗い粒 (size=1.0, 速い)
+  float frac0 = 1.0 - settleFront(1.0, t);
+  suspendedDensity += frac0 * 0.15 * (1.0 - uv.y);
+
+  // ビン1: (size=0.75)
+  float frac1 = 1.0 - settleFront(0.75, t);
+  suspendedDensity += frac1 * 0.20 * (1.0 - uv.y);
+
+  // ビン2: (size=0.5)
+  float frac2 = 1.0 - settleFront(0.5, t);
+  suspendedDensity += frac2 * 0.25 * (1.0 - uv.y);
+
+  // ビン3: (size=0.3)
+  float frac3 = 1.0 - settleFront(0.3, t);
+  suspendedDensity += frac3 * 0.22 * (1.0 - uv.y);
+
+  // ビン4: 最細かい粒 (size=0.12, 非常に遅い)
+  float frac4 = 1.0 - settleFront(0.12 * spread, t);
+  suspendedDensity += frac4 * 0.18 * (1.0 - uv.y);
+
+  // spread が大きいほど細粒の割合が多い（粒径分布が広がる）
+  suspendedDensity *= (0.4 + spread * 0.6);
+
+  // --- 堆積層の厚さ ---
+  // 底から積み上がる。各ビンが沈んだ量が堆積厚に加算される
+  float totalSettled = 0.0;
+  totalSettled += settleFront(1.0,  t) * 0.15;
+  totalSettled += settleFront(0.75, t) * 0.20;
+  totalSettled += settleFront(0.5,  t) * 0.25;
+  totalSettled += settleFront(0.3,  t) * 0.22;
+  totalSettled += settleFront(0.12 * spread, t) * 0.18;
+  totalSettled *= 0.28; // 最大堆積厚さ（uv.y換算）
+
+  // 堆積面の高さ（底から）
+  float sedLevel = totalSettled;
+
+  // ノイズで堆積面を凸凹にする
+  float surfaceNoise = noise(vec2(uv.x * 8.0, 0.5)) * 0.012
+                     + noise(vec2(uv.x * 22.0, 1.0)) * 0.005;
+  float sedSurface = sedLevel + surfaceNoise;
+
+  // --- 沈降前線の可視化 ---
+  // 各粒径ビンの沈降前線（密度の境界面）
+  float frontLine = 0.0;
+  float frontY0 = 1.0 - settleFront(1.0,  t);
+  float frontY1 = 1.0 - settleFront(0.75, t);
+  float frontY2 = 1.0 - settleFront(0.5,  t);
+  float frontY3 = 1.0 - settleFront(0.3,  t);
+  float frontY4 = 1.0 - settleFront(0.12 * spread, t);
+
+  float lineW = 0.004;
+  frontLine += smoothstep(lineW, 0.0, abs(uv.y - frontY0)) * 0.25 * step(0.01, frontY0) * step(frontY0, 0.99);
+  frontLine += smoothstep(lineW, 0.0, abs(uv.y - frontY1)) * 0.22 * step(0.01, frontY1) * step(frontY1, 0.99);
+  frontLine += smoothstep(lineW, 0.0, abs(uv.y - frontY2)) * 0.20 * step(0.01, frontY2) * step(frontY2, 0.99);
+  frontLine += smoothstep(lineW, 0.0, abs(uv.y - frontY3)) * 0.18 * step(0.01, frontY3) * step(frontY3, 0.99);
+  frontLine += smoothstep(lineW, 0.0, abs(uv.y - frontY4)) * 0.15 * step(0.01, frontY4) * step(frontY4, 0.99);
+
+  // --- カラーリング ---
+  vec3 bg         = vec3(0.936, 0.921, 0.898); // 明るい背景
+  vec3 suspended  = vec3(0.64, 0.61, 0.57);    // 浮遊層（グレー）
+  vec3 sediment   = vec3(0.52, 0.48, 0.44);    // 堆積層（やや濃）
+  vec3 frontColor = vec3(0.38, 0.35, 0.32);    // 前線の線
+
+  vec3 col = bg;
+
+  // 浮遊粒子の霞
+  col = mix(col, suspended, clamp(suspendedDensity * 1.2, 0.0, 0.65));
+
+  // 堆積層
+  float isSediment = step(uv.y, sedSurface);
+  col = mix(col, sediment, isSediment * 0.9);
+
+  // 堆積層の粒度縞（時間で積み重なった層がうっすら見える）
+  if (isSediment > 0.5) {
+    float layerNoise = noise(vec2(uv.x * 5.0, uv.y * 120.0));
+    float layerStripe = smoothstep(0.48, 0.52, layerNoise);
+    col = mix(col, vec3(0.46, 0.43, 0.39), layerStripe * 0.3);
+  }
+
+  // 沈降前線
+  col = mix(col, frontColor, clamp(frontLine, 0.0, 1.0) * (1.0 - isSediment));
+
+  // 堆積面の縁
+  float sedEdge = smoothstep(0.006, 0.0, abs(uv.y - sedSurface)) * (1.0 - step(uv.y, sedSurface - 0.003));
+  col = mix(col, frontColor, sedEdge * 0.6);
+
+  // 紙テクスチャ
+  float grain = (noise(uv * 400.0) - 0.5) * 0.009;
+  col += grain;
+  col = clamp(col, 0.0, 1.0);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+    return null;
+  }
+  return shader;
+}
+
+const vs = compileShader(gl.VERTEX_SHADER, vsSource);
+const fs = compileShader(gl.FRAGMENT_SHADER, fsSource);
+const program = gl.createProgram();
+gl.attachShader(program, vs);
+gl.attachShader(program, fs);
+gl.linkProgram(program);
+
+if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+  console.error('Program link error:', gl.getProgramInfoLog(program));
+}
+
+gl.useProgram(program);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1,  -1, 1,
+  -1,  1,  1, -1,   1, 1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(program, 'a_position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uResolution = gl.getUniformLocation(program, 'u_resolution');
+const uTime       = gl.getUniformLocation(program, 'u_time');
+const uSettle     = gl.getUniformLocation(program, 'u_settle');
+const uSpread     = gl.getUniformLocation(program, 'u_spread');
+
+const startTime = Date.now();
+let settleStart = Date.now();
+let mouseX = 0.5;
+
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX / canvas.width;
+});
+
+canvas.addEventListener('click', () => {
+  settleStart = Date.now(); // リセット
+});
+
+function render() {
+  requestAnimationFrame(render);
+
+  const elapsed    = (Date.now() - startTime) / 1000;
+  const settleTime = (Date.now() - settleStart) / 1000;
+  const spread     = 0.25 + mouseX * 0.7;
+
+  gl.uniform2f(uResolution, canvas.width, canvas.height);
+  gl.uniform1f(uTime,    elapsed);
+  gl.uniform1f(uSettle,  settleTime);
+  gl.uniform1f(uSpread,  spread);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '266',
+  title:  'Sediograph',
+  detail: '泥水を静置すると、大きい粒から先に沈む。5種類の粒径がそれぞれのペースで底に向かい、沈降前線が層ごとに現れる。クリックでリセット。マウスを左右に動かすと粒径分布が変わり、沈み方が変わる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
