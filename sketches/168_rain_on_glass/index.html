@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>168 – Rain on Glass</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Rain on Glass — 168
+// ガラス面に雨粒が落ちて垂れていく。粒ごとに乾くまでの時間が違う。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// -------------------------------------------------------
+// Shader sources
+// -------------------------------------------------------
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+uniform vec2 u_res;
+uniform float u_time;
+uniform float u_burst; // 0-1 クリックバースト
+
+// ハッシュ関数
+float hash(float n) { return fract(sin(n) * 43758.5453); }
+float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+// 雨粒の形: 上が丸く下が細い涙型 SDF
+float dropSDF(vec2 p, float r) {
+  // p は雨粒中心からのオフセット（UV空間）
+  float s = length(p) - r;
+  // 下方向に尖らせる
+  float tail = p.y * 0.8;
+  return max(s, -tail - r * 0.5);
+}
+
+// 一本の垂れ筋
+float streak(vec2 uv, float x, float speed, float startY, float alpha) {
+  float w = 0.0015;
+  float dx = abs(uv.x - x);
+  float dy = uv.y - startY;
+  if(dx > w * 4.0 || dy > 0.0 || dy < -0.35) return 0.0;
+  float dist = dx / w;
+  return alpha * smoothstep(1.0, 0.0, dist) * smoothstep(-0.35, -0.01, dy);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  // アスペクト補正
+  float aspect = u_res.x / u_res.y;
+  vec2 st = vec2(uv.x * aspect, uv.y);
+
+  vec3 base = vec3(0.941, 0.929, 0.910); // オフホワイト
+  vec3 drop_color = vec3(0.45, 0.47, 0.50); // グラファイト青みがかり
+  vec3 streak_color = vec3(0.55, 0.57, 0.60);
+
+  float burst = u_burst;
+
+  // 雨粒 (40個固定展開)
+  float mask = 0.0;
+  float smear = 0.0;
+
+  // 列ごとにシード
+  for(int col = 0; col < 8; col++) {
+    for(int row = 0; row < 5; row++) {
+      float seed = float(col) * 13.7 + float(row) * 7.3;
+      float cx = hash(seed + 0.1) * aspect;
+      float cy = hash(seed + 0.2);
+
+      // 落下フェーズ：周期 T 秒、各雨粒は位相オフセット
+      float T = 4.0 + hash(seed + 0.5) * 4.0;
+      float phase = hash(seed + 0.3) * T;
+      float t = mod(u_time + phase + burst * 2.0, T) / T; // 0-1
+
+      // 落下位置（上から下へ）
+      float dropY = 1.0 - t * 1.3 + 0.15; // 少し画面外から始まる
+      float r = 0.012 + hash(seed + 0.4) * 0.012;
+
+      // UV→粒中心からのオフセット
+      vec2 off = vec2(uv.x * aspect - cx, uv.y - dropY);
+      float d = length(off) - r;
+      // 涙型: 下に少し引き伸ばし
+      d = min(d, length(off - vec2(0.0, r * 0.6)) - r * 0.65);
+
+      float dp = smoothstep(r * 0.3, 0.0, d);
+      mask += dp * smoothstep(0.0, 0.05, t) * smoothstep(1.0, 0.85, t);
+
+      // 垂れ筋: t が 0.4 以降に現れる
+      if(t > 0.35) {
+        float sa = smoothstep(0.35, 0.55, t) * smoothstep(1.0, 0.8, t);
+        smear += streak(uv, cx / aspect, 0.0, dropY, sa * 0.7);
+      }
+    }
+  }
+
+  // 背景に薄いガラス感（横方向の微細なグラデーション）
+  float glass = 0.015 * sin(uv.x * 60.0 + u_time * 0.1) * (1.0 - uv.y);
+
+  vec3 col = base;
+  col = mix(col, streak_color, clamp(smear, 0.0, 1.0) * 0.45);
+  col = mix(col, drop_color, clamp(mask, 0.0, 1.0) * 0.6);
+  col += glass * 0.3;
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+// -------------------------------------------------------
+// WebGL setup
+// -------------------------------------------------------
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const loc = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(loc);
+gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'u_res');
+const uTime  = gl.getUniformLocation(prog, 'u_time');
+const uBurst = gl.getUniformLocation(prog, 'u_burst');
+
+// -------------------------------------------------------
+// Burst on click
+// -------------------------------------------------------
+let burstVal = 0.0;
+let burstDecay = 0.0;
+
+canvas.addEventListener('click', () => {
+  burstVal = 1.0;
+  burstDecay = Date.now();
+});
+
+// -------------------------------------------------------
+// Animation loop
+// -------------------------------------------------------
+const startTime = performance.now();
+
+function render() {
+  const t = (performance.now() - startTime) / 1000;
+
+  // burst decay
+  if (burstVal > 0.0) {
+    const elapsed = (Date.now() - burstDecay) / 1000;
+    burstVal = Math.max(0.0, 1.0 - elapsed * 2.0);
+  }
+
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform1f(uBurst, burstVal);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '168',
+  title:  'Rain on Glass',
+  detail: 'ガラス面に落ちた雨粒が、ゆっくり垂れていきます。粒ごとに大きさも乾くタイミングも違います。クリックすると一瞬強い雨になります。フラグメントシェーダーで40個の雨粒を数式だけで描いています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
