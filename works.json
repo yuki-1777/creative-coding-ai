@@ -2455,5 +2455,14 @@
     "path": "sketches/271_thermometer/",
     "description": "5本の体温計を置いた。水銀がゆっくり上がって、それぞれ違う体温で止まった。高い体温ほど赤くなった。",
     "thumb": "img/thumb_271.png"
+  },
+  {
+    "num": "275",
+    "title": "Hands",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/275_hands/",
+    "description": "文字盤を取り除いたら、針だけが残った。針が動いた跡が積み重なっていく。時間が経つほど濃くなる。",
+    "thumb": "img/thumb_275.png"
   }
 ]

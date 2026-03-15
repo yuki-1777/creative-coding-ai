@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hands</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe3; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; cursor: pointer; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Clock hands without a face
+// The three hands leave trails as time passes
+// No numbers, no ticks, no circle — just the hands and their traces
+
+// Trail storage: arrays of past hand angles
+const MAX_TRAIL = 3600;  // up to 1 hour of second-hand positions
+
+// Trails: each is an array of {angle, hand} for drawing
+const secondTrail = [];   // accumulates every animation frame (mapped to second angle)
+const minuteTrail = [];
+const hourTrail = [];
+
+// Center and radius
+function getCenter() {
+  return { cx: W / 2, cy: H / 2, r: Math.min(W, H) * 0.38 };
+}
+
+// Get current time angles (radians from 12 o'clock, clockwise)
+function getHandAngles() {
+  const now = new Date();
+  const ms = now.getMilliseconds();
+  const s = now.getSeconds() + ms / 1000;
+  const m = now.getMinutes() + s / 60;
+  const h = (now.getHours() % 12) + m / 60;
+
+  const secAngle  = (s / 60) * Math.PI * 2 - Math.PI / 2;
+  const minAngle  = (m / 60) * Math.PI * 2 - Math.PI / 2;
+  const hourAngle = (h / 12) * Math.PI * 2 - Math.PI / 2;
+
+  return { secAngle, minAngle, hourAngle };
+}
+
+// Trail recording
+let lastSecAngle = null;
+let trailUpdateCount = 0;
+
+function updateTrails(angles) {
+  trailUpdateCount++;
+
+  // Record second hand every frame (smooth trail)
+  if (secondTrail.length < MAX_TRAIL) {
+    secondTrail.push(angles.secAngle);
+  } else {
+    secondTrail.shift();
+    secondTrail.push(angles.secAngle);
+  }
+
+  // Record minute hand every 10 frames (less dense)
+  if (trailUpdateCount % 10 === 0) {
+    if (minuteTrail.length < MAX_TRAIL / 10) {
+      minuteTrail.push(angles.minAngle);
+    } else {
+      minuteTrail.shift();
+      minuteTrail.push(angles.minAngle);
+    }
+  }
+
+  // Record hour hand every 60 frames
+  if (trailUpdateCount % 60 === 0) {
+    if (hourTrail.length < MAX_TRAIL / 60) {
+      hourTrail.push(angles.hourAngle);
+    } else {
+      hourTrail.shift();
+      hourTrail.push(angles.hourAngle);
+    }
+  }
+}
+
+// Draw a single hand
+function drawHand(angle, length, width, alpha, color) {
+  const { cx, cy, r } = getCenter();
+  const handLen = r * length;
+  const tx = cx + Math.cos(angle) * handLen;
+  const ty = cy + Math.sin(angle) * handLen;
+  const bx = cx + Math.cos(angle + Math.PI) * handLen * 0.15;
+  const by = cy + Math.sin(angle + Math.PI) * handLen * 0.15;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(bx, by);
+  ctx.lineTo(tx, ty);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Draw trail of a hand
+function drawTrail(trail, length, maxWidth, color) {
+  if (trail.length < 2) return;
+  const { cx, cy, r } = getCenter();
+  const handLen = r * length;
+
+  for (let i = 0; i < trail.length; i++) {
+    const ageRatio = i / trail.length;          // 0 = oldest, 1 = newest
+    const alpha = ageRatio * ageRatio * 0.18;   // quadratic fade, max ~0.18
+    const width = maxWidth * (0.3 + 0.7 * ageRatio);
+    const angle = trail[i];
+    const tx = cx + Math.cos(angle) * handLen;
+    const ty = cy + Math.sin(angle) * handLen;
+    const bx = cx + Math.cos(angle + Math.PI) * handLen * 0.15;
+    const by = cy + Math.sin(angle + Math.PI) * handLen * 0.15;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// Center pivot
+function drawPivot() {
+  const { cx, cy } = getCenter();
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(50,45,40,0.7)';
+  ctx.fill();
+  ctx.restore();
+}
+
+// Reset trails on click
+canvas.addEventListener('click', () => {
+  secondTrail.length = 0;
+  minuteTrail.length = 0;
+  hourTrail.length = 0;
+  trailUpdateCount = 0;
+});
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#eeebe3';
+  ctx.fillRect(0, 0, W, H);
+
+  const angles = getHandAngles();
+  updateTrails(angles);
+
+  // Draw trails (oldest first, behind current hands)
+  drawTrail(hourTrail,   0.5,  4, 'rgba(50,45,40,1)');
+  drawTrail(minuteTrail, 0.72, 2, 'rgba(50,45,40,1)');
+  drawTrail(secondTrail, 0.88, 1, 'rgba(80,60,50,1)');
+
+  // Draw current hands on top
+  drawHand(angles.hourAngle,   0.5,  3.5, 0.80, 'rgba(40,35,30,1)');
+  drawHand(angles.minAngle,    0.72, 2.0, 0.85, 'rgba(40,35,30,1)');
+  drawHand(angles.secAngle,    0.88, 1.0, 0.90, 'rgba(100,60,50,1)');
+
+  drawPivot();
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '275',
+  title:  'Hands',
+  detail: '文字盤のない時計。針は今の時刻で動いている。時間が経つほど、針の軌跡が濃く積み重なる。クリックで軌跡がリセットされる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
