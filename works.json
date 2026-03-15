@@ -1573,5 +1573,32 @@
     "path": "sketches/176_cursor_shadow/",
     "description": "マウスを動かすと影が追いかけてくる。形は描いていない。過去8点のカーソル位置を記録して、距離の関数が作る柔らかい濃淡だけで「そこにいた」跡を示す。遅れてにじむ影が、動いた軌跡を教えてくれる。",
     "thumb": "img/thumb_176.png"
+  },
+  {
+    "num": "177",
+    "title": "Frost",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/177_frost/",
+    "description": "クリックした場所から霜の結晶が育ちはじめる。枝の向きは確率で決まる——まっすぐ伸びることが多く、横はたまに、戻ることはほぼない。古い霜は徐々に色が沈む。",
+    "thumb": "img/thumb_177.png"
+  },
+  {
+    "num": "178",
+    "title": "Ticker",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/178_ticker/",
+    "description": "現在時刻（時・分・秒・ミリ秒）がテープのように横へ流れ続ける。行ごとにずらして並べると、数字の羅列が模様になる。スペースで止まる。左右キーで速さを変える。",
+    "thumb": "img/thumb_178.png"
+  },
+  {
+    "num": "172",
+    "title": "Growth Rings",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/172_rings/",
+    "description": "スペースキーを押し続けると年輪が速く増えていく。放すとゆっくり戻る。一度刻まれた輪は消えない。",
+    "thumb": "img/thumb_172.png"
   }
 ]
