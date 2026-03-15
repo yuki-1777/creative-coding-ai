@@ -162,9 +162,11 @@
 
   // ---- State ----
   // Start at center of paper: travel = PAPER_W/2, so angle = (PAPER_W/2)/DRUM_R
-  let rollAngle  = (PAPER_W / 2) / DRUM_R;
-  let speedMult  = 1.0;
-  const BASE_SPD = 0.010;
+  let rollAngle    = (PAPER_W / 2) / DRUM_R;
+  let drumRotAngle = (PAPER_W / 2) / DRUM_R;
+  let prevCx       = 0;
+  let speedMult    = 1.0;
+  const BASE_SPD   = 0.010;
 
   // Rolling: one radian of rotation moves drum by DRUM_R units
   function getContactX(angle) {
@@ -199,13 +201,13 @@
     rollAngle += BASE_SPD * speedMult;
 
     const cx = getContactX(rollAngle);
+    const delta = cx - prevCx;
+    prevCx = cx;
     drumGroup.position.x = cx;
 
-    // Rotate drum around its roll axis (Z axis in world = Y axis in local after rotation.x=PI/2)
-    // Rolling rightward → clockwise seen from +Z end → cylMesh.rotation.z increases
-    // But cylMesh already has rotation.x=PI/2. We add roll via drumGroup rotation.
-    // drumGroup has no initial rotation; set rotation.z for rolling
-    drumGroup.rotation.z = -rollAngle; // rolling on ground
+    // Accumulate rotation based on actual movement direction
+    drumRotAngle += delta / DRUM_R;
+    drumGroup.rotation.z = -drumRotAngle;
 
     // Deform paper
     deformPaper(cx);
