@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reflection</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe4; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; cursor: crosshair; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  initScene();
+}
+
+// Scene: horizontal lines representing an abstract landscape
+let sceneLines = [];
+function initScene() {
+  sceneLines = [];
+  const n = 12;
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1);
+    sceneLines.push({
+      y: H * 0.04 + t * H * 0.38,         // position in upper half
+      weight: 0.4 + Math.random() * 1.2,
+      alpha: 0.15 + Math.random() * 0.45,
+      // slight horizontal extent variation
+      x0: W * (0.02 + Math.random() * 0.08),
+      x1: W * (0.90 + Math.random() * 0.08)
+    });
+  }
+}
+
+// Water simulation: 1D wave array for the horizontal displacement at each column
+let wave = [];
+let waveVel = [];
+const WAVE_RES = 400;   // resolution of the wave (columns)
+const DAMPING = 0.985;
+const SPREAD = 0.2;
+
+function initWave() {
+  wave = new Array(WAVE_RES).fill(0);
+  waveVel = new Array(WAVE_RES).fill(0);
+}
+
+function updateWave() {
+  // Propagate wave
+  for (let i = 1; i < WAVE_RES - 1; i++) {
+    waveVel[i] += SPREAD * (wave[i - 1] + wave[i + 1] - 2 * wave[i]);
+  }
+  for (let i = 0; i < WAVE_RES; i++) {
+    wave[i] += waveVel[i];
+    waveVel[i] *= DAMPING;
+  }
+  // Boundary conditions
+  wave[0] = wave[1];
+  wave[WAVE_RES - 1] = wave[WAVE_RES - 2];
+}
+
+function disturbWave(x, strength) {
+  const idx = Math.round((x / W) * WAVE_RES);
+  const radius = 8;
+  for (let i = Math.max(0, idx - radius); i < Math.min(WAVE_RES, idx + radius); i++) {
+    const d = Math.abs(i - idx) / radius;
+    wave[i] += strength * (1 - d * d);
+  }
+}
+
+// Mouse interaction
+let mouseX = W * 0.5;
+let lastMouseX = W * 0.5;
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX;
+  const dx = Math.abs(mouseX - lastMouseX);
+  if (dx > 2) {
+    disturbWave(mouseX, dx * 0.04);
+    lastMouseX = mouseX;
+  }
+});
+
+canvas.addEventListener('click', (e) => {
+  disturbWave(e.clientX, 6 + Math.random() * 4);
+});
+
+// Get wave displacement at a given x pixel
+function getDisp(x) {
+  const t = x / W;
+  const fi = t * (WAVE_RES - 1);
+  const i0 = Math.floor(fi);
+  const i1 = Math.min(i0 + 1, WAVE_RES - 1);
+  const frac = fi - i0;
+  return wave[i0] * (1 - frac) + wave[i1] * frac;
+}
+
+// Color palette
+const BG_TOP = '#eeebe4';
+const BG_WATER = '#e4e0d6';
+const LINE_COLOR = '#4a4540';
+const HORIZON_COLOR = 'rgba(74, 69, 64, 0.25)';
+
+function drawScene() {
+  // Upper half: landscape (static horizontal lines)
+  ctx.fillStyle = BG_TOP;
+  ctx.fillRect(0, 0, W, H * 0.5);
+
+  for (const line of sceneLines) {
+    ctx.save();
+    ctx.strokeStyle = LINE_COLOR;
+    ctx.globalAlpha = line.alpha;
+    ctx.lineWidth = line.weight;
+    ctx.beginPath();
+    ctx.moveTo(line.x0, line.y);
+    ctx.lineTo(line.x1, line.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Horizon line
+  ctx.strokeStyle = 'rgba(74,69,64,0.35)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, H * 0.5);
+  ctx.lineTo(W, H * 0.5);
+  ctx.stroke();
+}
+
+function drawReflection() {
+  // Lower half: water
+  ctx.fillStyle = BG_WATER;
+  ctx.fillRect(0, H * 0.5, W, H * 0.5);
+
+  // For each x column, draw displaced reflection of the scene lines
+  const STEP = 2;
+  for (const line of sceneLines) {
+    ctx.save();
+    ctx.strokeStyle = LINE_COLOR;
+    ctx.globalAlpha = line.alpha * 0.85;
+    ctx.lineWidth = line.weight * 0.8;
+
+    // Reflect y: reflected y = H - line.y (mirror around H*0.5)
+    const baseReflY = H - line.y;
+
+    ctx.beginPath();
+    let started = false;
+    for (let px = 0; px <= W; px += STEP) {
+      const disp = getDisp(px);
+      const ry = baseReflY + disp * 4;
+      // Only draw if in lower half
+      if (ry >= H * 0.5) {
+        if (!started) {
+          ctx.moveTo(px, ry);
+          started = true;
+        } else {
+          ctx.lineTo(px, ry);
+        }
+      } else {
+        started = false;
+      }
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Subtle water shimmer overlay
+  const shimmerGrad = ctx.createLinearGradient(0, H * 0.5, 0, H);
+  shimmerGrad.addColorStop(0, 'rgba(255,255,255,0.06)');
+  shimmerGrad.addColorStop(1, 'rgba(255,255,255,0.0)');
+  ctx.fillStyle = shimmerGrad;
+  ctx.fillRect(0, H * 0.5, W, H * 0.5);
+}
+
+// Add gentle ambient wave
+let ambientT = 0;
+function addAmbientWave() {
+  ambientT += 0.02;
+  const pos = ((Math.sin(ambientT * 0.3) * 0.5 + 0.5) * 0.8 + 0.1) * W;
+  disturbWave(pos, 0.08);
+}
+
+function loop() {
+  addAmbientWave();
+  updateWave();
+
+  ctx.clearRect(0, 0, W, H);
+  drawScene();
+  drawReflection();
+
+  requestAnimationFrame(loop);
+}
+
+resize();
+initWave();
+loop();
+
+window.addEventListener('resize', () => {
+  resize();
+  initWave();
+});
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '263',
+  title:  'Reflection',
+  detail: '水面に景色が映り込んでいる。マウスを動かすと水面に波が起きて、映り込みが歪む。クリックすると石を投げ込んだような波紋が広がる。上半分が景色、下半分がその反転。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
