@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>46 — Web</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    let nodes = [];
+    let edges = [];
+    const NODE_COUNT = 28;
+    const CONNECT_DIST = 160;
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      initWeb();
+    }
+
+    function initWeb() {
+      nodes = [];
+      edges = [];
+      for (let i = 0; i < NODE_COUNT; i++) {
+        nodes.push(new Node(
+          random(width * 0.1, width * 0.9),
+          random(height * 0.1, height * 0.9)
+        ));
+      }
+    }
+
+    function draw() {
+      background('#F5F3EE');
+
+      // エッジを描く
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          let d = dist(nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y);
+          if (d < CONNECT_DIST) {
+            let alpha = map(d, 0, CONNECT_DIST, 140, 0);
+            stroke(42, 42, 42, alpha);
+            strokeWeight(0.6);
+            line(nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y);
+          }
+        }
+      }
+
+      // ノードを描く
+      for (let n of nodes) {
+        n.update();
+        n.draw();
+      }
+    }
+
+    function mouseMoved() {
+      for (let n of nodes) {
+        let d = dist(n.x, n.y, mouseX, mouseY);
+        if (d < 120) {
+          let force = (120 - d) / 120;
+          n.vx += (n.x - mouseX) / d * force * 0.4;
+          n.vy += (n.y - mouseY) / d * force * 0.4;
+        }
+      }
+    }
+
+    class Node {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.ox = x;
+        this.oy = y;
+        this.vx = random(-0.3, 0.3);
+        this.vy = random(-0.3, 0.3);
+        this.noiseX = random(1000);
+        this.noiseY = random(1000);
+        this.r = random(2, 4.5);
+      }
+
+      update() {
+        // ゆっくり漂う
+        let nx = noise(this.noiseX + frameCount * 0.003) - 0.5;
+        let ny = noise(this.noiseY + frameCount * 0.003) - 0.5;
+        this.vx += nx * 0.03;
+        this.vy += ny * 0.03;
+
+        // 中心に引き戻す
+        this.vx += (this.ox - this.x) * 0.002;
+        this.vy += (this.oy - this.y) * 0.002;
+
+        this.vx *= 0.96;
+        this.vy *= 0.96;
+        this.x += this.vx;
+        this.y += this.vy;
+      }
+
+      draw() {
+        noStroke();
+        fill(42, 42, 42, 120);
+        circle(this.x, this.y, this.r * 2);
+      }
+    }
+
+    function mousePressed() {
+      // クリックした位置に新しいノードを追加
+      if (nodes.length < 40) {
+        nodes.push(new Node(mouseX, mouseY));
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      initWeb();
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '46',
+    title: 'Web',
+    desc:  '近い点同士が糸で繋がっている。それぞれが少しずつ漂うたびに、繋がり方が変わる。マウスで押すと形が崩れ、クリックで点が増える。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

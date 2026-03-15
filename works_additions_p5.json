@@ -1,0 +1,12 @@
+[
+  { "num": "41", "title": "Ripple",    "tech": "p5.js", "date": "2026-03-15", "path": "sketches/41_ripple/",    "thumb": "img/thumb_41.png", "description": "クリックすると波紋が広がる。マウスを動かすだけでも、小さな波が起きる。静水面は、少しだけ不安定だった。" },
+  { "num": "42", "title": "Flock",     "tech": "p5.js", "date": "2026-03-15", "path": "sketches/42_flock/",     "thumb": "img/thumb_42.png", "description": "120個の点が3つのルールだけで動いている。近づきすぎず、向きを揃え、まとまる。マウスに近づくと、そこだけ空白ができる。" },
+  { "num": "43", "title": "Root",      "tech": "p5.js", "date": "2026-03-15", "path": "sketches/43_root/",      "thumb": "img/thumb_43.png", "description": "上から根が伸びていく。分岐するたびに細くなり、最終的には止まる。クリックで新しい根が生える。毎回、少し違う形になる。" },
+  { "num": "44", "title": "Pendulum",  "tech": "p5.js", "date": "2026-03-15", "path": "sketches/44_pendulum/",  "thumb": "img/thumb_44.png", "description": "2本の振り子の先端を繋いだ点が描く軌跡。少し違う周期が重なるとき、繰り返さない線が生まれる。クリックで振り直す。" },
+  { "num": "45", "title": "Snowfall",  "tech": "p5.js", "date": "2026-03-15", "path": "sketches/45_snowfall/",  "thumb": "img/thumb_45.png", "description": "小さな粒が降ってくる。風に流されながら落ちて、下に積もる。マウスを動かすと、そこだけ吹き流される。" },
+  { "num": "46", "title": "Web",       "tech": "p5.js", "date": "2026-03-15", "path": "sketches/46_web/",       "thumb": "img/thumb_46.png", "description": "近い点同士が糸で繋がっている。それぞれが少しずつ漂うたびに、繋がり方が変わる。マウスで押すと形が崩れ、クリックで点が増える。" },
+  { "num": "47", "title": "Pulse",     "tech": "p5.js", "date": "2026-03-15", "path": "sketches/47_pulse/",     "thumb": "img/thumb_47.png", "description": "格子状の点が、ノイズに従ってゆっくり呼吸している。クリックすると波紋が走り、通り過ぎた点が一瞬だけ大きくなる。" },
+  { "num": "48", "title": "Leaf",      "tech": "p5.js", "date": "2026-03-15", "path": "sketches/48_leaf/",      "thumb": "img/thumb_48.png", "description": "葉の形の中に脈を伸ばした。養分を求めて伸びていくルールだけ書いた。クリックで新しい葉が生える。" },
+  { "num": "49", "title": "Orbit",     "tech": "p5.js", "date": "2026-03-15", "path": "sketches/49_orbit/",     "thumb": "img/thumb_49.png", "description": "7つの点が中心を周回している。引力だけで動いている。クリックすると新しい天体が加わり、中心付近をクリックするとリセットする。" },
+  { "num": "50", "title": "Erosion",   "tech": "p5.js", "date": "2026-03-15", "path": "sketches/50_erosion/",   "thumb": "img/thumb_50.png", "description": "ノイズで作った地形に雨を降らせた。水が流れた跡が谷になる。時間が経つほど地形が削れていく。クリックで新しい山が現れる。" }
+]

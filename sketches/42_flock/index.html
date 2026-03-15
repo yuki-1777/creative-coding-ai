@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>42 — Flock</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    let boids = [];
+    const N = 120;
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      for (let i = 0; i < N; i++) {
+        boids.push(new Boid(random(width), random(height)));
+      }
+    }
+
+    function draw() {
+      background('#F5F3EE');
+
+      for (let b of boids) {
+        b.edges();
+        b.flock(boids);
+        b.update();
+        b.draw();
+      }
+    }
+
+    class Boid {
+      constructor(x, y) {
+        this.pos = createVector(x, y);
+        this.vel = p5.Vector.random2D().mult(random(1, 2));
+        this.acc = createVector(0, 0);
+        this.maxSpeed = 2.2;
+        this.maxForce = 0.06;
+      }
+
+      flock(boids) {
+        let sep = this.separate(boids);
+        let ali = this.align(boids);
+        let coh = this.cohesion(boids);
+        sep.mult(1.6);
+        ali.mult(1.0);
+        coh.mult(0.9);
+        this.acc.add(sep);
+        this.acc.add(ali);
+        this.acc.add(coh);
+
+        // マウスから離れる
+        let mouse = createVector(mouseX, mouseY);
+        let d = dist(this.pos.x, this.pos.y, mouse.x, mouse.y);
+        if (d < 100) {
+          let flee = p5.Vector.sub(this.pos, mouse);
+          flee.normalize();
+          flee.mult(0.12 * (1 - d / 100));
+          this.acc.add(flee);
+        }
+      }
+
+      separate(boids) {
+        let steer = createVector(0, 0);
+        let count = 0;
+        for (let other of boids) {
+          let d = dist(this.pos.x, this.pos.y, other.pos.x, other.pos.y);
+          if (d > 0 && d < 28) {
+            let diff = p5.Vector.sub(this.pos, other.pos);
+            diff.normalize();
+            diff.div(d);
+            steer.add(diff);
+            count++;
+          }
+        }
+        if (count > 0) steer.div(count);
+        if (steer.mag() > 0) {
+          steer.normalize();
+          steer.mult(this.maxSpeed);
+          steer.sub(this.vel);
+          steer.limit(this.maxForce);
+        }
+        return steer;
+      }
+
+      align(boids) {
+        let sum = createVector(0, 0);
+        let count = 0;
+        for (let other of boids) {
+          let d = dist(this.pos.x, this.pos.y, other.pos.x, other.pos.y);
+          if (d > 0 && d < 60) {
+            sum.add(other.vel);
+            count++;
+          }
+        }
+        if (count > 0) {
+          sum.div(count);
+          sum.normalize();
+          sum.mult(this.maxSpeed);
+          let steer = p5.Vector.sub(sum, this.vel);
+          steer.limit(this.maxForce);
+          return steer;
+        }
+        return createVector(0, 0);
+      }
+
+      cohesion(boids) {
+        let sum = createVector(0, 0);
+        let count = 0;
+        for (let other of boids) {
+          let d = dist(this.pos.x, this.pos.y, other.pos.x, other.pos.y);
+          if (d > 0 && d < 80) {
+            sum.add(other.pos);
+            count++;
+          }
+        }
+        if (count > 0) {
+          sum.div(count);
+          return this.seek(sum);
+        }
+        return createVector(0, 0);
+      }
+
+      seek(target) {
+        let desired = p5.Vector.sub(target, this.pos);
+        desired.normalize();
+        desired.mult(this.maxSpeed);
+        let steer = p5.Vector.sub(desired, this.vel);
+        steer.limit(this.maxForce);
+        return steer;
+      }
+
+      update() {
+        this.vel.add(this.acc);
+        this.vel.limit(this.maxSpeed);
+        this.pos.add(this.vel);
+        this.acc.mult(0);
+      }
+
+      edges() {
+        if (this.pos.x < -10) this.pos.x = width + 10;
+        if (this.pos.x > width + 10) this.pos.x = -10;
+        if (this.pos.y < -10) this.pos.y = height + 10;
+        if (this.pos.y > height + 10) this.pos.y = -10;
+      }
+
+      draw() {
+        let angle = this.vel.heading();
+        push();
+        translate(this.pos.x, this.pos.y);
+        rotate(angle);
+        stroke(42, 42, 42, 160);
+        strokeWeight(0.8);
+        noFill();
+        // 小さな矢じり型
+        line(5, 0, -3, -2.5);
+        line(5, 0, -3, 2.5);
+        pop();
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '42',
+    title: 'Flock',
+    desc:  '120個の点が3つのルールだけで動いている。近づきすぎず、向きを揃え、まとまる。マウスに近づくと、そこだけ空白ができる。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>44 — Pendulum</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    let pendulums = [];
+    let trail = [];
+    const MAX_TRAIL = 800;
+    let pivotX, pivotY;
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      background('#F5F3EE');
+      pivotX = width / 2;
+      pivotY = height * 0.12;
+      initPendulums();
+    }
+
+    function initPendulums() {
+      pendulums = [];
+      trail = [];
+      // ハーモノグラフ：2本の振り子を合成
+      pendulums.push({
+        length: height * 0.38,
+        angle: PI / 3.5,
+        angleV: 0,
+        angleA: 0,
+        freq: 1.0,
+        damping: 0.9998
+      });
+      pendulums.push({
+        length: height * 0.28,
+        angle: PI / 4.2,
+        angleV: 0.0,
+        angleA: 0,
+        freq: random(1.3, 1.8),
+        damping: 0.9997
+      });
+    }
+
+    function draw() {
+      background('#F5F3EE');
+
+      // 振り子の物理更新
+      for (let p of pendulums) {
+        let g = 0.0015;
+        p.angleA = -g * p.freq * sin(p.angle);
+        p.angleV += p.angleA;
+        p.angleV *= p.damping;
+        p.angle += p.angleV;
+      }
+
+      // 2つの振り子を合成した先端位置
+      let x1 = pivotX + pendulums[0].length * sin(pendulums[0].angle);
+      let y1 = pivotY + pendulums[0].length * cos(pendulums[0].angle);
+      let x2 = x1 + pendulums[1].length * sin(pendulums[1].angle);
+      let y2 = y1 + pendulums[1].length * cos(pendulums[1].angle);
+
+      trail.push({ x: x2, y: y2 });
+      if (trail.length > MAX_TRAIL) trail.shift();
+
+      // 軌跡を描く
+      noFill();
+      for (let i = 1; i < trail.length; i++) {
+        let alpha = map(i, 0, trail.length, 20, 160);
+        let w = map(i, 0, trail.length, 0.3, 1.2);
+        stroke(42, 42, 42, alpha);
+        strokeWeight(w);
+        line(trail[i - 1].x, trail[i - 1].y, trail[i].x, trail[i].y);
+      }
+
+      // 振り子の棒（薄く）
+      stroke(42, 42, 42, 40);
+      strokeWeight(0.6);
+      line(pivotX, pivotY, x1, y1);
+      line(x1, y1, x2, y2);
+
+      // 先端の点
+      fill(42, 42, 42, 100);
+      noStroke();
+      circle(x2, y2, 4);
+    }
+
+    function mousePressed() {
+      // 角度をリセット
+      pendulums[0].angle = random(PI / 5, PI / 2.5);
+      pendulums[1].angle = random(PI / 5, PI / 2.5);
+      pendulums[1].freq = random(1.3, 1.9);
+      pendulums[0].angleV = 0;
+      pendulums[1].angleV = 0;
+      trail = [];
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      pivotX = width / 2;
+      pivotY = height * 0.12;
+      initPendulums();
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '44',
+    title: 'Pendulum',
+    desc:  '2本の振り子の先端を繋いだ点が描く軌跡。少し違う周期が重なるとき、繰り返さない線が生まれる。クリックで振り直す。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

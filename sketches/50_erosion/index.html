@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>50 — Erosion</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    const COLS = 80;
+    let terrain = [];
+    let drops = [];
+    let cellW, cellH;
+    let erosionMap = [];
+    let initialized = false;
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      background('#F5F3EE');
+      initTerrain();
+    }
+
+    function initTerrain() {
+      terrain = [];
+      erosionMap = [];
+      drops = [];
+      cellW = width / COLS;
+      cellH = height * 0.6 / 100;
+      initialized = true;
+
+      let noiseScale = 0.035;
+      let noiseOff = random(1000);
+      for (let x = 0; x < COLS; x++) {
+        let h = 0;
+        for (let octave = 1; octave <= 4; octave++) {
+          h += noise(x * noiseScale * octave + noiseOff * octave) / octave;
+        }
+        terrain[x] = h * 100;
+        erosionMap[x] = 0;
+      }
+
+      // 雨粒を初期化
+      for (let i = 0; i < 6; i++) {
+        drops.push(newDrop());
+      }
+    }
+
+    function newDrop() {
+      return {
+        x: random(COLS),
+        energy: random(0.5, 1.5),
+        sediment: 0
+      };
+    }
+
+    function draw() {
+      background('#F5F3EE');
+
+      // 侵食の処理
+      for (let d of drops) {
+        let xi = floor(d.x);
+        xi = constrain(xi, 1, COLS - 2);
+
+        // 勾配を計算
+        let slope = terrain[xi - 1] - terrain[xi + 1];
+        d.x -= slope * 0.04;
+        d.x = constrain(d.x, 0, COLS - 1);
+
+        let xi2 = floor(d.x);
+        xi2 = constrain(xi2, 0, COLS - 1);
+
+        let erodeFactor = abs(slope) * 0.015 * d.energy;
+        terrain[xi2] -= erodeFactor;
+        d.sediment += erodeFactor;
+        erosionMap[xi2] = min(1, erosionMap[xi2] + erodeFactor * 0.5);
+
+        d.energy *= 0.995;
+        if (d.energy < 0.05) {
+          terrain[xi2] += d.sediment * 0.5;
+          Object.assign(d, newDrop());
+        }
+      }
+
+      // 地形を描画
+      let baseY = height * 0.82;
+      let scale = height * 0.55;
+
+      // 地形の塗り（薄く）
+      noStroke();
+      fill(42, 42, 42, 14);
+      beginShape();
+      vertex(0, baseY);
+      for (let x = 0; x < COLS; x++) {
+        let px = x * cellW;
+        let py = baseY - terrain[x] * scale / 100;
+        vertex(px, py);
+      }
+      vertex(width, baseY);
+      endShape(CLOSE);
+
+      // 地形の輪郭線
+      stroke(42, 42, 42, 170);
+      strokeWeight(1.2);
+      noFill();
+      beginShape();
+      for (let x = 0; x < COLS; x++) {
+        let px = x * cellW;
+        let py = baseY - terrain[x] * scale / 100;
+        vertex(px, py);
+      }
+      endShape();
+
+      // 侵食された谷を強調（薄いアクセント）
+      stroke(110, 90, 70, 80);
+      strokeWeight(0.6);
+      noFill();
+      beginShape();
+      for (let x = 0; x < COLS; x++) {
+        let px = x * cellW;
+        let py = baseY - terrain[x] * scale / 100;
+        let offset = erosionMap[x] * 3;
+        vertex(px, py + offset);
+      }
+      endShape();
+    }
+
+    function mousePressed() {
+      initTerrain();
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      initTerrain();
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '50',
+    title: 'Erosion',
+    desc:  'ノイズで作った地形に雨を降らせた。水が流れた跡が谷になる。時間が経つほど地形が削れていく。クリックで新しい山が現れる。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

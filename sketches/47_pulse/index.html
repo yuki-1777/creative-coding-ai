@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>47 — Pulse</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    const COLS = 22;
+    const ROWS = 16;
+    let gx, gy;
+    let pulses = [];
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      background('#F5F3EE');
+      gx = width / (COLS + 1);
+      gy = height / (ROWS + 1);
+    }
+
+    function draw() {
+      background('#F5F3EE');
+
+      // パルスを更新・削除
+      for (let i = pulses.length - 1; i >= 0; i--) {
+        pulses[i].r += 2.5;
+        pulses[i].alpha -= 3;
+        if (pulses[i].alpha <= 0) pulses.splice(i, 1);
+      }
+
+      // 格子点を描画
+      for (let col = 1; col <= COLS; col++) {
+        for (let row = 1; row <= ROWS; row++) {
+          let px = col * gx;
+          let py = row * gy;
+
+          // 時間と位置によるノイズ
+          let n = noise(col * 0.18, row * 0.18, frameCount * 0.012);
+          let baseSize = map(n, 0, 1, 1.5, 5.0);
+
+          // パルスによる影響
+          let pulseInfluence = 0;
+          for (let p of pulses) {
+            let d = dist(px, py, p.x, p.y);
+            let rippleR = p.r;
+            let thickness = 20;
+            if (abs(d - rippleR) < thickness) {
+              let falloff = 1 - abs(d - rippleR) / thickness;
+              pulseInfluence += falloff * (p.alpha / 255) * 3.5;
+            }
+          }
+
+          let size = baseSize + pulseInfluence;
+          let alpha = map(n, 0, 1, 60, 180) + pulseInfluence * 30;
+          alpha = constrain(alpha, 0, 220);
+
+          noStroke();
+          fill(42, 42, 42, alpha);
+          circle(px, py, size);
+        }
+      }
+    }
+
+    function mousePressed() {
+      pulses.push({ x: mouseX, y: mouseY, r: 0, alpha: 220 });
+    }
+
+    function mouseMoved() {
+      if (frameCount % 30 === 0) {
+        pulses.push({ x: mouseX, y: mouseY, r: 0, alpha: 100 });
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      gx = width / (COLS + 1);
+      gy = height / (ROWS + 1);
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '47',
+    title: 'Pulse',
+    desc:  '格子状の点が、ノイズに従ってゆっくり呼吸している。クリックすると波紋が走り、通り過ぎた点が一瞬だけ大きくなる。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

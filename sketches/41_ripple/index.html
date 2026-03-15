@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>41 — Ripple</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    let ripples = [];
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      background('#F5F3EE');
+      noFill();
+    }
+
+    function draw() {
+      background('#F5F3EE');
+
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        let r = ripples[i];
+        r.update();
+        r.draw();
+        if (r.isDead()) {
+          ripples.splice(i, 1);
+        }
+      }
+    }
+
+    function mousePressed() {
+      ripples.push(new Ripple(mouseX, mouseY));
+    }
+
+    function mouseMoved() {
+      if (frameCount % 12 === 0) {
+        ripples.push(new Ripple(mouseX, mouseY, 0.4));
+      }
+    }
+
+    class Ripple {
+      constructor(x, y, strength = 1.0) {
+        this.x = x;
+        this.y = y;
+        this.strength = strength;
+        this.rings = [];
+        let count = strength > 0.5 ? 4 : 2;
+        for (let i = 0; i < count; i++) {
+          this.rings.push({
+            r: i * 18,
+            speed: 1.8 + i * 0.3,
+            alpha: (1.0 - i * 0.2) * strength
+          });
+        }
+      }
+
+      update() {
+        for (let ring of this.rings) {
+          ring.r += ring.speed;
+          ring.alpha -= 0.008 * this.strength;
+        }
+      }
+
+      draw() {
+        for (let ring of this.rings) {
+          if (ring.alpha <= 0) continue;
+          let a = constrain(ring.alpha, 0, 1);
+          stroke(42, 42, 42, a * 180);
+          strokeWeight(0.8);
+          ellipse(this.x, this.y, ring.r * 2, ring.r * 1.6);
+        }
+      }
+
+      isDead() {
+        return this.rings[0].alpha <= 0;
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '41',
+    title: 'Ripple',
+    desc:  'クリックすると波紋が広がる。マウスを動かすだけでも、小さな波が起きる。静水面は、少しだけ不安定だった。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>45 — Snowfall</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    let flakes = [];
+    let settled = [];
+    const MAX_FLAKES = 200;
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      background('#F5F3EE');
+      for (let i = 0; i < 60; i++) {
+        flakes.push(new Flake());
+      }
+    }
+
+    function draw() {
+      // 背景を薄く塗り直す（軌跡を残す）
+      fill(245, 243, 238, 18);
+      noStroke();
+      rect(0, 0, width, height);
+
+      // 積もった雪を再描画
+      for (let s of settled) {
+        s.display();
+      }
+
+      // 雪粒の更新・描画
+      for (let i = flakes.length - 1; i >= 0; i--) {
+        let f = flakes[i];
+        f.update();
+        f.display();
+
+        if (f.isSettled()) {
+          settled.push({ x: f.x, y: f.y, r: f.r * 0.9 });
+          flakes.splice(i, 1);
+          flakes.push(new Flake());
+        }
+      }
+
+      // マウス付近で吹き流す
+      for (let f of flakes) {
+        let d = dist(f.x, f.y, mouseX, mouseY);
+        if (d < 80) {
+          let push = (80 - d) / 80;
+          f.x += (f.x - mouseX) / d * push * 3;
+          f.vx += (f.x - mouseX) / d * push * 0.5;
+        }
+      }
+    }
+
+    class Flake {
+      constructor(startY = -10) {
+        this.reset(startY);
+      }
+
+      reset(startY = -10) {
+        this.x = random(width);
+        this.y = startY < 0 ? random(-20, -5) : startY;
+        this.r = random(1.5, 4);
+        this.vy = random(0.4, 1.2);
+        this.vx = random(-0.3, 0.3);
+        this.noiseOffset = random(1000);
+        this.alpha = random(100, 200);
+      }
+
+      update() {
+        let windNoise = (noise(this.noiseOffset + frameCount * 0.005) - 0.5) * 0.6;
+        this.vx += windNoise * 0.08;
+        this.vx *= 0.97;
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.x < -10) this.x = width + 10;
+        if (this.x > width + 10) this.x = -10;
+      }
+
+      display() {
+        noStroke();
+        fill(42, 42, 42, this.alpha * 0.7);
+        circle(this.x, this.y, this.r * 2);
+      }
+
+      isSettled() {
+        return this.y > height - random(5, 25);
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      settled = [];
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '45',
+    title: 'Snowfall',
+    desc:  '小さな粒が降ってくる。風に流されながら落ちて、下に積もる。マウスを動かすと、そこだけ吹き流される。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

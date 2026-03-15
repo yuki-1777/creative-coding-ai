@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>48 — Leaf</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    // Space colonization で葉脈を生成
+    let attractors = [];
+    let segments = [];
+    let tips = [];
+    let growing = true;
+    let stepsPerFrame = 3;
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      background('#F5F3EE');
+      initLeaf();
+    }
+
+    function initLeaf() {
+      attractors = [];
+      segments = [];
+      tips = [];
+      growing = true;
+      background('#F5F3EE');
+
+      let cx = width / 2;
+      let cy = height / 2;
+      let leafW = min(width, height) * 0.32;
+      let leafH = min(width, height) * 0.45;
+
+      // 葉の輪郭内にアトラクタを配置
+      let attempts = 0;
+      while (attractors.length < 280 && attempts < 5000) {
+        attempts++;
+        let u = random(-1, 1);
+        let v = random(0, 1);
+        // 葉形（楕円 + 先細り）
+        let maxU = sqrt(1 - v * v) * (1 - v * 0.3);
+        if (abs(u) < maxU) {
+          attractors.push({
+            x: cx + u * leafW,
+            y: cy - v * leafH + leafH * 0.15,
+            reached: false
+          });
+        }
+      }
+
+      // 主脈の起点
+      let rootX = cx;
+      let rootY = cy + leafH * 0.85;
+      tips.push({
+        x: rootX,
+        y: rootY,
+        px: rootX,
+        py: rootY + 1,
+        depth: 0
+      });
+    }
+
+    function draw() {
+      if (!growing) return;
+
+      for (let s = 0; s < stepsPerFrame; s++) {
+        if (tips.length === 0) { growing = false; return; }
+
+        let newTips = [];
+
+        for (let tip of tips) {
+          // この先端に最も近いアトラクタを探す
+          let minD = Infinity;
+          let direction = createVector(0, 0);
+          let count = 0;
+
+          for (let a of attractors) {
+            if (a.reached) continue;
+            let d = dist(tip.x, tip.y, a.x, a.y);
+            if (d < 8) {
+              a.reached = true;
+            } else if (d < 100) {
+              let v = createVector(a.x - tip.x, a.y - tip.y);
+              v.normalize();
+              direction.add(v);
+              count++;
+              minD = min(minD, d);
+            }
+          }
+
+          if (count > 0) {
+            direction.normalize();
+
+            // 少しノイズを加える
+            let noiseAngle = (noise(tip.x * 0.01, tip.y * 0.01) - 0.5) * 0.5;
+            direction.rotate(noiseAngle);
+
+            let stepLen = 4 + tip.depth * 0.3;
+            let nx = tip.x + direction.x * stepLen;
+            let ny = tip.y + direction.y * stepLen;
+
+            let thickness = max(0.4, 1.8 - tip.depth * 0.2);
+            stroke(42, 42, 42, 160);
+            strokeWeight(thickness);
+            line(tip.x, tip.y, nx, ny);
+
+            newTips.push({
+              x: nx,
+              y: ny,
+              px: tip.x,
+              py: tip.y,
+              depth: tip.depth
+            });
+
+            // 分岐
+            if (count > 3 && random() < 0.12 && tip.depth < 6) {
+              let branchDir = direction.copy();
+              branchDir.rotate(random(-0.8, 0.8));
+              let bLen = stepLen * 0.8;
+              let bx = tip.x + branchDir.x * bLen;
+              let by = tip.y + branchDir.y * bLen;
+
+              stroke(42, 42, 42, 120);
+              strokeWeight(max(0.3, thickness * 0.65));
+              line(tip.x, tip.y, bx, by);
+
+              newTips.push({
+                x: bx,
+                y: by,
+                px: tip.x,
+                py: tip.y,
+                depth: tip.depth + 1
+              });
+            }
+          }
+        }
+
+        tips = newTips;
+
+        let remaining = attractors.filter(a => !a.reached).length;
+        if (remaining === 0) { growing = false; return; }
+      }
+    }
+
+    function mousePressed() {
+      initLeaf();
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      initLeaf();
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '48',
+    title: 'Leaf',
+    desc:  '葉の形の中に脈を伸ばした。養分を求めて伸びていくルールだけ書いた。クリックで新しい葉が生える。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

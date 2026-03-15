@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>43 — Root</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    let branches = [];
+    let growing = true;
+    let t = 0;
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      background('#F5F3EE');
+      startGrowth();
+    }
+
+    function startGrowth() {
+      branches = [];
+      growing = true;
+      t = 0;
+      background('#F5F3EE');
+
+      let startX = width / 2 + random(-width * 0.1, width * 0.1);
+      let startY = height * 0.18;
+      let initialAngle = HALF_PI + random(-0.15, 0.15);
+
+      branches.push(new Branch(startX, startY, initialAngle, 1, 0));
+    }
+
+    function draw() {
+      if (!growing) return;
+
+      t++;
+
+      let activeBranches = branches.filter(b => b.alive);
+
+      if (activeBranches.length === 0) {
+        growing = false;
+        return;
+      }
+
+      for (let b of activeBranches) {
+        b.grow();
+      }
+    }
+
+    function mousePressed() {
+      startGrowth();
+    }
+
+    class Branch {
+      constructor(x, y, angle, depth, generation) {
+        this.x = x;
+        this.y = y;
+        this.angle = angle;
+        this.depth = depth;
+        this.generation = generation;
+        this.alive = true;
+        this.length = 0;
+        this.maxLength = random(40, 90) / depth;
+        this.speed = random(0.8, 1.4);
+        this.noiseOffset = random(1000);
+        this.thickness = max(0.3, 2.0 - depth * 0.35);
+        this.delay = generation * 8 + random(0, 5);
+        this.timer = 0;
+        this.hasForked = false;
+      }
+
+      grow() {
+        this.timer++;
+        if (this.timer < this.delay) return;
+
+        let noiseAngle = (noise(this.noiseOffset + this.length * 0.04) - 0.5) * 0.4;
+        let currentAngle = this.angle + noiseAngle;
+
+        let nx = this.x + cos(currentAngle) * this.speed;
+        let ny = this.y + sin(currentAngle) * this.speed;
+
+        // 画面外チェック
+        if (nx < 20 || nx > width - 20 || ny < 20 || ny > height - 20) {
+          this.alive = false;
+          return;
+        }
+
+        stroke(42, 42, 42, 180);
+        strokeWeight(this.thickness);
+        line(this.x, this.y, nx, ny);
+
+        this.x = nx;
+        this.y = ny;
+        this.length += this.speed;
+
+        if (this.length >= this.maxLength && !this.hasForked) {
+          this.hasForked = true;
+          this.alive = false;
+
+          if (this.depth < 7) {
+            let spreadAngle = random(0.3, 0.65);
+            let leftAngle = currentAngle - spreadAngle;
+            let rightAngle = currentAngle + spreadAngle;
+
+            branches.push(new Branch(this.x, this.y, leftAngle, this.depth + 1, this.generation + 1));
+            branches.push(new Branch(this.x, this.y, rightAngle, this.depth + 1, this.generation + 1));
+
+            // 稀に3方向分岐
+            if (random() < 0.2 && this.depth < 5) {
+              branches.push(new Branch(this.x, this.y, currentAngle + random(-0.1, 0.1), this.depth + 1, this.generation + 1));
+            }
+          }
+        }
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+    }
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '43',
+    title: 'Root',
+    desc:  '上から根が伸びていく。分岐するたびに細くなり、最終的には止まる。クリックで新しい根が生える。毎回、少し違う形になる。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
