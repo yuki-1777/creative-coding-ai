@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>236 – Scaffold</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; overflow: hidden; cursor: grab; }
+    body.dragging { cursor: grabbing; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// Scaffold — 建設中の足場
+// 線だけで組まれた仮設構造物。少しずつ「建てられていく」。
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf0ede8);
+
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(6, 5, 10);
+camera.lookAt(0, 1, 0);
+
+// グリッドの定義（足場）
+const GRID_X = 6;   // 横方向のノード数
+const GRID_Y = 8;   // 縦（高さ）方向
+const GRID_Z = 4;   // 奥行き方向
+const UNIT = 1.0;   // 1グリッドの長さ
+
+// ノード座標を生成
+function nodePos(x, y, z) {
+  return new THREE.Vector3(
+    (x - GRID_X / 2) * UNIT,
+    y * UNIT,
+    (z - GRID_Z / 2) * UNIT
+  );
+}
+
+// すべての辺を列挙
+const edges = [];
+
+// 水平方向のX辺
+for (let y = 0; y < GRID_Y; y++) {
+  for (let z = 0; z < GRID_Z; z++) {
+    for (let x = 0; x < GRID_X - 1; x++) {
+      edges.push([nodePos(x, y, z), nodePos(x + 1, y, z)]);
+    }
+  }
+}
+// 水平方向のZ辺
+for (let y = 0; y < GRID_Y; y++) {
+  for (let x = 0; x < GRID_X; x++) {
+    for (let z = 0; z < GRID_Z - 1; z++) {
+      edges.push([nodePos(x, y, z), nodePos(x, y, z + 1)]);
+    }
+  }
+}
+// 垂直辺
+for (let x = 0; x < GRID_X; x++) {
+  for (let z = 0; z < GRID_Z; z++) {
+    for (let y = 0; y < GRID_Y - 1; y++) {
+      edges.push([nodePos(x, y, z), nodePos(x, y + 1, z)]);
+    }
+  }
+}
+// 斜め補強（各面のX字）
+for (let y = 0; y < GRID_Y - 1; y++) {
+  for (let z = 0; z < GRID_Z; z++) {
+    for (let x = 0; x < GRID_X - 1; x++) {
+      // XY面の斜め（1本だけ）
+      if (Math.random() < 0.35) {
+        edges.push([nodePos(x, y, z), nodePos(x + 1, y + 1, z)]);
+      }
+    }
+  }
+  for (let x = 0; x < GRID_X; x++) {
+    for (let z = 0; z < GRID_Z - 1; z++) {
+      // ZY面の斜め
+      if (Math.random() < 0.35) {
+        edges.push([nodePos(x, y, z), nodePos(x, y + 1, z + 1)]);
+      }
+    }
+  }
+}
+
+// LineSegmentsとして描画
+// 線を徐々に「登場させる」ために、各辺に登場時刻を割り当てる
+const totalEdges = edges.length;
+const APPEAR_DURATION = 0.3; // 各辺が登場するアニメーション時間
+const APPEAR_STAGGER = 0.025; // 辺ごとのずれ
+
+// 辺をシャッフル（ランダムな順で登場）
+const shuffledEdges = edges.map((e, i) => ({ edge: e, index: i }));
+// 下から上の順で出現（y座標の低い辺から）
+shuffledEdges.sort((a, b) => {
+  const aY = (a.edge[0].y + a.edge[1].y) / 2;
+  const bY = (b.edge[0].y + b.edge[1].y) / 2;
+  const yDiff = aY - bY;
+  return yDiff + (Math.random() - 0.5) * 0.5;
+});
+
+// ジオメトリを作成（後でpositions配列を直接操作）
+const maxPoints = totalEdges * 2;
+const positions = new Float32Array(maxPoints * 3);
+const geometry = new THREE.BufferGeometry();
+geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+geometry.setDrawRange(0, 0); // 最初は何も描かない
+
+const material = new THREE.LineBasicMaterial({
+  color: new THREE.Color(0x2a2420),
+  transparent: true,
+  opacity: 0.75
+});
+
+const lines = new THREE.LineSegments(geometry, material);
+scene.add(lines);
+
+// 各辺の頂点を一括セット（出現/消去はDrawRangeとcolor alphaで制御せず位置で制御）
+shuffledEdges.forEach((item, i) => {
+  const [p0, p1] = item.edge;
+  const base = i * 6;
+  positions[base + 0] = p0.x; positions[base + 1] = p0.y; positions[base + 2] = p0.z;
+  positions[base + 3] = p1.x; positions[base + 4] = p1.y; positions[base + 5] = p1.z;
+});
+geometry.attributes.position.needsUpdate = true;
+
+// マウスドラッグでカメラ回転
+let isDragging = false;
+let prevMouseX = 0;
+let prevMouseY = 0;
+let rotY = 0.3;  // 水平角
+let rotX = 0.3;  // 垂直角
+const CAMERA_RADIUS = 14;
+
+function updateCamera() {
+  const x = CAMERA_RADIUS * Math.sin(rotY) * Math.cos(rotX);
+  const y = CAMERA_RADIUS * Math.sin(rotX) + 3;
+  const z = CAMERA_RADIUS * Math.cos(rotY) * Math.cos(rotX);
+  camera.position.set(x, y, z);
+  camera.lookAt(0, 3, 0);
+}
+
+renderer.domElement.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  prevMouseX = e.clientX;
+  prevMouseY = e.clientY;
+  document.body.classList.add('dragging');
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const dx = e.clientX - prevMouseX;
+  const dy = e.clientY - prevMouseY;
+  rotY += dx * 0.005;
+  rotX -= dy * 0.005;
+  rotX = Math.max(-0.4, Math.min(0.8, rotX));
+  prevMouseX = e.clientX;
+  prevMouseY = e.clientY;
+});
+
+window.addEventListener('mouseup', () => {
+  isDragging = false;
+  document.body.classList.remove('dragging');
+});
+
+// タッチ対応
+let prevTouchX = 0;
+let prevTouchY = 0;
+renderer.domElement.addEventListener('touchstart', (e) => {
+  prevTouchX = e.touches[0].clientX;
+  prevTouchY = e.touches[0].clientY;
+});
+renderer.domElement.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const dx = e.touches[0].clientX - prevTouchX;
+  const dy = e.touches[0].clientY - prevTouchY;
+  rotY += dx * 0.005;
+  rotX -= dy * 0.005;
+  rotX = Math.max(-0.4, Math.min(0.8, rotX));
+  prevTouchX = e.touches[0].clientX;
+  prevTouchY = e.touches[0].clientY;
+}, { passive: false });
+
+// アニメーション
+let startTime = null;
+let currentDrawCount = 0;
+
+function animate(time) {
+  requestAnimationFrame(animate);
+
+  if (startTime === null) startTime = time;
+  const elapsed = (time - startTime) / 1000;
+
+  // 辺の出現アニメーション
+  const targetCount = Math.min(
+    Math.floor(elapsed / APPEAR_STAGGER) * 2,
+    totalEdges * 2
+  );
+
+  if (targetCount !== currentDrawCount) {
+    currentDrawCount = targetCount;
+    geometry.setDrawRange(0, currentDrawCount);
+  }
+
+  // 自動回転（ドラッグ中は停止）
+  if (!isDragging) {
+    rotY += 0.001;
+  }
+
+  updateCamera();
+  renderer.render(scene, camera);
+}
+
+animate(0);
+
+// リサイズ対応
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '236',
+  title:  'Scaffold',
+  detail: 'ドラッグで視点を回転できます。パイプが下から順に組み上がっていきます。斜め補強はランダムに入ります。建設中の足場のつもりで作りましたが、完成したのかどうかは分かりません。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
