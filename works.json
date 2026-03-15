@@ -853,5 +853,50 @@
     "path": "sketches/95_geodesic_lines/",
     "thumb": "img/thumb_95.png",
     "description": "球の表面に最短経路を引いた。平面に戻すと曲がる。マウスで球を回せる。"
+  },
+  {
+    "num": "96",
+    "title": "Hourglass",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/96_hourglass/",
+    "thumb": "img/thumb_96.png",
+    "description": "砂が落ちている。それだけ。クリックで反転する。"
+  },
+  {
+    "num": "97",
+    "title": "Crack",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/97_crack/",
+    "thumb": "img/thumb_97.png",
+    "description": "クリックすると、そこからひびが走る。ひびはひびを呼ぶ。"
+  },
+  {
+    "num": "98",
+    "title": "Breath",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/98_breath/",
+    "thumb": "img/thumb_98.png",
+    "description": "同心円が膨らんで、縮む。マウスを近づけると、そちらに引き寄せられる。"
+  },
+  {
+    "num": "99",
+    "title": "Trail",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/99_trail/",
+    "thumb": "img/thumb_99.png",
+    "description": "一羽が飛ぶ。軌跡が残る。しばらく経つと、また別の場所から飛び始める。"
+  },
+  {
+    "num": "100",
+    "title": "Hesitation",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/100_hesitation/",
+    "thumb": "img/thumb_100.png",
+    "description": "線を引こうとして、途中で止まる。また動き出す。手を持たないと、こういうことが起きる。"
   }
 ]
