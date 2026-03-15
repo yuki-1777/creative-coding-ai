@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cobweb</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f3f2ef; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Cobweb: ONLY concentric irregular polygons (no radial threads by design)
+// Constraint: no radial strands - only the rings
+
+const NUM_RINGS = 18;
+const NUM_POINTS = 12;
+
+let rings = [];       // each ring: array of {x, y, baseX, baseY, velX, velY}
+let shockwave = 0;    // vibration level
+let shockCenter = null;
+let t = 0;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  colorMode(RGB);
+  buildWeb();
+}
+
+function buildWeb() {
+  rings = [];
+  const cx = width / 2;
+  const cy = height * 0.48;
+
+  for (let r = 0; r < NUM_RINGS; r++) {
+    const radius = (r + 1) * (min(width, height) * 0.025);
+    const irregularity = 0.15 + r * 0.015;
+    const ring = [];
+
+    for (let i = 0; i < NUM_POINTS; i++) {
+      const angle = (TWO_PI / NUM_POINTS) * i + random(-0.15, 0.15);
+      const rad = radius * (1 + random(-irregularity, irregularity));
+      const bx = cx + cos(angle) * rad;
+      const by = cy + sin(angle) * rad;
+      ring.push({ x: bx, y: by, baseX: bx, baseY: by, vx: 0, vy: 0 });
+    }
+    rings.push(ring);
+  }
+}
+
+function draw() {
+  background(243, 242, 239);
+
+  const cx = width / 2;
+  const cy = height * 0.48;
+
+  // Decay shockwave
+  shockwave *= 0.95;
+
+  // Update ring point physics
+  rings.forEach((ring, ri) => {
+    ring.forEach((pt, pi) => {
+      // Spring back to base
+      const fx = (pt.baseX - pt.x) * 0.08;
+      const fy = (pt.baseY - pt.y) * 0.08;
+      pt.vx += fx;
+      pt.vy += fy;
+
+      // Shock from click
+      if (shockwave > 0.1 && shockCenter) {
+        const dx = pt.x - shockCenter.x;
+        const dy = pt.y - shockCenter.y;
+        const dist = sqrt(dx * dx + dy * dy) + 1;
+        const force = shockwave * 8 / dist;
+        pt.vx += (dx / dist) * force;
+        pt.vy += (dy / dist) * force;
+      }
+
+      // Mouse proximity ripple
+      const mdx = pt.x - mouseX;
+      const mdy = pt.y - mouseY;
+      const mdist = sqrt(mdx * mdx + mdy * mdy);
+      if (mdist < 80) {
+        const mforce = (80 - mdist) / 80 * 0.5;
+        pt.vx += (mdx / mdist) * mforce;
+        pt.vy += (mdy / mdist) * mforce;
+      }
+
+      pt.vx *= 0.92;
+      pt.vy *= 0.92;
+      pt.x += pt.vx;
+      pt.y += pt.vy;
+    });
+  });
+
+  // Draw rings
+  strokeWeight(0.8);
+  noFill();
+
+  rings.forEach((ring, ri) => {
+    const alpha = 120 + ri * 4;
+    stroke(70, 65, 60, alpha);
+    beginShape();
+    ring.forEach(pt => vertex(pt.x, pt.y));
+    endShape(CLOSE);
+  });
+
+  // Anchor hints: short lines from outermost ring points (not full-width)
+  const outerRing = rings[rings.length - 1];
+  const anchorIndices = [0, 3, 6, 9];
+  stroke(80, 75, 70, 40);
+  strokeWeight(0.5);
+  anchorIndices.forEach(i => {
+    const pt = outerRing[i];
+    const angle = atan2(pt.y - cy, pt.x - cx);
+    const extLen = 60;
+    line(pt.x, pt.y, pt.x + cos(angle) * extLen, pt.y + sin(angle) * extLen);
+  });
+
+  // Dew drops on outermost ring
+  noStroke();
+  rings.forEach((ring, ri) => {
+    if (ri % 3 === 0) {
+      ring.forEach((pt, pi) => {
+        if ((pi + ri) % 4 === 0) {
+          const dropSize = 2 + sin(t * 0.02 + ri + pi) * 0.5;
+          fill(180, 175, 170, 120);
+          ellipse(pt.x, pt.y, dropSize, dropSize);
+        }
+      });
+    }
+  });
+
+  t++;
+}
+
+function mousePressed() {
+  shockwave = 1.0;
+  shockCenter = { x: mouseX, y: mouseY };
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  buildWeb();
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '219',
+  title:  'Cobweb',
+  detail: '同心の輪だけで蜘蛛の巣を作りました。放射状の糸は意図的に省いています。クリックすると衝撃が伝わり、巣全体が揺れます。マウスを近づけると、近くの部分だけが押しのけられます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

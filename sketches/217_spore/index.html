@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spore</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f3f2ef; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+let spores = [];
+let sources = [];
+let t = 0;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  colorMode(RGB);
+  // Initial spore sources
+  for (let i = 0; i < 5; i++) {
+    sources.push({
+      x: random(width * 0.1, width * 0.9),
+      y: random(height * 0.3, height * 0.8),
+      timer: 0,
+      interval: random(8, 20),
+    });
+  }
+}
+
+function spawnSpore(sx, sy) {
+  const windAngle = atan2(mouseY - height / 2, mouseX - width / 2);
+  const windStrength = dist(mouseX, mouseY, width / 2, height / 2) / width * 1.2;
+  const angle = windAngle + random(-PI * 0.6, PI * 0.6);
+  const speed = random(0.4, 1.4) + windStrength * 0.5;
+  spores.push({
+    x: sx + random(-6, 6),
+    y: sy + random(-6, 6),
+    vx: cos(angle) * speed,
+    vy: sin(angle) * speed - random(0.3, 0.8), // slight upward drift
+    life: 0,
+    maxLife: random(120, 300),
+    size: random(1.5, 3.5),
+    wobble: random(TWO_PI),
+    wobbleSpeed: random(0.02, 0.06),
+  });
+}
+
+function draw() {
+  background(243, 242, 239);
+
+  // Update sources
+  sources.forEach(src => {
+    src.timer++;
+    if (src.timer > src.interval) {
+      src.timer = 0;
+      const count = floor(random(1, 4));
+      for (let i = 0; i < count; i++) spawnSpore(src.x, src.y);
+    }
+  });
+
+  // Draw sources as small stems
+  stroke(70, 65, 58, 200);
+  strokeWeight(1.5);
+  noFill();
+  sources.forEach(src => {
+    const h = 28 + sin(t * 0.03 + src.x) * 5;
+    beginShape();
+    vertex(src.x, src.y);
+    vertex(src.x + sin(t * 0.02 + src.x) * 6, src.y - h * 0.5);
+    vertex(src.x, src.y - h);
+    endShape();
+    // Cap / head
+    fill(60, 55, 50, 200);
+    stroke(60, 55, 50, 180);
+    strokeWeight(1);
+    ellipse(src.x, src.y - h, 10, 7);
+    noFill();
+    strokeWeight(1.5);
+    stroke(70, 65, 58, 200);
+  });
+
+  // Update & draw spores
+  noStroke();
+  spores = spores.filter(s => s.life < s.maxLife);
+  spores.forEach(s => {
+    s.life++;
+    s.wobble += s.wobbleSpeed;
+    const windX = (mouseX - width / 2) / width * 0.06;
+    const windY = (mouseY - height / 2) / height * 0.04;
+    s.vx += windX + sin(s.wobble) * 0.015;
+    s.vy += windY - 0.008; // gravity is weak, float upward
+    s.vx *= 0.99;
+    s.vy *= 0.99;
+    s.x += s.vx;
+    s.y += s.vy;
+
+    const progress = s.life / s.maxLife;
+    const alpha = progress < 0.1
+      ? progress / 0.1
+      : 1 - (progress - 0.1) / 0.9;
+
+    fill(60, 55, 50, alpha * 220);
+    noStroke();
+    ellipse(s.x, s.y, s.size * 1.4, s.size * 1.8);
+
+    // Draw tiny thread
+    stroke(70, 65, 60, alpha * 100);
+    strokeWeight(0.7);
+    noFill();
+    const threadLen = s.size * 3;
+    line(s.x, s.y, s.x - s.vx * threadLen, s.y - s.vy * threadLen);
+    noStroke();
+  });
+
+  t++;
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+
+function mousePressed() {
+  // Add a new source at click
+  if (sources.length < 10) {
+    sources.push({
+      x: mouseX,
+      y: mouseY,
+      timer: 0,
+      interval: random(8, 20),
+    });
+  }
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '217',
+  title:  'Spore',
+  detail: 'キノコのような胞子源から、胞子が風に乗って漂います。マウスを動かすと風向きが変わり、胞子の飛び方が変わります。クリックすると胞子源が増えます（最大10個）。胞子はゆっくり上昇しながら消えていきます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metronome</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f3f2ef; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf3f2ef);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 0, 12);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+// Metronomes: each is a simple pendulum rod
+const NUM = 9;
+const metronomes = [];
+
+// Base frequencies: Newton's cradle-like spread
+// When started together slightly out of phase, they drift apart then re-sync
+const baseFreq = 1.0; // Hz base
+const freqSpread = 0.07; // slight spread
+
+const lineMat = new THREE.LineBasicMaterial({ color: 0x484440, linewidth: 1 });
+const pivotMat = new THREE.MeshBasicMaterial({ color: 0x606055 });
+const pivotGeo = new THREE.SphereGeometry(0.05, 8, 8);
+
+for (let i = 0; i < NUM; i++) {
+  const freq = baseFreq + (i - NUM / 2) * freqSpread;
+  const x = (i - (NUM - 1) / 2) * 1.4;
+  const amplitude = Math.PI / 5;
+
+  // Rod geometry: two points
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(6); // 2 points
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const line = new THREE.Line(geo, lineMat);
+  scene.add(line);
+
+  // Pivot marker
+  const pivot = new THREE.Mesh(pivotGeo, pivotMat);
+  pivot.position.set(x, 0, 0);
+  scene.add(pivot);
+
+  // Bob trail (last N positions)
+  const TRAIL_LEN = 40;
+  const trailGeo = new THREE.BufferGeometry();
+  const trailPos = new Float32Array(TRAIL_LEN * 3);
+  trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+  trailGeo.setDrawRange(0, 0);
+  const trailMat = new THREE.LineBasicMaterial({ color: 0xa09890, transparent: true, opacity: 0.4 });
+  const trail = new THREE.Line(trailGeo, trailMat);
+  scene.add(trail);
+
+  metronomes.push({
+    x, freq,
+    phase: (i / NUM) * Math.PI * 0.3, // slight phase offset at start
+    amplitude,
+    rodLength: 1.8,
+    line, trail, trailPos, TRAIL_LEN, trailIndex: 0, trailFilled: 0,
+  });
+}
+
+let mouseNX = 0;
+document.addEventListener('mousemove', e => {
+  mouseNX = (e.clientX / window.innerWidth - 0.5) * 2;
+});
+
+let time = 0;
+let globalSpeed = 1.0;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  // Speed from mouse Y
+  // (use constant base for now, can be extended)
+  time += 0.016 * globalSpeed;
+
+  metronomes.forEach(m => {
+    const angle = Math.sin(m.freq * time * Math.PI * 2 + m.phase) * m.amplitude;
+    // Tip position
+    const tipX = m.x + Math.sin(angle) * m.rodLength;
+    const tipY = -Math.cos(angle) * m.rodLength;
+
+    // Update rod
+    const pos = m.line.geometry.attributes.position.array;
+    pos[0] = m.x; pos[1] = 0; pos[2] = 0;
+    pos[3] = tipX; pos[4] = tipY; pos[5] = 0;
+    m.line.geometry.attributes.position.needsUpdate = true;
+    m.line.geometry.computeBoundingSphere();
+
+    // Update trail
+    const ti = m.trailIndex;
+    m.trailPos[ti * 3 + 0] = tipX;
+    m.trailPos[ti * 3 + 1] = tipY;
+    m.trailPos[ti * 3 + 2] = 0;
+    m.trailIndex = (m.trailIndex + 1) % m.TRAIL_LEN;
+    m.trailFilled = Math.min(m.trailFilled + 1, m.TRAIL_LEN);
+
+    // Reorder trail for rendering
+    const reordered = new Float32Array(m.TRAIL_LEN * 3);
+    for (let j = 0; j < m.trailFilled; j++) {
+      const src = ((m.trailIndex - m.trailFilled + j + m.TRAIL_LEN) % m.TRAIL_LEN) * 3;
+      reordered[j * 3] = m.trailPos[src];
+      reordered[j * 3 + 1] = m.trailPos[src + 1];
+      reordered[j * 3 + 2] = m.trailPos[src + 2];
+    }
+    m.trail.geometry.attributes.position.array.set(reordered);
+    m.trail.geometry.attributes.position.needsUpdate = true;
+    m.trail.geometry.setDrawRange(0, m.trailFilled);
+    m.trail.geometry.computeBoundingSphere();
+  });
+
+  renderer.render(scene, camera);
+}
+
+document.addEventListener('mousemove', e => {
+  // Map mouseY to speed: top = fast, bottom = slow
+  globalSpeed = 0.3 + (1 - e.clientY / window.innerHeight) * 1.4;
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+animate();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '220',
+  title:  'Metronome',
+  detail: '9本の振り子が、わずかに異なる速さで揺れています。最初はほぼ同位相ですが、だんだんずれていき、再び揃う瞬間が戻ってきます。マウスを上に動かすと速くなり、下に動かすと遅くなります。振り子の体は描かず、棒の軌跡だけがあります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

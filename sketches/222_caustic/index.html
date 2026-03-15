@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caustic</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f2f1ee; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.innerHTML = 'WebGL not supported'; }
+
+const VS = `
+attribute vec2 a_pos;
+void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+`;
+
+const FS = `
+precision highp float;
+uniform vec2 u_res;
+uniform float u_time;
+uniform vec2 u_mouse;
+
+float hash(vec2 p) {
+  p = fract(p * vec2(234.34, 435.345));
+  p += dot(p, p + 34.23);
+  return fract(p.x * p.y);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+// Caustic approximation: interference of refracted rays
+float caustic(vec2 uv, float t) {
+  // Multiple wave sources create interference pattern
+  float c = 0.0;
+
+  // Wave source 1: mouse
+  vec2 s1 = u_mouse / u_res;
+  float d1 = length(uv - s1);
+  c += sin(d1 * 40.0 - t * 3.0) * 0.5 + 0.5;
+
+  // Wave sources 2-4: moving
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    vec2 src = vec2(
+      0.5 + sin(t * 0.4 + fi * 2.09) * 0.25,
+      0.5 + cos(t * 0.3 + fi * 2.09) * 0.2
+    );
+    float d = length(uv - src);
+    float wave = sin(d * 35.0 - t * 2.5 + fi * 1.1) * 0.5 + 0.5;
+    c += wave;
+  }
+  c /= 4.0;
+
+  // Focus: caustics appear where many waves converge (near peaks)
+  // Use power to exaggerate bright spots
+  float bright = pow(c, 4.0) * 3.5;
+
+  // Surface noise for realism
+  float n = noise(uv * 8.0 + vec2(t * 0.2, 0.0)) * 0.08;
+  bright += n;
+
+  return clamp(bright, 0.0, 1.0);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+
+  float c = caustic(uv, u_time);
+
+  // Color: mid-tone paper with clear caustic lines
+  vec3 base = vec3(0.88, 0.875, 0.865); // slightly darker paper
+  vec3 bright = vec3(0.98, 0.97, 0.96); // bright caustic focus
+  vec3 dark = vec3(0.74, 0.73, 0.71);   // shadow between caustic lines
+
+  // Caustic: thin bright lines with dark gutters
+  float focus = pow(max(c - 0.35, 0.0) / 0.65, 2.0);
+  float shadow = 1.0 - smoothstep(0.15, 0.45, c);
+
+  vec3 col = base;
+  col = mix(col, dark,   shadow * 0.5);
+  col = mix(col, bright, focus * 0.8);
+  col = clamp(col, 0.0, 1.0);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(gl, type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+    return null;
+  }
+  return s;
+}
+
+const vs = compileShader(gl, gl.VERTEX_SHADER, VS);
+const fs = compileShader(gl, gl.FRAGMENT_SHADER, FS);
+const prog = gl.createProgram();
+gl.attachShader(prog, vs);
+gl.attachShader(prog, fs);
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes = gl.getUniformLocation(prog, 'u_res');
+const uTime = gl.getUniformLocation(prog, 'u_time');
+const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+let mouseX = canvas.width / 2;
+let mouseY = canvas.height / 2;
+document.addEventListener('mousemove', e => {
+  mouseX = e.clientX;
+  mouseY = canvas.height - e.clientY;
+});
+
+let t = 0;
+function render() {
+  requestAnimationFrame(render);
+  t += 0.016;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouseX, mouseY);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+});
+
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '222',
+  title:  'Caustic',
+  detail: '水面の下で光が集まる模様を、複数の波の干渉で描きました。波が収束する場所だけ明るくなります。マウスを動かすと波源の一つが追従し、模様が変化します。全ピクセルの明るさを計算しています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cipher</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f4f4f2; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  initGrid();
+}
+
+const COLS = 40;
+const ROWS = 24;
+const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*?';
+const TARGET_TEXTS = [
+  'THE CODE WROTE ITSELF',
+  'MEANING HIDDEN IN NOISE',
+  'PATTERN EMERGES FROM CHAOS',
+  'WHAT DID YOU EXPECT TO FIND',
+  'SIGNAL BURIED IN STATIC',
+];
+
+let cells = [];
+let targetText = '';
+let targetIndex = 0;
+let speed = 1;
+
+function randomChar() {
+  return CHARSET[Math.floor(Math.random() * CHARSET.length)];
+}
+
+function initGrid() {
+  cells = [];
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      cells.push({
+        row, col,
+        char: randomChar(),
+        targetChar: ' ',
+        revealed: false,
+        revealProgress: 0,
+        flipTimer: Math.random() * 60,
+        flipSpeed: Math.random() * 0.3 + 0.1,
+      });
+    }
+  }
+  pickNewTarget();
+}
+
+function pickNewTarget() {
+  targetText = TARGET_TEXTS[targetIndex % TARGET_TEXTS.length];
+  targetIndex++;
+
+  // Reset all
+  cells.forEach(c => {
+    c.revealed = false;
+    c.revealProgress = 0;
+    c.targetChar = ' ';
+  });
+
+  // Place target text centered
+  const startCol = Math.floor((COLS - targetText.length) / 2);
+  const midRow = Math.floor(ROWS / 2);
+
+  for (let i = 0; i < targetText.length; i++) {
+    const col = startCol + i;
+    if (col >= 0 && col < COLS) {
+      const idx = midRow * COLS + col;
+      if (cells[idx]) {
+        cells[idx].targetChar = targetText[i];
+        cells[idx].revealDelay = i * (8 / speed) + Math.random() * 20;
+      }
+    }
+  }
+}
+
+let t = 0;
+let revealPhase = false;
+
+canvas.addEventListener('click', () => {
+  speed = Math.min(speed * 1.5, 8);
+  cells.forEach(c => {
+    if (!c.revealed && c.targetChar !== ' ') {
+      c.revealDelay = Math.max(0, c.revealDelay - 30);
+    }
+  });
+});
+
+document.addEventListener('keydown', () => {
+  speed = Math.min(speed + 0.5, 8);
+});
+
+function draw() {
+  ctx.fillStyle = '#f4f4f2';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const cellW = canvas.width / COLS;
+  const cellH = canvas.height / ROWS;
+  const fontSize = Math.min(cellW * 0.7, cellH * 0.7, 18);
+
+  ctx.font = `${fontSize}px 'Courier New', monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  cells.forEach(c => {
+    const x = (c.col + 0.5) * cellW;
+    const y = (c.row + 0.5) * cellH;
+
+    // Flip noise chars
+    c.flipTimer -= c.flipSpeed * speed;
+    if (c.flipTimer <= 0) {
+      c.char = randomChar();
+      c.flipTimer = Math.random() * 40 + 10;
+    }
+
+    // Reveal logic
+    if (c.targetChar !== ' ' && !c.revealed) {
+      if (c.revealDelay !== undefined) {
+        c.revealDelay -= speed * 0.5;
+        if (c.revealDelay <= 0) {
+          c.revealProgress += 0.06 * speed;
+          if (c.revealProgress >= 1) {
+            c.revealProgress = 1;
+            c.revealed = true;
+            c.char = c.targetChar;
+          }
+        }
+      }
+    }
+
+    if (c.revealed) {
+      // Revealed: draw target char boldly
+      const alpha = 0.85;
+      ctx.fillStyle = `rgba(40,40,40,${alpha})`;
+      ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+      ctx.fillText(c.targetChar, x, y);
+      ctx.font = `${fontSize}px 'Courier New', monospace`;
+    } else if (c.revealProgress > 0) {
+      // Transitioning: flicker between noise and target
+      const isTarget = Math.random() < c.revealProgress;
+      const char = isTarget ? c.targetChar : c.char;
+      const brightness = isTarget ? 40 : 160;
+      ctx.fillStyle = `rgba(${brightness},${brightness},${brightness},0.8)`;
+      ctx.fillText(char, x, y);
+    } else {
+      // Pure noise
+      const dist = Math.abs(c.row - ROWS / 2);
+      const alpha = 0.08 + (ROWS / 2 - dist) / ROWS * 0.12;
+      ctx.fillStyle = `rgba(120,115,108,${alpha})`;
+      ctx.fillText(c.char, x, y);
+    }
+  });
+
+  // Check if all revealed
+  const allRevealed = cells.filter(c => c.targetChar !== ' ').every(c => c.revealed);
+  if (allRevealed && t % 180 === 0) {
+    // Wait then reset
+    setTimeout(() => {
+      speed = Math.max(speed * 0.8, 1);
+      pickNewTarget();
+    }, 2000);
+  }
+
+  t++;
+  requestAnimationFrame(draw);
+}
+
+resize();
+window.addEventListener('resize', resize);
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '215',
+  title:  'Cipher',
+  detail: 'ランダムな文字でできたノイズの中から、意味のある文字が徐々に浮かび上がります。クリックやキーボード入力で解読を加速できます。全て解読されると、しばらくして次のメッセージがノイズに隠れます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

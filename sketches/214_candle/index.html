@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Candle</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f5f3ef; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+let mouseX = canvas.width / 2;
+let mouseY = canvas.height / 2;
+canvas.addEventListener('mousemove', e => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+
+// Candle parameters
+const waxColor = '#ddd8cc';
+const waxDarkColor = '#c8c2b4';
+
+// Flame particles
+const FLAME_COUNT = 80;
+let particles = [];
+
+function resetParticle(p) {
+  const cx = canvas.width / 2;
+  const candleTop = canvas.height * 0.55;
+  p.x = cx + (Math.random() - 0.5) * 8;
+  p.y = candleTop;
+  p.vx = (Math.random() - 0.5) * 0.5;
+  p.vy = -(Math.random() * 1.5 + 1.0);
+  p.life = 0;
+  p.maxLife = Math.random() * 60 + 40;
+  p.size = Math.random() * 2 + 1;
+}
+
+for (let i = 0; i < FLAME_COUNT; i++) {
+  const p = {};
+  resetParticle(p);
+  p.life = Math.random() * 100;
+  particles.push(p);
+}
+
+// Drip wax
+let drips = [];
+function maybeAddDrip() {
+  if (Math.random() < 0.003) {
+    const cx = canvas.width / 2;
+    const candleW = 28;
+    const side = Math.random() < 0.5 ? -1 : 1;
+    drips.push({
+      x: cx + side * (candleW * 0.5 - 2),
+      y: canvas.height * 0.55 + 5,
+      vy: 0.3 + Math.random() * 0.3,
+      length: 0,
+      maxLength: 20 + Math.random() * 40,
+      width: 4 + Math.random() * 4,
+      stopped: false,
+      stopY: 0
+    });
+  }
+}
+
+let t = 0;
+
+function drawCandle() {
+  const cx = canvas.width / 2;
+  const candleTop = canvas.height * 0.55;
+  const candleBottom = canvas.height * 0.85;
+  const candleW = 28;
+
+  // Candle body
+  ctx.beginPath();
+  ctx.roundRect(cx - candleW / 2, candleTop, candleW, candleBottom - candleTop, 3);
+  ctx.fillStyle = waxColor;
+  ctx.fill();
+  ctx.strokeStyle = waxDarkColor;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Shadow on candle
+  const grad = ctx.createLinearGradient(cx - candleW / 2, 0, cx + candleW / 2, 0);
+  grad.addColorStop(0, 'rgba(100,90,80,0.12)');
+  grad.addColorStop(0.3, 'rgba(100,90,80,0.0)');
+  grad.addColorStop(1, 'rgba(100,90,80,0.10)');
+  ctx.beginPath();
+  ctx.roundRect(cx - candleW / 2, candleTop, candleW, candleBottom - candleTop, 3);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Wick
+  ctx.beginPath();
+  ctx.moveTo(cx, candleTop);
+  ctx.lineTo(cx + 1, candleTop - 14);
+  ctx.strokeStyle = '#3a2a1a';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+function drawDrips() {
+  const cx = canvas.width / 2;
+  drips.forEach(d => {
+    if (!d.stopped) {
+      d.length += d.vy;
+      if (d.length >= d.maxLength) {
+        d.stopped = true;
+        d.stopY = d.y + d.length;
+      }
+    }
+    ctx.beginPath();
+    ctx.moveTo(d.x, d.y);
+    const endY = d.stopped ? d.stopY : d.y + d.length;
+    // Draw rounded drip
+    ctx.lineTo(d.x, endY - d.width * 0.5);
+    ctx.arc(d.x, endY - d.width * 0.5, d.width * 0.5, 0, Math.PI * 2);
+    ctx.fillStyle = waxColor;
+    ctx.fill();
+    ctx.strokeStyle = waxDarkColor;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  });
+}
+
+function drawFlame() {
+  const cx = canvas.width / 2;
+  const wickTop = canvas.height * 0.55 - 14;
+
+  // Wind from mouse
+  const windX = (mouseX - canvas.width / 2) * 0.003;
+
+  particles.forEach(p => {
+    p.life++;
+    if (p.life > p.maxLife) {
+      resetParticle(p);
+    }
+    const windInfluence = p.life / p.maxLife;
+    p.x += p.vx + windX * windInfluence * 2;
+    p.y += p.vy * (1 - windInfluence * 0.3);
+    p.vx += (Math.random() - 0.5) * 0.08;
+
+    const progress = p.life / p.maxLife;
+    const alpha = progress < 0.3
+      ? progress / 0.3
+      : 1 - (progress - 0.3) / 0.7;
+
+    // Color: inner = warm yellow, outer = dark
+    const heat = 1 - progress;
+    const r = Math.round(180 + heat * 50);
+    const g = Math.round(80 + heat * 100);
+    const b = Math.round(20 + heat * 10);
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * (1 + progress * 0.5), 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${r},${g},${b},${alpha * 0.7})`;
+    ctx.fill();
+  });
+
+  // Flame core glow
+  const glowR = 18 + Math.sin(t * 0.13) * 3 + windX * 5;
+  const glowH = 30 + Math.sin(t * 0.09) * 5;
+  const gx = cx + windX * 8;
+
+  const flameGrad = ctx.createRadialGradient(gx, wickTop - glowH * 0.3, 2, gx, wickTop, glowR);
+  flameGrad.addColorStop(0, 'rgba(255,230,120,0.9)');
+  flameGrad.addColorStop(0.3, 'rgba(255,140,30,0.6)');
+  flameGrad.addColorStop(0.7, 'rgba(180,60,10,0.3)');
+  flameGrad.addColorStop(1, 'rgba(100,20,0,0)');
+
+  ctx.beginPath();
+  // Flame shape: teardrop
+  ctx.save();
+  ctx.translate(gx, wickTop);
+  ctx.scale(1, 1.6);
+  ctx.arc(0, 0, glowR * 0.7, 0, Math.PI * 2);
+  ctx.restore();
+  ctx.fillStyle = flameGrad;
+  ctx.fill();
+
+  // Halo / ambient glow on candle
+  const halo = ctx.createRadialGradient(gx, wickTop, 0, gx, wickTop, 60);
+  halo.addColorStop(0, 'rgba(255,200,80,0.08)');
+  halo.addColorStop(1, 'rgba(255,200,80,0)');
+  ctx.beginPath();
+  ctx.arc(gx, wickTop, 60, 0, Math.PI * 2);
+  ctx.fillStyle = halo;
+  ctx.fill();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background warm tint
+  ctx.fillStyle = '#f5f3ef';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  maybeAddDrip();
+  drawCandle();
+  drawDrips();
+  drawFlame();
+
+  t++;
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '214',
+  title:  'Candle',
+  detail: 'マウスを左右に動かすと、炎が風で揺れます。溶けた蝋が垂れてくることもあります。炎は細い粒子の集まりで描いていて、ウィックから上に向かうにつれて色と透明度が変わります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

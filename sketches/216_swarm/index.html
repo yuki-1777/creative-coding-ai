@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swarm</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f2f1ee; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  // Preserve trail by copying to offscreen before resize
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  // Fill background on resize
+  ctx.fillStyle = '#f2f1ee';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Two nests
+let nestA = { x: canvas.width * 0.18, y: canvas.height * 0.5 };
+let nestB = { x: canvas.width * 0.82, y: canvas.height * 0.5 };
+
+// Pheromone field for steering
+const CELL = 10;
+let fieldW = Math.ceil(canvas.width / CELL);
+let fieldH = Math.ceil(canvas.height / CELL);
+let pheromone = new Float32Array(fieldW * fieldH);
+
+function deposit(x, y, amt) {
+  const gx = Math.floor(x / CELL);
+  const gy = Math.floor(y / CELL);
+  if (gx >= 0 && gx < fieldW && gy >= 0 && gy < fieldH) {
+    const i = gy * fieldW + gx;
+    pheromone[i] = Math.min(pheromone[i] + amt, 100);
+  }
+}
+
+function sense(x, y) {
+  const gx = Math.floor(x / CELL);
+  const gy = Math.floor(y / CELL);
+  if (gx < 0 || gx >= fieldW || gy < 0 || gy >= fieldH) return 0;
+  return pheromone[gy * fieldW + gx];
+}
+
+function evaporate() {
+  for (let i = 0; i < pheromone.length; i++) pheromone[i] *= 0.991;
+}
+
+// Ants
+const N = 300;
+const ants = [];
+function makeAnt(home, goal) {
+  return {
+    x: home.x + (Math.random() - 0.5) * 20,
+    y: home.y + (Math.random() - 0.5) * 20,
+    a: Math.random() * Math.PI * 2,
+    home, goal,
+    carrying: false,
+  };
+}
+for (let i = 0; i < N / 2; i++) ants.push(makeAnt(nestA, nestB));
+for (let i = 0; i < N / 2; i++) ants.push(makeAnt(nestB, nestA));
+
+function stepAnt(ant) {
+  const spd = 2.2;
+  const sa = Math.PI / 5;
+  const sd = 15;
+
+  const sL = sense(ant.x + Math.cos(ant.a - sa) * sd, ant.y + Math.sin(ant.a - sa) * sd);
+  const sF = sense(ant.x + Math.cos(ant.a)      * sd, ant.y + Math.sin(ant.a)      * sd);
+  const sR = sense(ant.x + Math.cos(ant.a + sa) * sd, ant.y + Math.sin(ant.a + sa) * sd);
+
+  let turn = (Math.random() - 0.5) * 0.4;
+  if (sL > sF && sL > sR)      turn -= sa * 0.7;
+  else if (sR > sF && sR > sL) turn += sa * 0.7;
+
+  // Bias toward goal or home
+  const target = ant.carrying ? ant.home : ant.goal;
+  turn += Math.sin(Math.atan2(target.y - ant.y, target.x - ant.x) - ant.a) * 0.12;
+
+  ant.a += turn;
+  const ox = ant.x, oy = ant.y;
+  ant.x += Math.cos(ant.a) * spd;
+  ant.y += Math.sin(ant.a) * spd;
+
+  // Walls
+  const W = canvas.width, H = canvas.height;
+  if (ant.x < 2)  { ant.x = 2;  ant.a = Math.PI - ant.a; }
+  if (ant.x > W-2){ ant.x = W-2; ant.a = Math.PI - ant.a; }
+  if (ant.y < 2)  { ant.y = 2;  ant.a = -ant.a; }
+  if (ant.y > H-2){ ant.y = H-2; ant.a = -ant.a; }
+
+  deposit(ant.x, ant.y, ant.carrying ? 5.0 : 1.0);
+
+  // Draw ant trail directly on canvas
+  ctx.beginPath();
+  ctx.moveTo(ox, oy);
+  ctx.lineTo(ant.x, ant.y);
+  ctx.strokeStyle = ant.carrying
+    ? 'rgba(55,45,38,0.28)'
+    : 'rgba(90,80,72,0.09)';
+  ctx.lineWidth = 0.9;
+  ctx.stroke();
+
+  // Reach goal?
+  const dx = ant.goal.x - ant.x, dy = ant.goal.y - ant.y;
+  if (dx*dx + dy*dy < 22*22) {
+    ant.carrying = !ant.carrying;
+    const tmp = ant.home; ant.home = ant.goal; ant.goal = tmp;
+    ant.a += Math.PI;
+  }
+}
+
+document.addEventListener('mousemove', e => {
+  nestB.x = e.clientX;
+  nestB.y = e.clientY;
+});
+
+// Slow fade of trails via semi-transparent bg rect
+function fadeBg() {
+  ctx.fillStyle = 'rgba(242,241,238,0.018)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function draw() {
+  requestAnimationFrame(draw);
+  evaporate();
+  fadeBg();
+
+  ants.forEach(stepAnt);
+
+  // Nests
+  [nestA, nestB].forEach(n => {
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, 14, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(58,50,44,0.45)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(58,50,44,0.6)';
+    ctx.fill();
+  });
+
+  // Ants
+  ants.forEach(ant => {
+    ctx.beginPath();
+    ctx.arc(ant.x, ant.y, ant.carrying ? 2.0 : 1.4, 0, Math.PI * 2);
+    ctx.fillStyle = ant.carrying ? 'rgba(50,42,36,0.9)' : 'rgba(80,70,62,0.65)';
+    ctx.fill();
+  });
+}
+
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '216',
+  title:  'Swarm',
+  detail: 'アリのコロニーが2つの巣の間を行き来しています。アリは歩いた跡にフェロモンを残し、他のアリがそれを辿ることで最短経路が徐々に浮かび上がります。マウスを動かすと一方の巣が移動します。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

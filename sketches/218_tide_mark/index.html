@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tide Mark</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f4f3f0; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Tide mark: horizontal water lines driven by time-of-day
+// Constraint: lines are horizontal only
+
+let timeOffset = 0; // hours offset from real time
+let isDragging = false;
+let dragStartY = 0;
+let dragStartOffset = 0;
+
+function getTideHeight(hour, minute) {
+  // Tides roughly: high tide ~6:00 and 18:00, low tide ~0:00 and 12:00
+  const t = (hour + minute / 60) / 24;
+  const tide1 = sin(TWO_PI * t * 2 - HALF_PI);    // twice per day
+  const tide2 = sin(TWO_PI * t * 1.93 - HALF_PI) * 0.3; // slight variation
+  return (tide1 + tide2) * 0.5 + 0.5; // 0-1 range
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  colorMode(RGB);
+  noFill();
+  textFont('Georgia, serif');
+}
+
+function draw() {
+  background(244, 243, 240);
+
+  const now = new Date();
+  const realHour = now.getHours() + timeOffset;
+  const realMinute = now.getMinutes();
+  const displayHour = ((realHour % 24) + 24) % 24;
+  const displayMin = realMinute;
+
+  const tideLevel = getTideHeight(displayHour, displayMin);
+
+  // Water level Y on screen
+  const marginTop = height * 0.15;
+  const marginBottom = height * 0.85;
+  const waterY = marginBottom - tideLevel * (marginBottom - marginTop);
+
+  // Draw tide marks – past lines, faded
+  const HIST_COUNT = 48; // past 48 half-hours
+  for (let i = HIST_COUNT; i >= 0; i--) {
+    const pastHour = displayHour - i * 0.5;
+    const pastMin = displayMin;
+    const pastLevel = getTideHeight(((pastHour % 24) + 24) % 24, pastMin);
+    const pastY = marginBottom - pastLevel * (marginBottom - marginTop);
+
+    const age = i / HIST_COUNT;
+    const alpha = (1 - age) * 0.35;
+    const lineW = (1 - age) * 0.8 + 0.2;
+
+    stroke(80, 75, 70, alpha * 255);
+    strokeWeight(lineW);
+
+    // Horizontal line with slight noise
+    const noiseAmt = 2 * (1 - age);
+    beginShape();
+    for (let x = 0; x <= width; x += 8) {
+      const ny = pastY + noise(x * 0.005, i * 0.3) * noiseAmt - noiseAmt * 0.5;
+      vertex(x, ny);
+    }
+    endShape();
+  }
+
+  // Current waterline – bold
+  stroke(50, 45, 42, 200);
+  strokeWeight(1.5);
+  beginShape();
+  for (let x = 0; x <= width; x += 6) {
+    const ny = waterY + noise(x * 0.006, millis() * 0.0003) * 3 - 1.5;
+    vertex(x, ny);
+  }
+  endShape();
+
+  // Time label
+  noStroke();
+  fill(80, 75, 70, 160);
+  textSize(12);
+  textAlign(LEFT);
+  const hh = String(Math.floor(displayHour)).padStart(2, '0');
+  const mm = String(displayMin).padStart(2, '0');
+  text(`${hh}:${mm}`, 20, waterY - 8);
+
+  // Tide label
+  const tideStr = tideLevel > 0.65 ? 'HIGH TIDE' : tideLevel < 0.35 ? 'LOW TIDE' : '';
+  if (tideStr) {
+    fill(80, 75, 70, 100);
+    textSize(10);
+    textAlign(RIGHT);
+    text(tideStr, width - 20, waterY - 8);
+  }
+
+  // Scroll hint (only first 5 seconds)
+  if (millis() < 5000) {
+    noStroke();
+    fill(100, 95, 90, 100);
+    textSize(11);
+    textAlign(CENTER);
+    text('drag up/down to travel through time', width / 2, height * 0.92);
+  }
+}
+
+function mousePressed() {
+  isDragging = true;
+  dragStartY = mouseY;
+  dragStartOffset = timeOffset;
+}
+
+function mouseDragged() {
+  const delta = (mouseY - dragStartY) / height * 24;
+  timeOffset = dragStartOffset - delta;
+}
+
+function mouseReleased() {
+  isDragging = false;
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '218',
+  title:  'Tide Mark',
+  detail: '実際の時刻を元に、潮の高さを水平線で表しています。現在の水位が太い線、過去の軌跡が薄く残っています。ドラッグすると時間を遡ったり進めたりできます。上にドラッグすると時間が進み、下にドラッグすると過去に戻ります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

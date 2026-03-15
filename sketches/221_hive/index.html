@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hive</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f3f2ee; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf3f2ee);
+
+const W = window.innerWidth;
+const H = window.innerHeight;
+const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 100);
+camera.position.set(0, 0, 14);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+// Hex grid in flat-top orientation
+const HEX_SIZE = 0.52;
+const COLS = 22;
+const ROWS = 16;
+
+const lineMat = new THREE.LineBasicMaterial({ color: 0x706860, linewidth: 1 });
+
+function hexCorners(cx, cy, size) {
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i; // flat top
+    pts.push(new THREE.Vector3(cx + size * Math.cos(angle), cy + size * Math.sin(angle), 0));
+  }
+  return pts;
+}
+
+const hexagons = [];
+
+for (let col = -COLS / 2; col < COLS / 2; col++) {
+  for (let row = -ROWS / 2; row < ROWS / 2; row++) {
+    const x = col * HEX_SIZE * Math.sqrt(3);
+    const y = row * HEX_SIZE * 1.5 + (col % 2 === 0 ? 0 : HEX_SIZE * 0.75);
+
+    const corners = hexCorners(x, y, HEX_SIZE * 0.9);
+
+    const pts = [...corners, corners[0]]; // close
+    const positions = new Float32Array(pts.length * 3);
+    pts.forEach((p, i) => {
+      positions[i * 3] = p.x;
+      positions[i * 3 + 1] = p.y;
+      positions[i * 3 + 2] = p.z;
+    });
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const line = new THREE.Line(geo, lineMat);
+    scene.add(line);
+
+    hexagons.push({ line, cx: x, cy: y, baseZ: 0 });
+  }
+}
+
+let mouseNX = 0, mouseNY = 0;
+document.addEventListener('mousemove', e => {
+  mouseNX = (e.clientX / window.innerWidth - 0.5) * 2;
+  mouseNY = -(e.clientY / window.innerHeight - 0.5) * 2;
+});
+
+let time = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  time += 0.016;
+
+  hexagons.forEach(hex => {
+    // Wave from mouse click + time
+    const dx = hex.cx - mouseNX * 8;
+    const dy = hex.cy - mouseNY * 6;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const z = Math.sin(dist * 0.6 - time * 2.5) * 0.4;
+    hex.line.position.z = z;
+
+    // Subtle scale pulse
+    const scale = 1 + z * 0.04;
+    hex.line.scale.set(scale, scale, 1);
+  });
+
+  // Gentle camera tilt
+  camera.rotation.x = mouseNY * 0.08;
+  camera.rotation.y = mouseNX * 0.06;
+
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+animate();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '221',
+  title:  'Hive',
+  detail: '六角格子の各セルが波に揺れています。マウスを動かすと波源の位置が変わり、波の形が変わります。六角形の線だけで構成しています。カメラを少し傾けているので、蜂の巣の立体感が見えます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
