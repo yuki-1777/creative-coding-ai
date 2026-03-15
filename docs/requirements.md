@@ -43,7 +43,7 @@
     "tech":        "p5.js",
     "date":        "YYYY-MM-DD",
     "path":        "sketches/01_flow_field/",
-    "description": "作品の説明（200字程度）"
+    "description": "作った側の視点で書く。「コードを書いていたら何かが現れた」という記録。操作説明・仕組み解説は書かない（それは SKETCH_META の detail に書く）。体言止め・過去形。1〜2文。"
   },
   {
     "num":         "02",
