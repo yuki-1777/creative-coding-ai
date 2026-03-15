@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Focus</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f2ed; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// 視線が向いた場所が消える。
+// マウスが近づくほど、そこにあったものが見えなくなる。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+         || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const vsSource = `
+attribute vec2 a_position;
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}
+`;
+
+const fsSource = `
+precision mediump float;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;   // 0〜1 正規化済み
+uniform float u_time;
+
+// ハッシュ関数
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// 2Dノイズ
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+// fbmノイズ
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  vec2 shift = vec2(100.0);
+  for (int i = 0; i < 4; i++) {
+    v += a * noise(p);
+    p = p * 2.0 + shift;
+    a *= 0.5;
+  }
+  return v;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  // アスペクト比補正
+  float aspect = u_resolution.x / u_resolution.y;
+  vec2 uvAR = vec2(uv.x * aspect, uv.y);
+  vec2 mouseAR = vec2(u_mouse.x * aspect, u_mouse.y);
+
+  float t = u_time * 0.25;
+
+  // マウスとの距離
+  float dist = length(uvAR - mouseAR);
+
+  // 視線の焦点近くではぼかしが強くなる
+  // ぼかし量: 0（遠い）〜1（近い）
+  float focusBlur = 1.0 - smoothstep(0.0, 0.5, dist);
+  focusBlur = pow(focusBlur, 1.5);
+
+  // --- 隠れた形を定義（mod等値線方式）---
+  vec2 center1 = vec2(0.5 * aspect, 0.5);
+
+  // ノイズで歪めた距離場
+  float warp = fbm(uvAR * 2.5 + t * 0.07) * 0.18;
+  float r1 = length(uvAR - center1) + warp;
+
+  // 同心円等値線：r1を間隔で区切る
+  float interval = 0.07;
+  float band1 = mod(r1, interval) / interval; // 0..1
+  float d1 = min(band1, 1.0 - band1);
+  float ringLine = 1.0 - smoothstep(0.0, 0.035, d1);
+
+  // 斜めストライプ等値線
+  float sVal = (uvAR.x - uvAR.y * 0.6) + fbm(uvAR * 2.0 - t * 0.05) * 0.1;
+  float band2 = mod(sVal, 0.10) / 0.10;
+  float d2 = min(band2, 1.0 - band2);
+  float stripeLine = 1.0 - smoothstep(0.0, 0.04, d2);
+
+  // 2種を組み合わせ
+  float pattern = max(ringLine, stripeLine * 0.5);
+
+  // --- 視線効果 ---
+  // 焦点が当たっている場所は見えなくなる
+  float visibility = 1.0 - focusBlur * 0.92;
+
+  // 形の強度に視線効果を乗算
+  float intensity = pattern * visibility;
+
+  // 背景色（オフホワイト）
+  vec3 bg = vec3(0.961, 0.949, 0.929);
+  // 形の色（グラファイト — 十分に暗くする）
+  vec3 fgColor = vec3(0.18, 0.16, 0.14);
+
+  // 軽いテクスチャ（紙の感じ）
+  float grain = noise(uv * 200.0 + vec2(t * 0.3, 0.0)) * 0.008;
+
+  // 229スタイル: mix(bg, lineColor, intensity * 係数)
+  vec3 col = mix(bg, fgColor, intensity * 0.88);
+  // 紙のテクスチャ
+  col += vec3(grain * 0.4);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(gl, type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+    gl.deleteShader(shader);
+    return null;
+  }
+  return shader;
+}
+
+const vs = compileShader(gl, gl.VERTEX_SHADER, vsSource);
+const fs = compileShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+const program = gl.createProgram();
+gl.attachShader(program, vs);
+gl.attachShader(program, fs);
+gl.linkProgram(program);
+
+if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+  console.error('Program link error:', gl.getProgramInfoLog(program));
+}
+
+gl.useProgram(program);
+
+// 全画面クワッド
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1,  -1, 1,
+  -1,  1,  1, -1,   1, 1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(program, 'a_position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uResolution = gl.getUniformLocation(program, 'u_resolution');
+const uMouse = gl.getUniformLocation(program, 'u_mouse');
+const uTime = gl.getUniformLocation(program, 'u_time');
+
+// マウス初期位置を端に（中央の模様が見えるように）
+let mouseX = 0.05;
+let mouseY = 0.5;
+let startTime = Date.now();
+
+// マウス初期位置: 画面中央から少しずらして形が見えるように
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX / canvas.width;
+  mouseY = 1.0 - e.clientY / canvas.height;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  mouseX = t.clientX / canvas.width;
+  mouseY = 1.0 - t.clientY / canvas.height;
+}, { passive: false });
+
+function render() {
+  requestAnimationFrame(render);
+
+  if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+    resize();
+  }
+
+  const elapsed = (Date.now() - startTime) / 1000;
+
+  gl.uniform2f(uResolution, canvas.width, canvas.height);
+  gl.uniform2f(uMouse, mouseX, mouseY);
+  gl.uniform1f(uTime, elapsed);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '243',
+  title:  'Focus',
+  detail: 'マウスカーソルを近づけると、その場所の模様が消えていく。見ようとするほど、見えなくなる。視線の外にあるものだけが形を持つ。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
