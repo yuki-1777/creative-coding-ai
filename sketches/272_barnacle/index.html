@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>272 – Barnacle</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #e8e4dd; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+let barnacles = [];
+let growQueue = [];
+let time = 0;
+
+// Spatial hash for overlap checking
+const CELL = 28;
+let grid = {};
+
+function gridKey(x, y) {
+  return `${Math.floor(x / CELL)},${Math.floor(y / CELL)}`;
+}
+
+function addToGrid(b) {
+  const key = gridKey(b.x, b.y);
+  if (!grid[key]) grid[key] = [];
+  grid[key].push(b);
+}
+
+function nearbyBarnacles(x, y, range) {
+  const result = [];
+  const cx = Math.floor(x / CELL);
+  const cy = Math.floor(y / CELL);
+  const r = Math.ceil(range / CELL);
+  for (let dx = -r; dx <= r; dx++) {
+    for (let dy = -r; dy <= r; dy++) {
+      const key = `${cx + dx},${cy + dy}`;
+      if (grid[key]) result.push(...grid[key]);
+    }
+  }
+  return result;
+}
+
+function tryPlace(x, y, parent) {
+  const minR = 4;
+  const maxR = parent ? parent.r * 1.1 : 12;
+  const r = random(minR, max(minR + 1, maxR * 0.85));
+
+  // Check overlap
+  const nearby = nearbyBarnacles(x, y, r + 14);
+  for (let nb of nearby) {
+    if (dist(x, y, nb.x, nb.y) < r + nb.r + 1.2) return false;
+  }
+
+  // Check canvas bounds
+  if (x - r < 0 || x + r > width || y - r < 0 || y + r > height) return false;
+
+  const b = {
+    x, y, r,
+    age: 0,
+    maxAge: random(120, 300),
+    parent,
+    children: 0,
+    born: time,
+    plates: floor(random(5, 9)),
+    openness: random(0.2, 0.8),  // how open the cirri are
+    hue: random(-8, 12)  // slight hue variation around base color
+  };
+  barnacles.push(b);
+  addToGrid(b);
+  return b;
+}
+
+function spawnColony(x, y) {
+  // Place initial barnacle
+  const seed = tryPlace(x, y, null);
+  if (!seed) return;
+  growQueue.push(seed);
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  colorMode(HSB, 360, 100, 100, 100);
+  noFill();
+
+  // Seed initial colonies
+  spawnColony(width / 2 + random(-80, 80), height / 2 + random(-60, 60));
+  spawnColony(width * 0.3 + random(-40, 40), height * 0.35 + random(-30, 30));
+  spawnColony(width * 0.7 + random(-40, 40), height * 0.65 + random(-30, 30));
+  spawnColony(width * 0.55 + random(-40, 40), height * 0.25 + random(-30, 30));
+  spawnColony(width * 0.2 + random(-30, 30), height * 0.65 + random(-20, 20));
+}
+
+function draw() {
+  background(38, 8, 91, 12);
+  time++;
+
+  // Grow from queue
+  if (growQueue.length > 0 && frameCount % 2 === 0) {
+    const parent = random(growQueue);
+    if (parent.children < 7) {
+      // Try to place a child adjacent
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const a = random(TWO_PI);
+        const d = parent.r + random(3, 9);
+        const nx = parent.x + cos(a) * d;
+        const ny = parent.y + sin(a) * d;
+        const child = tryPlace(nx, ny, parent);
+        if (child) {
+          parent.children++;
+          if (child.r > 3.5) growQueue.push(child);
+          break;
+        }
+      }
+    }
+  }
+
+  // Auto-spawn new colony occasionally
+  if (frameCount % 420 === 0 && barnacles.length < 800) {
+    spawnColony(random(width * 0.1, width * 0.9), random(height * 0.1, height * 0.9));
+  }
+
+  // Draw barnacles
+  for (let b of barnacles) {
+    b.age++;
+    drawBarnacle(b);
+  }
+
+  // Remove very old barnacles
+  if (barnacles.length > 900) {
+    const old = barnacles.splice(0, 30);
+    for (let b of old) {
+      const key = gridKey(b.x, b.y);
+      if (grid[key]) {
+        grid[key] = grid[key].filter(g => g !== b);
+      }
+    }
+    growQueue.splice(0, 10);
+  }
+}
+
+function drawBarnacle(b) {
+  const lifeAlpha = min(b.age / 40, 1.0);
+  const fade = b.age > b.maxAge ? map(b.age, b.maxAge, b.maxAge + 80, 1, 0) : 1;
+  const alpha = lifeAlpha * fade;
+  if (alpha <= 0) return;
+
+  const bx = b.x, by = b.y, r = b.r;
+  const plates = b.plates;
+
+  // Outer shell ring
+  stroke(210 + b.hue, 15, 52, 50 * alpha);
+  strokeWeight(0.8);
+  ellipse(bx, by, r * 2, r * 2);
+
+  // Plate lines (dividing the cone into wedges)
+  for (let p = 0; p < plates; p++) {
+    const a = (p / plates) * TWO_PI;
+    const innerR = r * 0.35;
+    stroke(210 + b.hue, 18, 48, 40 * alpha);
+    strokeWeight(0.5);
+    line(
+      bx + cos(a) * innerR,
+      by + sin(a) * innerR,
+      bx + cos(a) * r * 0.9,
+      by + sin(a) * r * 0.9
+    );
+  }
+
+  // Inner ring (aperture)
+  const apertureR = r * 0.4;
+  stroke(210 + b.hue, 22, 45, 55 * alpha);
+  strokeWeight(0.7);
+  ellipse(bx, by, apertureR * 2, apertureR * 2);
+
+  // Cirri (feathery feeding legs, shown as short lines from aperture)
+  const cirriCount = 6;
+  const wave = sin(time * 0.05 + b.x * 0.01 + b.y * 0.01) * b.openness;
+  if (wave > 0.1 && r > 6) {
+    for (let c = 0; c < cirriCount; c++) {
+      const a = (c / cirriCount) * TWO_PI + time * 0.025;
+      const len = apertureR * (0.6 + wave * 0.8);
+      stroke(210 + b.hue, 25, 55, 30 * alpha * wave);
+      strokeWeight(0.4);
+      beginShape();
+      for (let t = 0; t <= 1; t += 0.25) {
+        const curve = sin(t * PI) * apertureR * 0.3 * wave;
+        const ex = bx + cos(a + curve * 0.2) * len * t;
+        const ey = by + sin(a + curve * 0.2) * len * t;
+        vertex(ex, ey);
+      }
+      endShape();
+    }
+  }
+
+  // Concentric rings (growth lines)
+  for (let ring = 1; ring <= 2; ring++) {
+    const rr = r * (0.55 + ring * 0.18);
+    stroke(210 + b.hue, 10, 58, 20 * alpha);
+    strokeWeight(0.4);
+    ellipse(bx, by, rr * 2, rr * 2);
+  }
+}
+
+function mousePressed() {
+  spawnColony(mouseX, mouseY);
+}
+
+function touchStarted() {
+  spawnColony(touches[0].x, touches[0].y);
+  return false;
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '272',
+  title:  'Barnacle',
+  detail: 'フジツボが岩の表面を少しずつ覆っていきます。クリックした場所に新しい群落が生まれます。しばらく見ていると、触手（蔓脚）を広げて餌を捕まえる動作も見えます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
