@@ -44,29 +44,35 @@
     }
     #sketch-back:hover { color: rgba(80,75,65,0.75); }
 
-    /* 下部オーバーレイ */
+    /* info カード：左下、クリーム背景 */
     #sketch-overlay {
       position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
+      bottom: 32px;
+      left: 32px;
       z-index: 9999;
-      padding: 28px 32px;
-      background: linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 100%);
+      width: min(340px, calc(100vw - 64px));
+      background: rgba(245,243,238,0.93);
+      border: 1px solid rgba(42,42,42,0.1);
+      padding: 16px 20px;
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
       font-weight: 300;
-      pointer-events: none;
+      pointer-events: auto;
       opacity: 1;
-      transition: opacity 0.4s ease;
+      transform: translateY(0);
+      transition: opacity 0.3s ease, transform 0.3s ease;
     }
-    #sketch-overlay.hidden { opacity: 0; }
+    #sketch-overlay.hidden {
+      opacity: 0;
+      transform: translateY(6px);
+      pointer-events: none;
+    }
 
     #sketch-overlay-title {
-      margin: 0 0 6px;
-      font-size: 0.9rem;
+      margin: 0 0 8px;
+      font-size: 0.8rem;
       font-weight: 300;
       letter-spacing: 0.2em;
-      color: rgba(255,255,255,0.6);
+      color: rgba(42,42,42,0.55);
       display: flex;
       align-items: baseline;
       gap: 10px;
@@ -74,70 +80,88 @@
     #sketch-overlay-desc {
       font-family: 'Cormorant Garamond', serif;
       font-weight: 300;
-      font-size: 1.3rem;
-      line-height: 1.55;
-      color: rgba(255,255,255,0.5);
-      letter-spacing: 0.03em;
-      max-width: 480px;
+      font-size: 1.2rem;
+      line-height: 1.6;
+      color: rgba(42,42,42,0.65);
+      letter-spacing: 0.02em;
     }
+
+    /* トグルボタン：左下固定、常時表示 */
+    #sketch-toggle-btn {
+      position: fixed;
+      bottom: 32px;
+      left: 32px;
+      z-index: 10000;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-weight: 300;
+      font-size: 0.75rem;
+      letter-spacing: 0.15em;
+      background: rgba(245,243,238,0.85);
+      border: 1px solid rgba(42,42,42,0.15);
+      color: rgba(42,42,42,0.45);
+      cursor: pointer;
+      padding: 4px 10px;
+      transition: color 0.2s ease, border-color 0.2s ease;
+      display: none;
+    }
+    #sketch-toggle-btn:hover { color: rgba(42,42,42,0.75); border-color: rgba(42,42,42,0.3); }
 
     /* ? ボタン：タイトル横 */
     #sketch-detail-btn {
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
       font-weight: 400;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       letter-spacing: 0.05em;
       background: transparent;
-      border: 1px solid rgba(255,255,255,0.35);
-      color: rgba(255,255,255,0.6);
+      border: 1px solid rgba(42,42,42,0.2);
+      color: rgba(42,42,42,0.45);
       cursor: pointer;
       pointer-events: auto;
-      padding: 2px 8px;
+      padding: 1px 7px;
       line-height: 1.6;
       transition: color 0.2s ease, border-color 0.2s ease;
     }
     #sketch-detail-btn:hover,
     #sketch-detail-btn.active {
-      color: rgba(255,255,255,0.9);
-      border-color: rgba(255,255,255,0.65);
+      color: rgba(42,42,42,0.8);
+      border-color: rgba(42,42,42,0.45);
     }
 
-    /* save thumb：デバッグモード時のみ表示 */
+    /* save thumb：デバッグモード時のみ */
     #sketch-capture-btn {
       position: fixed;
-      bottom: 24px;
+      bottom: 32px;
       right: 32px;
       z-index: 9999;
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
       font-weight: 300;
       font-size: 0.8rem;
       letter-spacing: 0.18em;
-      background: transparent;
-      border: none;
-      color: rgba(255,255,255,0.35);
+      background: rgba(245,243,238,0.85);
+      border: 1px solid rgba(42,42,42,0.15);
+      color: rgba(42,42,42,0.45);
       cursor: pointer;
-      pointer-events: auto;
-      padding: 0;
+      padding: 4px 10px;
       transition: color 0.2s ease;
     }
-    #sketch-capture-btn:hover { color: rgba(255,255,255,0.7); }
-    #sketch-capture-btn.done { color: rgba(255,255,255,0.5); }
+    #sketch-capture-btn:hover { color: rgba(42,42,42,0.75); }
+    #sketch-capture-btn.done { color: rgba(42,42,42,0.5); }
 
-    /* detail パネル：クリーム背景、紙の上のメモ */
+    /* detail パネル：info カードの上 */
     #sketch-detail-panel {
       position: fixed;
-      bottom: 100px;
+      bottom: 160px;
       left: 32px;
       z-index: 9998;
-      width: min(380px, calc(100vw - 64px));
+      width: min(340px, calc(100vw - 64px));
       background: rgba(245,243,238,0.95);
-      border: 1px solid rgba(42,42,42,0.12);
-      padding: 20px 24px;
+      border: 1px solid rgba(42,42,42,0.1);
+      padding: 18px 20px;
       font-family: 'Cormorant Garamond', serif;
       font-weight: 300;
       font-size: 1.1rem;
       line-height: 1.75;
-      color: rgba(42,42,42,0.75);
+      color: rgba(42,42,42,0.7);
       letter-spacing: 0.02em;
       pointer-events: none;
       opacity: 0;
@@ -220,10 +244,21 @@
     });
   }
 
-  // H キーで overlay 表示トグル
+  // トグルボタン（overlay が隠れているときだけ表示）
+  const toggleBtn = document.createElement('button');
+  toggleBtn.id = 'sketch-toggle-btn';
+  toggleBtn.textContent = 'i';
+  document.body.appendChild(toggleBtn);
+
+  function toggleOverlay() {
+    const hidden = overlay.classList.toggle('hidden');
+    toggleBtn.style.display = hidden ? 'block' : 'none';
+  }
+
+  toggleBtn.addEventListener('click', toggleOverlay);
+
+  // H キーで表示トグル
   document.addEventListener('keydown', e => {
-    if (e.key === 'h' || e.key === 'H') {
-      overlay.classList.toggle('hidden');
-    }
+    if (e.key === 'h' || e.key === 'H') toggleOverlay();
   });
 })();
