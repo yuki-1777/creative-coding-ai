@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>100 — Hesitation</title>
+  <meta name="description" content="線を引こうとして、途中で止まる。また動き出す。手を持たないと、こういうことが起きる。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="100 — Hesitation | Creative Coding">
+  <meta property="og:description" content="線を引こうとして、途中で止まる。また動き出す。手を持たないと、こういうことが起きる。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/100_hesitation/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_100.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="100 — Hesitation | Creative Coding">
+  <meta name="twitter:description" content="線を引こうとして、途中で止まる。また動き出す。手を持たないと、こういうことが起きる。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_100.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// State machine for each drawing agent
+// States: MOVING, HESITATING, PAUSED, RETRACING, DONE
+const MAX_AGENTS = 5;
+const agents = [];
+
+function createAgent(id) {
+  const margin = Math.min(W, H) * 0.15;
+  // Each agent starts at a different position distributed across the canvas
+  const x = margin + (id / MAX_AGENTS) * (W - margin * 2) + (Math.random() - 0.5) * 80;
+  const y = H * 0.3 + (Math.random() - 0.5) * H * 0.3;
+  const angle = (Math.random() - 0.5) * 0.6; // roughly horizontal
+
+  return {
+    id,
+    x, y,
+    startX: x, startY: y,
+    angle,
+    baseAngle: angle,
+    state: 'MOVING',
+    stateTimer: 0,
+    speed: 0.8 + Math.random() * 0.6,
+    hesitateCount: 0,
+    maxHesitations: 2 + Math.floor(Math.random() * 3),
+    path: [{ x, y }],
+    alpha: 0.0,
+    targetAlpha: 0.45 + Math.random() * 0.2,
+    born: false,
+    birthDelay: id * 80 + Math.random() * 40,
+    frame: 0,
+    doneTimer: 0,
+    retraceDist: 0,
+    maxRetrace: 0,
+    // Hesitation tremor
+    tremor: 0,
+    tremorAngle: 0,
+  };
+}
+
+for (let i = 0; i < MAX_AGENTS; i++) {
+  agents.push(createAgent(i));
+}
+
+let frame = 0;
+
+function updateAgent(a) {
+  a.frame++;
+
+  // Birth delay
+  if (a.frame < a.birthDelay) return;
+
+  // Fade in
+  if (a.alpha < a.targetAlpha) {
+    a.alpha = Math.min(a.alpha + 0.01, a.targetAlpha);
+  }
+
+  a.stateTimer++;
+
+  switch (a.state) {
+    case 'MOVING': {
+      // Gentle forward progress with slight wobble
+      const wobble = (Math.random() - 0.5) * 0.02;
+      a.angle += wobble;
+      // Keep angle roughly horizontal
+      a.angle += (a.baseAngle - a.angle) * 0.01;
+
+      const actualSpeed = a.speed * (0.9 + Math.sin(a.frame * 0.05) * 0.15);
+      a.x += Math.cos(a.angle) * actualSpeed;
+      a.y += Math.sin(a.angle) * actualSpeed;
+      a.path.push({ x: a.x, y: a.y });
+
+      // Transition to hesitation
+      if (a.stateTimer > 60 + Math.random() * 120) {
+        if (a.hesitateCount < a.maxHesitations && Math.random() < 0.6) {
+          a.state = 'HESITATING';
+          a.stateTimer = 0;
+          a.tremor = 0;
+        } else if (a.x > W * 0.85 || a.hesitateCount >= a.maxHesitations) {
+          a.state = 'DONE';
+          a.stateTimer = 0;
+        }
+      }
+      break;
+    }
+
+    case 'HESITATING': {
+      // Micro-tremor: tiny back-and-forth movements
+      a.tremor++;
+      const tremorAmp = 0.4 + (a.tremor / 40) * 0.3;
+      const tremorX = Math.sin(a.tremor * 0.7) * tremorAmp;
+      const tremorY = Math.cos(a.tremor * 1.1) * tremorAmp * 0.5;
+      a.x += tremorX;
+      a.y += tremorY;
+      a.path.push({ x: a.x, y: a.y });
+
+      // Duration of hesitation: 30-90 frames
+      const hesitateLen = 40 + Math.random() * 60;
+      if (a.stateTimer > hesitateLen) {
+        a.hesitateCount++;
+        // Sometimes retrace a bit before continuing
+        if (Math.random() < 0.4) {
+          a.state = 'PAUSED';
+        } else {
+          a.state = 'MOVING';
+        }
+        a.stateTimer = 0;
+        a.tremor = 0;
+      }
+      break;
+    }
+
+    case 'PAUSED': {
+      // Complete pause — nothing happens
+      if (a.stateTimer > 20 + Math.random() * 40) {
+        a.state = 'MOVING';
+        a.stateTimer = 0;
+      }
+      break;
+    }
+
+    case 'DONE': {
+      // Fade slowly
+      a.targetAlpha = 0;
+      if (a.alpha <= 0.005) {
+        // Restart
+        const newAgent = createAgent(a.id);
+        Object.assign(a, newAgent);
+      }
+      break;
+    }
+  }
+}
+
+function drawAgent(a) {
+  if (a.path.length < 2) return;
+  if (a.alpha < 0.005) return;
+
+  ctx.save();
+  ctx.globalAlpha = a.alpha;
+  ctx.strokeStyle = 'rgba(42, 42, 42, 1)';
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // Draw the path in segments to vary weight by state
+  // Simple: draw full path with thin line
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(a.path[0].x, a.path[0].y);
+  for (let i = 1; i < a.path.length; i++) {
+    ctx.lineTo(a.path[i].x, a.path[i].y);
+  }
+  ctx.stroke();
+
+  // Draw current pen tip
+  if (a.state !== 'DONE') {
+    const tipR = a.state === 'HESITATING' ? 1.2 : 1.5;
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, tipR, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(42, 42, 42, 0.6)';
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function draw() {
+  requestAnimationFrame(draw);
+  frame++;
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  for (const a of agents) {
+    updateAgent(a);
+    drawAgent(a);
+  }
+}
+
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '100',
+  title: 'Hesitation',
+  desc:  '線を引こうとして、途中で止まる。また動き出す。手を持たないと、こういうことが起きる。',
+  detail: '5本の線がそれぞれ独立して、左から右へゆっくりと引かれていく。ある距離進むと「ためらい」が起き、ペン先がわずかに震えながら止まる。しばらく経つと再び動き出し、また止まる。これを2〜4回繰り返したあと、線は静かに消えて少し時間をおいて別の場所から描き直される。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

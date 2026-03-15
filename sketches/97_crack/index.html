@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>97 — Crack</title>
+  <meta name="description" content="クリックすると、そこからひびが走る。ひびはひびを呼ぶ。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="97 — Crack | Creative Coding">
+  <meta property="og:description" content="クリックすると、そこからひびが走る。ひびはひびを呼ぶ。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/97_crack/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_97.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="97 — Crack | Creative Coding">
+  <meta name="twitter:description" content="クリックすると、そこからひびが走る。ひびはひびを呼ぶ。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_97.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Active crack tips
+const tips = [];
+
+function createCrack(x, y, angle, depth) {
+  tips.push({ x, y, angle, depth, speed: 2.5, life: 120 + Math.random() * 80 });
+}
+
+// Draw background
+ctx.fillStyle = '#F5F3EE';
+ctx.fillRect(0, 0, W, H);
+
+function spawnInitial() {
+  const cx = W / 2, cy = H / 2;
+  const count = 3 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 * i / count) + (Math.random() - 0.5) * 0.5;
+    createCrack(cx, cy, angle, 0);
+  }
+}
+
+function update() {
+  const newTips = [];
+  for (const tip of tips) {
+    if (tip.life <= 0) continue;
+
+    const wobble = (Math.random() - 0.5) * 0.18;
+    tip.angle += wobble;
+
+    const nx = tip.x + Math.cos(tip.angle) * tip.speed;
+    const ny = tip.y + Math.sin(tip.angle) * tip.speed;
+
+    // Draw crack segment
+    ctx.beginPath();
+    ctx.moveTo(tip.x, tip.y);
+    ctx.lineTo(nx, ny);
+    const alpha = 0.3 + (tip.depth * 0.05);
+    ctx.strokeStyle = `rgba(42, 42, 42, ${Math.min(alpha, 0.7)})`;
+    ctx.lineWidth = Math.max(0.3, 1.2 - tip.depth * 0.12);
+    ctx.stroke();
+
+    tip.x = nx;
+    tip.y = ny;
+    tip.life--;
+
+    // Branching
+    if (tip.life > 20 && Math.random() < 0.012 && tip.depth < 5) {
+      const branchAngle = tip.angle + (Math.random() < 0.5 ? 1 : -1) * (0.4 + Math.random() * 0.5);
+      newTips.push({
+        x: tip.x, y: tip.y,
+        angle: branchAngle,
+        depth: tip.depth + 1,
+        speed: tip.speed * 0.85,
+        life: tip.life * 0.6
+      });
+    }
+
+    if (tip.life > 0) newTips.push(tip);
+  }
+
+  tips.length = 0;
+  tips.push(...newTips);
+}
+
+let frame = 0;
+function draw() {
+  requestAnimationFrame(draw);
+  frame++;
+
+  for (let i = 0; i < 4; i++) update();
+}
+
+canvas.addEventListener('click', e => {
+  const count = 3 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 * i / count) + (Math.random() - 0.5) * 0.8;
+    createCrack(e.clientX, e.clientY, angle, 0);
+  }
+});
+
+// Auto crack at start
+setTimeout(spawnInitial, 200);
+
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '97',
+  title: 'Crack',
+  desc:  'クリックすると、そこからひびが走る。ひびはひびを呼ぶ。',
+  detail: '画面のどこかをクリックすると、その点から3〜6本のひびが四方八方に走り出す。ひびは少しずつ方向を変えながら進み、途中で確率的に枝分かれし、枝がさらに枝を作る。深く分岐するほど線は細くなる。起動時は画面中央から自動的にひびが発生する。クリックするたびに新しいひびが追加される。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

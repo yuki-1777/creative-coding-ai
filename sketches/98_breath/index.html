@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>98 — Breath</title>
+  <meta name="description" content="同心円が膨らんで、縮む。マウスを近づけると、そちらに引き寄せられる。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="98 — Breath | Creative Coding">
+  <meta property="og:description" content="同心円が膨らんで、縮む。マウスを近づけると、そちらに引き寄せられる。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/98_breath/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_98.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="98 — Breath | Creative Coding">
+  <meta name="twitter:description" content="同心円が膨らんで、縮む。マウスを近づけると、そちらに引き寄せられる。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_98.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+let mx = W / 2, my = H / 2;
+let mouseActive = false;
+canvas.addEventListener('mousemove', e => {
+  mx = e.clientX;
+  my = e.clientY;
+  mouseActive = true;
+});
+canvas.addEventListener('mouseleave', () => { mouseActive = false; });
+
+// Center of the breathing form
+let cx = W / 2, cy = H / 2;
+let targetX, targetY;
+
+const RINGS = 12;
+const BASE_RADIUS = 18;
+const RING_GAP = 22;
+const BREATH_PERIOD = 220; // frames
+
+let frame = 0;
+
+function easeInOut(t) {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
+function draw() {
+  requestAnimationFrame(draw);
+  frame++;
+
+  // Smooth center toward mouse when active
+  const tx = mouseActive ? mx : W / 2;
+  const ty = mouseActive ? my : H / 2;
+  cx += (tx - cx) * 0.02;
+  cy += (ty - cy) * 0.02;
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  // Breathing phase: 0 to 1 and back
+  const t = (frame % BREATH_PERIOD) / BREATH_PERIOD;
+  const breathPhase = Math.sin(t * Math.PI * 2);
+  const breathScale = 1 + breathPhase * 0.22;
+
+  for (let i = RINGS; i >= 1; i--) {
+    const baseR = BASE_RADIUS + i * RING_GAP;
+    // Each ring has a slight phase offset — inner rings lead
+    const phaseOffset = (RINGS - i) * 0.05;
+    const ringPhase = Math.sin((t + phaseOffset) * Math.PI * 2);
+    const scale = 1 + ringPhase * 0.18;
+    const r = baseR * scale;
+
+    // Distort into ellipse slightly based on breath direction
+    const wobbleX = 1 + ringPhase * 0.06;
+    const wobbleY = 1 - ringPhase * 0.04;
+
+    const alpha = 0.06 + (1 - i / RINGS) * 0.1;
+    const weight = 0.4 + (1 - i / RINGS) * 0.5;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(wobbleX, wobbleY);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(42, 42, 42, ${alpha})`;
+    ctx.lineWidth = weight;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(42, 42, 42, 0.3)';
+  ctx.fill();
+}
+
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '98',
+  title: 'Breath',
+  desc:  '同心円が膨らんで、縮む。マウスを近づけると、そちらに引き寄せられる。',
+  detail: '12本の同心円がゆっくりと呼吸するように膨らんでは縮む。内側の輪と外側の輪でわずかに位相がずれているため、波が中心から外へ広がるように見える。円はわずかに楕円になりながら脈動する。マウスカーソルを動かすと、円の中心がカーソルの方向に引き寄せられていく。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

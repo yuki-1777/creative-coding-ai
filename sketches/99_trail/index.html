@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>99 — Trail</title>
+  <meta name="description" content="一羽が飛ぶ。軌跡が残る。しばらく経つと、また別の場所から飛び始める。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="99 — Trail | Creative Coding">
+  <meta property="og:description" content="一羽が飛ぶ。軌跡が残る。しばらく経つと、また別の場所から飛び始める。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/99_trail/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_99.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="99 — Trail | Creative Coding">
+  <meta name="twitter:description" content="一羽が飛ぶ。軌跡が残る。しばらく経つと、また別の場所から飛び始める。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_99.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  // Redraw background on resize
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Bird state
+let bird = null;
+const trails = []; // Array of completed trail paths
+const MAX_TRAILS = 6;
+
+function spawnBird() {
+  const margin = Math.min(W, H) * 0.15;
+  const side = Math.floor(Math.random() * 4);
+  let x, y, angle;
+
+  switch(side) {
+    case 0: x = margin + Math.random() * (W - margin * 2); y = margin; angle = Math.PI / 2 + (Math.random() - 0.5) * 0.8; break;
+    case 1: x = W - margin; y = margin + Math.random() * (H - margin * 2); angle = Math.PI + (Math.random() - 0.5) * 0.8; break;
+    case 2: x = margin + Math.random() * (W - margin * 2); y = H - margin; angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.8; break;
+    case 3: x = margin; y = margin + Math.random() * (H - margin * 2); angle = (Math.random() - 0.5) * 0.8; break;
+  }
+
+  bird = {
+    x, y, angle,
+    speed: 1.6 + Math.random() * 0.8,
+    turnRate: 0.015 + Math.random() * 0.01,
+    targetAngle: angle,
+    path: [{ x, y }],
+    life: 400 + Math.random() * 300,
+    age: 0
+  };
+}
+
+function updateBird() {
+  if (!bird) return;
+
+  bird.age++;
+
+  // Occasionally shift target direction
+  if (Math.random() < 0.02) {
+    bird.targetAngle += (Math.random() - 0.5) * 1.2;
+  }
+
+  // Gentle turning
+  const da = bird.targetAngle - bird.angle;
+  const normalDa = ((da + Math.PI) % (Math.PI * 2)) - Math.PI;
+  bird.angle += normalDa * bird.turnRate;
+
+  // Move
+  bird.x += Math.cos(bird.angle) * bird.speed;
+  bird.y += Math.sin(bird.angle) * bird.speed;
+
+  // Record path
+  const last = bird.path[bird.path.length - 1];
+  const dx = bird.x - last.x;
+  const dy = bird.y - last.y;
+  if (dx * dx + dy * dy > 4) {
+    bird.path.push({ x: bird.x, y: bird.y });
+  }
+
+  // Edge attraction: steer away from edges
+  const margin = 80;
+  if (bird.x < margin) bird.targetAngle += 0.05;
+  if (bird.x > W - margin) bird.targetAngle -= 0.05;
+  if (bird.y < margin) bird.targetAngle += 0.05 * Math.sign(Math.PI / 2 - Math.abs(bird.angle % Math.PI - Math.PI / 2));
+  if (bird.y > H - margin) bird.targetAngle -= 0.05 * Math.sign(Math.PI / 2 - Math.abs(bird.angle % Math.PI - Math.PI / 2));
+
+  // Die
+  if (bird.age > bird.life) {
+    // Save trail
+    if (bird.path.length > 10) {
+      trails.push([...bird.path]);
+      if (trails.length > MAX_TRAILS) {
+        trails.shift();
+        // Redraw all
+        redrawTrails();
+      }
+    }
+    bird = null;
+    setTimeout(spawnBird, 600 + Math.random() * 400);
+  }
+}
+
+function redrawTrails() {
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+  for (const path of trails) {
+    drawPath(path, false);
+  }
+}
+
+function drawPath(path, isLive) {
+  if (path.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(path[0].x, path[0].y);
+  for (let i = 1; i < path.length; i++) {
+    ctx.lineTo(path[i].x, path[i].y);
+  }
+  ctx.strokeStyle = isLive ? 'rgba(42, 42, 42, 0.35)' : 'rgba(42, 42, 42, 0.18)';
+  ctx.lineWidth = isLive ? 1.0 : 0.6;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+}
+
+function drawBirdShape(x, y, angle) {
+  // Simple bird shape: a small chevron
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.moveTo(6, 0);
+  ctx.lineTo(-3, -3);
+  ctx.lineTo(0, 0);
+  ctx.lineTo(-3, 3);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(42, 42, 42, 0.7)';
+  ctx.fill();
+  ctx.restore();
+}
+
+let frame = 0;
+function draw() {
+  requestAnimationFrame(draw);
+  frame++;
+
+  updateBird();
+
+  // Draw live trail (incremental — only the new segment)
+  if (bird && bird.path.length >= 2) {
+    const p = bird.path;
+    const last = p[p.length - 2];
+    const curr = p[p.length - 1];
+    ctx.beginPath();
+    ctx.moveTo(last.x, last.y);
+    ctx.lineTo(curr.x, curr.y);
+    ctx.strokeStyle = 'rgba(42, 42, 42, 0.28)';
+    ctx.lineWidth = 0.8;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Draw bird marker (erase previous, draw new)
+    // Use background fill to erase, then redraw
+    // Draw a small clearing circle for the bird head
+    const prev = bird.path.length >= 3 ? bird.path[bird.path.length - 3] : last;
+    ctx.beginPath();
+    ctx.arc(prev.x, prev.y, 8, 0, Math.PI * 2);
+    ctx.fillStyle = '#F5F3EE';
+    ctx.fill();
+    // Redraw trail portion that was erased
+    ctx.beginPath();
+    ctx.moveTo(last.x, last.y);
+    ctx.lineTo(prev.x, prev.y);
+    ctx.strokeStyle = 'rgba(42, 42, 42, 0.28)';
+    ctx.lineWidth = 0.8;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    drawBirdShape(bird.x, bird.y, bird.angle);
+  }
+}
+
+spawnBird();
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '99',
+  title: 'Trail',
+  desc:  '一羽が飛ぶ。軌跡が残る。しばらく経つと、また別の場所から飛び始める。',
+  detail: '小さな矢印の形をした鳥が画面を自由に飛び回り、通った道が薄い線として残る。鳥はときおり方向を変えながら、画面の端に近づくと内側へ戻ろうとする。しばらく飛ぶと消え、少しの間を置いて別の端から新しい鳥が飛び出す。過去の軌跡は最大6本まで重なって残り、古いものから消えていく。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
