@@ -272,6 +272,106 @@ canvas.addEventListener('click', () => {
   }
 });
 
+// ─── Grid-based spatial partitioning ─────────────────────────────────────────
+const GRID_CELL = 8; // cell size in px (> 2 * max radius ~3.4)
+let grid = null;
+let gridCols = 0, gridRows = 0;
+
+function buildGrid() {
+  gridCols = Math.ceil(W / GRID_CELL) + 1;
+  gridRows = Math.ceil(H / GRID_CELL) + 1;
+  grid = new Array(gridCols * gridRows);
+  for (let i = 0; i < grid.length; i++) grid[i] = null;
+
+  for (let i = 0; i < particles.length; i++) {
+    particles[i]._next = null; // reset linked list
+  }
+
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    if (!p.active) continue;
+    const cx = Math.floor(p.x / GRID_CELL);
+    const cy = Math.floor(p.y / GRID_CELL);
+    if (cx < 0 || cx >= gridCols || cy < 0 || cy >= gridRows) continue;
+    const idx = cy * gridCols + cx;
+    // singly linked list per cell (store index)
+    p._next = grid[idx]; // null or previous index
+    grid[idx] = i;
+  }
+}
+
+function resolveCollisions() {
+  buildGrid();
+
+  for (let i = 0; i < particles.length; i++) {
+    const a = particles[i];
+    if (!a.active) continue;
+    // settled AND nothing can push it further
+    const aSettled = a.passed && a.vy === 0;
+
+    const cx = Math.floor(a.x / GRID_CELL);
+    const cy = Math.floor(a.y / GRID_CELL);
+
+    // Check 3x3 neighbourhood
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = cx + dx;
+        const ny = cy + dy;
+        if (nx < 0 || nx >= gridCols || ny < 0 || ny >= gridRows) continue;
+        let j = grid[ny * gridCols + nx];
+        while (j !== null) {
+          if (j > i) { // process each pair once
+            const b = particles[j];
+            if (b.active) {
+              const bSettled = b.passed && b.vy === 0;
+              const minDist = a.r + b.r;
+              const ddx = b.x - a.x;
+              const ddy = b.y - a.y;
+              const dist2 = ddx * ddx + ddy * ddy;
+              if (dist2 < minDist * minDist && dist2 > 0.0001) {
+                const dist = Math.sqrt(dist2);
+                const overlap = minDist - dist;
+                const nx2 = ddx / dist;
+                const ny2 = ddy / dist;
+
+                // Position correction: push apart
+                if (aSettled && bSettled) {
+                  // both settled — no movement
+                } else if (aSettled) {
+                  b.x += nx2 * overlap;
+                  b.y += ny2 * overlap;
+                } else if (bSettled) {
+                  a.x -= nx2 * overlap;
+                  a.y -= ny2 * overlap;
+                } else {
+                  a.x -= nx2 * overlap * 0.5;
+                  a.y -= ny2 * overlap * 0.5;
+                  b.x += nx2 * overlap * 0.5;
+                  b.y += ny2 * overlap * 0.5;
+                }
+
+                // Velocity exchange along normal (dampened)
+                const DAMP = 0.5;
+                const aDotN = a.vx * nx2 + a.vy * ny2;
+                const bDotN = b.vx * nx2 + b.vy * ny2;
+                if (!aSettled) {
+                  a.vx += (bDotN - aDotN) * nx2 * DAMP;
+                  a.vy += (bDotN - aDotN) * ny2 * DAMP;
+                }
+                if (!bSettled) {
+                  b.vx += (aDotN - bDotN) * nx2 * DAMP;
+                  b.vy += (aDotN - bDotN) * ny2 * DAMP;
+                }
+              }
+            }
+          }
+          j = particles[j]._next;
+        }
+      }
+    }
+  }
+}
+
 // ─── Loop ────────────────────────────────────────────────────────────────────
 function draw() {
   const target = gateOpen ? 1 : 0;
@@ -288,6 +388,8 @@ function draw() {
   }
 
   for (const p of particles) { if (p.active) p.update(); }
+
+  resolveCollisions();
 
   // Draw passed (below gate) first, then gate, then blocked (above)
   for (const p of particles) { if (p.active && p.passed)  p.draw(); }
