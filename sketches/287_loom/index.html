@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>287 – Loom</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #f5f3ef;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 緯糸を左右にドラッグして通す織機。
+// 経糸（縦）は初期状態で引かれており、ドラッグで緯糸（横）が1段ずつ追加される。
+
+const WARP_COUNT   = 36;  // 経糸の本数
+const WEFT_COLOR   = [42, 38, 32];   // 経糸色 (ダークグラファイト)
+const WARP_ALPHA   = 180;
+const THREAD_W     = 1.0;
+
+let warpX     = [];   // 各経糸のX座標
+let wefts     = [];   // {y, dir, overUnder[]} 完成した緯糸
+let shuttle   = null; // {y, x, dir, progress} 現在ドラッグ中の緯糸
+let dragStart = null;
+let padL, padR, padT, padB, plotW, plotH;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  recalcLayout();
+  buildWarpX();
+}
+
+function recalcLayout() {
+  padL  = floor(width  * 0.12);
+  padR  = floor(width  * 0.12);
+  padT  = floor(height * 0.12);
+  padB  = floor(height * 0.12);
+  plotW = width  - padL - padR;
+  plotH = height - padT - padB;
+}
+
+function buildWarpX() {
+  warpX = [];
+  for (let i = 0; i < WARP_COUNT; i++) {
+    warpX.push(padL + plotW * (i / (WARP_COUNT - 1)));
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  recalcLayout();
+  buildWarpX();
+  wefts = [];
+  shuttle = null;
+}
+
+// 緯糸が経糸 i を「上」に通るか「下」に通るかを、段数と経糸インデックスで決定
+// 平織り (plain weave) を採用
+function isOver(weftIndex, warpIndex) {
+  return (weftIndex + warpIndex) % 2 === 0;
+}
+
+function draw() {
+  background(245, 243, 239);
+
+  // 経糸の描画（完成した緯糸の上下に分割して描く）
+  for (let i = 0; i < WARP_COUNT; i++) {
+    const x = warpX[i];
+    drawWarpSegment(x, padT, padT + plotH, i);
+  }
+
+  // 完成した緯糸
+  for (let wi = 0; wi < wefts.length; wi++) {
+    const weft = wefts[wi];
+    drawWeft(weft, wi);
+  }
+
+  // ドラッグ中のシャトル（緯糸）
+  if (shuttle) {
+    const wi = wefts.length; // 次の段のインデックス
+    const progress = shuttle.progress; // 0〜1
+    const endX = shuttle.dir > 0 ? padL + plotW : padL;
+    const curX  = lerp(padL + (shuttle.dir > 0 ? 0 : plotW), endX, progress);
+
+    // シャトルが通過したセグメントを描画
+    const activeCross = floor(progress * WARP_COUNT);
+    for (let i = 0; i < activeCross && i < WARP_COUNT; i++) {
+      const idx = shuttle.dir > 0 ? i : (WARP_COUNT - 1 - i);
+      const x0  = warpX[shuttle.dir > 0 ? i : (WARP_COUNT - 1 - i)];
+      const x1  = i + 1 < activeCross
+                    ? warpX[shuttle.dir > 0 ? i + 1 : (WARP_COUNT - 2 - i)]
+                    : curX;
+
+      stroke(WEFT_COLOR[0], WEFT_COLOR[1], WEFT_COLOR[2], WARP_ALPHA);
+      strokeWeight(THREAD_W);
+      const over = isOver(wi, idx);
+      const y    = over ? shuttle.y - 1.5 : shuttle.y + 1.5;
+      line(x0, y, x1, y);
+    }
+  }
+}
+
+function drawWarpSegment(x, yTop, yBottom, wi) {
+  // 緯糸が存在する段での上下の断切
+  stroke(WEFT_COLOR[0], WEFT_COLOR[1], WEFT_COLOR[2], WARP_ALPHA - 40);
+  strokeWeight(THREAD_W * 0.8);
+
+  let prevY = yTop;
+  for (let f = 0; f < wefts.length; f++) {
+    const wy = wefts[f].y;
+    const over = isOver(f, wi);
+    // 経糸は緯糸の上か下かに応じて、緯糸の手前/奥に分割される
+    // 簡略化：経糸は連続した1本として描き、交差点だけ微妙にY変位させる
+    line(x, prevY, x, wy - (over ? 2 : 0));
+    line(x, wy + (over ? 0 : 2), x, wy + 1);
+    prevY = wy + 1;
+  }
+  line(x, prevY, x, yBottom);
+}
+
+function drawWeft(weft, wi) {
+  stroke(WEFT_COLOR[0], WEFT_COLOR[1], WEFT_COLOR[2], WARP_ALPHA);
+  strokeWeight(THREAD_W * 1.2);
+
+  for (let i = 0; i < WARP_COUNT - 1; i++) {
+    const idx = weft.dir > 0 ? i : (WARP_COUNT - 1 - i);
+    const nxt = weft.dir > 0 ? i + 1 : (WARP_COUNT - 2 - i);
+    const x0  = warpX[idx];
+    const x1  = warpX[nxt];
+    const over = isOver(wi, idx);
+    const y   = over ? weft.y - 1.5 : weft.y + 1.5;
+    line(x0, y, x1, y);
+  }
+}
+
+// ドラッグ操作で緯糸を通す
+function mouseDragged() {
+  if (dragStart === null) return;
+
+  const dy = mouseY - dragStart.y;
+  // シャトルのY位置をドラッグ開始点から少し下に固定（1段ずつ積む）
+  const yPos = padT + (wefts.length + 0.5) * (plotH / max(wefts.length + 2, 20));
+
+  // X方向の進捗（0〜1）
+  const dx   = mouseX - dragStart.x;
+  const dir  = dx >= 0 ? 1 : -1;
+  const progress = constrain(abs(dx) / plotW, 0, 1);
+
+  shuttle = { y: yPos, dir, progress };
+}
+
+function mousePressed() {
+  if (mouseX >= padL && mouseX <= padL + plotW &&
+      mouseY >= padT && mouseY <= padT + plotH) {
+    dragStart = { x: mouseX, y: mouseY };
+    shuttle   = null;
+  }
+}
+
+function mouseReleased() {
+  if (shuttle && shuttle.progress > 0.5) {
+    // 緯糸を確定
+    const wi  = wefts.length;
+    const yPos = padT + (wi + 0.5) * (plotH / max(wi + 2, 20));
+    wefts.push({ y: yPos, dir: shuttle.dir, overUnder: [] });
+
+    // 満杯になったらリセット
+    if (wefts.length >= 40) {
+      wefts = [];
+    }
+  }
+  shuttle   = null;
+  dragStart = null;
+}
+
+// タッチ対応
+function touchStarted() { mousePressed(); return false; }
+function touchMoved()   { mouseDragged(); return false; }
+function touchEnded()   { mouseReleased(); return false; }
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '287',
+  title:  'Loom',
+  detail: '手動織機で緯糸を通すように、画面を横にドラッグすると布が1段ずつ織られる。縦の経糸と横の緯糸が上下に交互に通ることで平織りができる。右にドラッグすると右から、左にドラッグすると左から通る。40段まで織ったら白紙に戻る。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
