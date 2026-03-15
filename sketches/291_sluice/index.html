@@ -74,6 +74,11 @@ class Particle {
     const g = getGate();
     const gapHalf = gateOpenAmount * g.halfW * 0.46; // gap half-width
 
+    // Settled particles (passed and resting on floor) — do nothing
+    if (this.passed && this.vy === 0) {
+      return;
+    }
+
     if (!this.passed) {
       // Gravity
       this.vy += 0.055;
@@ -116,15 +121,24 @@ class Particle {
       this.vx *= 0.98;
       this.x += this.vx;
       this.y += this.vy;
+
+      // Floor collision — settle in place
+      if (this.y + this.r >= H) {
+        this.y = H - this.r;
+        this.vy = 0;
+        this.vx *= 0.5;
+        // once vx is tiny, stop completely
+        if (Math.abs(this.vx) < 0.1) this.vx = 0;
+        return;
+      }
     }
 
-    // Off-screen handling
-    if (this.y > H + 30 || this.x < -80 || this.x > W + 80) {
+    // Off-screen (sides) handling
+    if (this.x < -80 || this.x > W + 80) {
       if (this.passed) {
-        // passed particles that leave the screen are deactivated (no respawn)
+        // passed particles that leave the screen sideways are deactivated
         this.active = false;
       } else {
-        // non-passed particles respawn from top to keep water flowing
         this.init(false);
       }
     }
@@ -250,10 +264,10 @@ function drawLabel() {
 // ─── Interaction ──────────────────────────────────────────────────────────────
 canvas.addEventListener('click', () => {
   gateOpen = !gateOpen;
-  // When closing, reactivate inactive particles so water keeps flowing
+  // When closing, reset passed/settled particles so water refills from top
   if (!gateOpen) {
     for (const p of particles) {
-      if (!p.active || p.passed) p.init(false);
+      if (p.passed) p.init(false);
     }
   }
 });
@@ -267,6 +281,11 @@ function draw() {
   ctx.fillRect(0, 0, W, H);
 
   drawChannel();
+
+  // Continuously replenish inactive particles to keep water flowing
+  for (const p of particles) {
+    if (!p.active) p.init(false);
+  }
 
   for (const p of particles) { if (p.active) p.update(); }
 
