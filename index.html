@@ -775,17 +775,19 @@
         gap: 14px;
         padding: 12px 20px;
         border-bottom: 1px solid rgba(42,42,42,0.06);
+        text-decoration: none;
+        color: inherit;
+        transition: background 0.15s;
       }
       .fb-row:last-child { border-bottom: none; }
+      a.fb-row:hover { background: rgba(42,42,42,0.03); }
       .fb-num {
         font-size: 0.58rem;
         letter-spacing: 0.14em;
         color: rgba(42,42,42,0.35);
         flex-shrink: 0;
         width: 24px;
-        text-decoration: none;
       }
-      a.fb-num-link:hover { color: rgba(42,42,42,0.7); text-decoration: underline; }
       .fb-comment {
         font-size: 0.72rem;
         line-height: 1.6;
@@ -855,19 +857,20 @@
       }
       list.innerHTML = entries.map(([num, comment]) => {
         const path = pathMap[num];
-        const numEl = path
-          ? `<a class="fb-num fb-num-link" href="${path}index.html">${num}</a>`
-          : `<span class="fb-num">${num}</span>`;
+        const tag = path ? `a href="${path}index.html"` : 'div';
+        const closeTag = path ? 'a' : 'div';
         return `
-        <div class="fb-row">
-          ${numEl}
+        <${tag} class="fb-row">
+          <span class="fb-num">${num}</span>
           <span class="fb-comment">${comment.replace(/</g, '&lt;')}</span>
           <button class="fb-delete" data-num="${num}">×</button>
-        </div>`;
+        </${closeTag}>`;
       }).join('');
 
       list.querySelectorAll('.fb-delete').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
           const all = getFbData();
           delete all[btn.dataset.num];
           localStorage.setItem(FB_KEY, JSON.stringify(all));
