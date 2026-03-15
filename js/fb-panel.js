@@ -4,6 +4,8 @@
  * SKETCH_META が定義されているページ（スケッチ）では ../../works.json を参照する。
  */
 (function () {
+  if (localStorage.getItem('debug_mode') !== 'true') return;
+
   const FB_KEY = 'sketch_fb';
   const isSketchPage = !!window.SKETCH_META;
   const worksJsonPath = isSketchPage ? '../../works.json' : 'works.json';
@@ -19,8 +21,8 @@
   style.textContent = `
     #fb-trigger {
       position: fixed;
-      top: 24px;
-      right: 32px;
+      bottom: 32px;
+      right: 100px;
       z-index: 9999;
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
       font-weight: 300;
@@ -38,11 +40,11 @@
 
     #fb-overlay {
       position: fixed;
-      top: 56px;
+      bottom: 72px;
       right: 32px;
       z-index: 9998;
       width: min(360px, calc(100vw - 64px));
-      max-height: calc(100vh - 80px);
+      max-height: calc(100vh - 120px);
       overflow-y: auto;
       background: rgba(245,243,238,0.97);
       border: 1px solid rgba(42,42,42,0.12);
