@@ -42,7 +42,7 @@ FBが空（`{}`）の場合はその旨を伝えて終了。
 `works.json` を Read ツールで読み、FBがある番号に対応するエントリの `path` フィールドを特定する。
 
 ```json
-{ "num": "05", "path": "sketches/05_particle_storm/index.html", ... }
+{ "num": "05", "path": "sketches/05_particle_storm/", ... }
 ```
 
 ### 3. 各スケッチのコードを読んで修正方針を出力
