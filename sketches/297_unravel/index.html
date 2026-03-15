@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unravel</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe3; overflow: hidden; cursor: default; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Unravel — スペースを押している間、布の端から糸が一本ずつ抜ける。
+// マウスの位置が引っ張る方向になる。布そのものは画面外にある。
+// 制約: 布の格子は描かない。抜けた糸だけが画面に存在する。
+
+// ─── Thread ─────────────────────────────────────────────────────────────────
+class Thread {
+  constructor(x, y, targetX, targetY, thickness) {
+    // 糸の起点（布の端からの出口）
+    this.anchorX = x;
+    this.anchorY = y;
+    // 現在の引っ張られた先端
+    this.tipX = x;
+    this.tipY = y;
+    // 目標（マウス方向に引っ張られる）
+    this.targetX = targetX;
+    this.targetY = targetY;
+    // 糸の物理
+    this.length = 0;          // 現在抜けた長さ
+    this.maxLength = random(60, 220);   // このスレッドが抜ける最大長
+    this.speed = random(0.8, 2.4);      // 抜ける速さ
+    this.thickness = thickness;         // 糸の太さ
+    this.alpha = 1.0;                   // 透明度
+    this.done = false;                  // 抜け切ったか
+    this.slack = random(0.05, 0.3);    // 弛みの量
+    // 糸の色（グラファイト + ごくわずかな暖色バリエーション）
+    const warm = random() < 0.3;
+    this.r = warm ? 72 : 58;
+    this.g = warm ? 62 : 55;
+    this.b = warm ? 50 : 52;
+    // カール（抜けた後の弛みの方向）
+    this.curlDir = random(-1, 1);
+    // セグメント点列（曲線を表現）
+    this.pts = [];
+    this.pts.push({ x: this.anchorX, y: this.anchorY });
+  }
+
+  update(pulling, mouseX, mouseY) {
+    if (this.done) {
+      // 抜け切った後: 先端が重力でゆっくり落ちる
+      this.alpha -= 0.003;
+      if (this.alpha < 0) this.alpha = 0;
+      // 先端に微妙な揺れ
+      this.tipX += sin(frameCount * 0.04 + this.anchorX * 0.01) * 0.15;
+      this.tipY += 0.3;  // 落下
+      return;
+    }
+
+    if (pulling && this.length < this.maxLength) {
+      this.length = min(this.length + this.speed, this.maxLength);
+      // 引っ張り方向をマウス方向に近づける
+      const dx = mouseX - this.anchorX;
+      const dy = mouseY - this.anchorY;
+      const d  = sqrt(dx * dx + dy * dy) + 0.001;
+      const nx = dx / d;
+      const ny = dy / d;
+      // 弛みを加えたベジェ制御点
+      const mx = this.anchorX + nx * this.length * 0.5 + this.curlDir * this.length * this.slack;
+      const my = this.anchorY + ny * this.length * 0.5 + this.length * this.slack * 0.5;
+      this.tipX = this.anchorX + nx * this.length;
+      this.tipY = this.anchorY + ny * this.length;
+      // 制御点
+      this.ctrlX = mx;
+      this.ctrlY = my;
+    }
+
+    if (this.length >= this.maxLength) {
+      this.done = true;
+    }
+  }
+
+  draw() {
+    if (this.length < 0.5) return;
+    const a = this.alpha;
+    stroke(this.r, this.g, this.b, a * 255);
+    strokeWeight(this.thickness);
+    noFill();
+    beginShape();
+    vertex(this.anchorX, this.anchorY);
+    // 弛みの制御点でベジェ曲線
+    if (this.ctrlX !== undefined) {
+      quadraticVertex(this.ctrlX, this.ctrlY, this.tipX, this.tipY);
+    } else {
+      vertex(this.tipX, this.tipY);
+    }
+    endShape();
+
+    // 先端の小さな結び目（糸の端）
+    if (this.length > 5) {
+      noStroke();
+      fill(this.r, this.g, this.b, a * 200);
+      circle(this.tipX, this.tipY, this.thickness * 2.5);
+      noFill();
+    }
+  }
+
+  isDead() {
+    return this.done && this.alpha <= 0;
+  }
+}
+
+// ─── 布の端（アンカー列）─────────────────────────────────────────────────────
+let threads = [];
+let pulling = false;
+let spawnAccum = 0;
+let edgeY = 0;  // 布の端のY座標（画面の中央付近）
+let edgeX0 = 0;
+let edgeX1 = 0;
+
+// 布の端のセグメント
+class EdgePoint {
+  constructor(x) {
+    this.x = x;
+    this.hasThread = false; // すでにスレッドが出ているか
+  }
+}
+
+let edgePoints = [];
+let nextEdgeIndex = 0;  // 次に抜く糸の位置
+const THREAD_SPACING = 5; // 糸の間隔(px)
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  edgeY = height * 0.45;
+  edgeX0 = width * 0.12;
+  edgeX1 = width * 0.88;
+  colorMode(RGB, 255);
+  noFill();
+
+  // 布の端点列を初期化
+  for (let x = edgeX0; x <= edgeX1; x += THREAD_SPACING) {
+    edgePoints.push(new EdgePoint(x));
+  }
+  nextEdgeIndex = floor(edgePoints.length / 2); // 中央から始める
+
+  // 初期デモ: 中央付近に数本の糸を表示
+  seedDemoThreads();
+}
+
+function seedDemoThreads() {
+  const cx = width * 0.5;
+  // 中央付近から左右に15本ほど
+  const count = 30;
+  for (let i = 0; i < count; i++) {
+    // 中央から距離に応じた位置
+    const offset = (i - count / 2) * THREAD_SPACING;
+    const epX = cx + offset;
+    const idx = round((epX - edgeX0) / THREAD_SPACING);
+    if (idx < 0 || idx >= edgePoints.length) continue;
+    if (edgePoints[idx].hasThread) continue;
+    edgePoints[idx].hasThread = true;
+    const thickness = random() < 0.2 ? random(1.5, 3.0) : random(0.5, 1.4);
+    const t = new Thread(epX, edgeY, cx + random(-50, 50), edgeY + random(40, 160), thickness);
+    // 糸を即座にある程度まで伸ばしておく
+    t.length = random(30, 150);
+    t.maxLength = t.length + random(20, 80);
+    const dx = (cx + random(-50, 50)) - epX;
+    const dy = random(40, 160);
+    const d = sqrt(dx * dx + dy * dy) + 0.001;
+    t.tipX = epX + (dx / d) * t.length;
+    t.tipY = edgeY + (dy / d) * t.length;
+    t.ctrlX = epX + (dx / d) * t.length * 0.5 + t.curlDir * t.length * t.slack;
+    t.ctrlY = edgeY + (dy / d) * t.length * 0.5 + t.length * t.slack * 0.5;
+    threads.push(t);
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  edgeY = height * 0.45;
+  edgeX0 = width * 0.12;
+  edgeX1 = width * 0.88;
+}
+
+function draw() {
+  background(238, 235, 227);
+
+  // ── 布の端の線 ──────────────────────────────────────────────────────────────
+  drawEdge();
+
+  // ── スレッドの更新・描画 ───────────────────────────────────────────────────
+  for (let i = threads.length - 1; i >= 0; i--) {
+    threads[i].update(pulling, mouseX, mouseY);
+    threads[i].draw();
+    if (threads[i].isDead()) {
+      threads.splice(i, 1);
+    }
+  }
+
+  // ── 糸を抜くロジック ──────────────────────────────────────────────────────
+  if (pulling) {
+    spawnAccum += 1;
+    // 一定フレームごとに新しい糸を抜く
+    if (spawnAccum >= 3) {
+      spawnAccum = 0;
+      spawnThread();
+    }
+  }
+
+  // ── ヒント表示 ─────────────────────────────────────────────────────────────
+  if (threads.length === 0 && !pulling) {
+    noStroke();
+    fill(60, 55, 50, 60);
+    textFont('monospace');
+    textSize(11);
+    textAlign(CENTER);
+    text('space を押し続けると糸がほつれる', width * 0.5, edgeY + 50);
+    noFill();
+    noStroke();
+  }
+}
+
+function drawEdge() {
+  // 布の端の横線（ほつれた部分は欠けている）
+  const unraveledSet = new Set(threads.map(t => round(t.anchorX)));
+
+  stroke(58, 54, 50, 140);
+  strokeWeight(1.5);
+  noFill();
+
+  let segStart = null;
+  for (let i = 0; i < edgePoints.length; i++) {
+    const ep = edgePoints[i];
+    // このエッジポイントに active な thread があるか？
+    const isUnraveled = ep.hasThread;
+
+    if (!isUnraveled) {
+      if (segStart === null) segStart = ep.x;
+      // 最後のポイント
+      if (i === edgePoints.length - 1 || edgePoints[i + 1].hasThread) {
+        line(segStart, edgeY, ep.x, edgeY);
+        segStart = null;
+      }
+    } else {
+      if (segStart !== null) {
+        // ほつれ点の直前まで線を引く
+        if (i > 0) line(segStart, edgeY, edgePoints[i - 1].x, edgeY);
+        segStart = null;
+      }
+    }
+  }
+
+  // 端の縦線（布の両端）
+  strokeWeight(1.2);
+  line(edgeX0, edgeY - 4, edgeX0, edgeY + 4);
+  line(edgeX1, edgeY - 4, edgeX1, edgeY + 4);
+}
+
+function spawnThread() {
+  // 中央から外へ交互に展開
+  let idx = nextEdgeIndex;
+  // 左右交互に探索
+  let found = false;
+  for (let r = 0; r <= edgePoints.length / 2; r++) {
+    const candidates = [
+      floor(edgePoints.length / 2) - r,
+      floor(edgePoints.length / 2) + r
+    ];
+    for (const c of candidates) {
+      if (c >= 0 && c < edgePoints.length && !edgePoints[c].hasThread) {
+        idx = c;
+        found = true;
+        break;
+      }
+    }
+    if (found) break;
+  }
+
+  if (!found) return; // 全部ほつれた
+
+  const ep = edgePoints[idx];
+  ep.hasThread = true;
+
+  const thickness = random() < 0.2 ? random(1.5, 3.0) : random(0.5, 1.4);
+  const t = new Thread(ep.x, edgeY, mouseX, mouseY, thickness);
+  threads.push(t);
+}
+
+function keyPressed() {
+  if (key === ' ') {
+    pulling = true;
+  }
+}
+
+function keyReleased() {
+  if (key === ' ') {
+    pulling = false;
+  }
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '297',
+  title:  'Unravel',
+  detail: 'スペースキーを押している間、布の端から糸が抜けてほつれていく。マウスの位置が糸を引っ張る方向になる。布そのものは画面の外にある想定で、端から出てきた糸だけが見えている。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
