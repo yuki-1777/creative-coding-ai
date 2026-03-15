@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>138 — Halation</title>
+  <meta name="description" content="光がノイズで滲んでいる。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="138 — Halation | Creative Coding">
+  <meta property="og:description" content="光がノイズで滲んでいる。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/138_halation/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_138.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="138 — Halation | Creative Coding">
+  <meta name="twitter:description" content="光がノイズで滲んでいる。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_138.png">
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #1a1814; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  vec2 q = p;
+  for (int i = 0; i < 5; i++) {
+    v += noise(q) * a;
+    q *= 2.2;
+    a *= 0.48;
+  }
+  return v;
+}
+
+// ソフトな光の滲みを作る
+float halo(vec2 p, vec2 center, float baseR, float noiseAmt, float t) {
+  vec2 d = p - center;
+  float r = length(d);
+  float angle = atan(d.y, d.x);
+
+  // ノイズで半径を歪める
+  float n = fbm(p * 2.8 + vec2(t * 0.15, t * 0.12));
+  float n2 = fbm(p * 1.5 - vec2(t * 0.09, t * 0.13) + 1.7);
+  float warpedR = r - (n * 2.0 - 1.0) * noiseAmt - (n2 * 2.0 - 1.0) * noiseAmt * 0.5;
+
+  // 光の強度：中心に近いほど強く、滲みはソフトに減衰
+  float core = exp(-warpedR * warpedR * 40.0);
+  float glow = exp(-warpedR * warpedR * 4.0) * 0.4;
+  float halo1 = exp(-warpedR * warpedR * 1.2) * 0.2;
+  return core + glow + halo1;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float asp = uResolution.x / uResolution.y;
+  vec2 p = (uv - 0.5) * vec2(asp, 1.0);
+
+  float t = uTime;
+
+  // マウス位置に主光源
+  vec2 mainLight = (uMouse - 0.5) * vec2(asp, 1.0);
+
+  // サブ光源（時間で漂う）
+  vec2 sub1 = vec2(sin(t * 0.23) * 0.25 * asp, cos(t * 0.17) * 0.2);
+  vec2 sub2 = vec2(cos(t * 0.19 + 1.5) * 0.2 * asp, sin(t * 0.21 + 0.8) * 0.18);
+
+  // 各光源のhalation
+  float light = 0.0;
+  light += halo(p, mainLight, 0.0, 0.07, t) * 1.0;
+  light += halo(p, sub1,      0.0, 0.05, t + 1.0) * 0.55;
+  light += halo(p, sub2,      0.0, 0.04, t + 2.3) * 0.4;
+
+  // 微細なグレイン（暗部にざわつき）
+  float grain = (hash(uv * uResolution + vec2(floor(t * 30.0))) - 0.5) * 0.025;
+  light = clamp(light + grain * (1.0 - light * 0.5), 0.0, 1.5);
+
+  // 暗い紙の色（背景は深い暖色ダーク）
+  vec3 dark   = vec3(0.098, 0.094, 0.082);
+  vec3 mid    = vec3(0.72, 0.70, 0.65);
+  vec3 bright = vec3(0.97, 0.96, 0.94);
+
+  // 光強度でグラデーション
+  float l = clamp(light, 0.0, 1.0);
+  float l2 = clamp(light - 1.0, 0.0, 0.5);
+  vec3 color = mix(dark, mid, l);
+  color = mix(color, bright, l2 * 2.0);
+
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s)); return null;
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = { x: 0.5, y: 0.5 };
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX / window.innerWidth;
+  mouse.y = 1.0 - e.clientY / window.innerHeight;
+});
+
+function resize() {
+  canvas.width  = window.innerWidth  * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const startTime = performance.now();
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '138',
+  title:  'Halation',
+  desc:   '光が3つある。輪郭がノイズで歪んで、滲んでいる。マウスで主光源が動く。残り2つは、ゆっくり漂っている。暗い紙の上で光が滲む様子を、ただ見ている。',
+  detail: 'ノイズ関数で光の輪郭を歪ませています。中心に近いほど鋭く、外側に向かうほどソフトに滲みます。マウスを動かすと主光源が移動します。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
