@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>249 – Gyroscope</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// Gyroscope — ジャイロスコープ
+// 3つのジンバルが入れ子になっている。
+// 外側を傾けても、内側の円盤は水平を保とうとする。
+// 機能を持った形の美しさ。
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf0ede8);
+
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(5, 4, 10);
+camera.lookAt(0, 0, 0);
+
+// リングを生成する関数（BufferGeometry線）
+function makeRing(radius, segments, mat) {
+  const pts = [];
+  for (let i = 0; i <= segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    pts.push(Math.cos(a) * radius, Math.sin(a) * radius, 0);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3));
+  return new THREE.Line(geo, mat);
+}
+
+// マテリアル
+const matOuter  = new THREE.LineBasicMaterial({ color: 0x7a7068 });
+const matMiddle = new THREE.LineBasicMaterial({ color: 0x4a4038 });
+const matInner  = new THREE.LineBasicMaterial({ color: 0x2a2420 });
+const matSpoke  = new THREE.LineBasicMaterial({ color: 0x9a9088 });
+const matAccent = new THREE.LineBasicMaterial({ color: 0x8b4a35 });
+
+// スポーク（軸）を追加する関数
+function addSpoke(parent, r, mat) {
+  const pts = new Float32Array([
+    -r, 0, 0,  r, 0, 0
+  ]);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+  parent.add(new THREE.Line(geo, mat));
+}
+
+// --- 3層のジンバル ---
+
+// 外側リング（R=3.5）：ユーザーがドラッグで傾ける
+// 軸：Z軸回転（左右の傾き）
+const outerGroup = new THREE.Group();
+const outerRing  = makeRing(3.5, 64, matOuter);
+outerGroup.add(outerRing);
+// 外側リングの軸（スポーク：Z軸方向）
+const outerSpokeGeo = new THREE.BufferGeometry();
+outerSpokeGeo.setAttribute('position', new THREE.BufferAttribute(
+  new Float32Array([0, -3.5, 0,  0, 3.5, 0]), 3
+));
+outerGroup.add(new THREE.Line(outerSpokeGeo, matSpoke));
+scene.add(outerGroup);
+
+// 中間リング（R=2.5）：X軸回転（前後の傾き）
+// outerGroupの子として、X軸で独立回転できる
+const middleGroup = new THREE.Group();
+const middleRing  = makeRing(2.5, 56, matMiddle);
+middleGroup.add(middleRing);
+// 中間リングの軸（X軸方向）
+const middleSpokeGeo = new THREE.BufferGeometry();
+middleSpokeGeo.setAttribute('position', new THREE.BufferAttribute(
+  new Float32Array([-2.5, 0, 0,  2.5, 0, 0]), 3
+));
+middleGroup.add(new THREE.Line(middleSpokeGeo, matSpoke));
+outerGroup.add(middleGroup);
+
+// 内側リング（R=1.5）：Y軸で高速回転する（ロータ）
+// middleGroupの子
+const innerGroup = new THREE.Group();
+const innerRing  = makeRing(1.5, 48, matInner);
+innerGroup.add(innerRing);
+// 内側の十字（ロータ）：2本の軸線
+const rotorGeo = new THREE.BufferGeometry();
+rotorGeo.setAttribute('position', new THREE.BufferAttribute(
+  new Float32Array([
+    -1.5, 0, 0,  1.5, 0, 0,
+    0, -1.5, 0,  0,  1.5, 0
+  ]), 3
+));
+innerGroup.add(new THREE.LineSegments(rotorGeo, matAccent));
+middleGroup.add(innerGroup);
+
+// 支持フレーム（外枠）：固定された支柱
+function addFrame() {
+  // 上下の支持点を結ぶ細い線（外側リングの軸受け）
+  const framePts = new Float32Array([
+    0,  4.2, 0,   0,  3.5, 0,
+    0, -4.2, 0,   0, -3.5, 0,
+  ]);
+  const frameGeo = new THREE.BufferGeometry();
+  frameGeo.setAttribute('position', new THREE.BufferAttribute(framePts, 3));
+  scene.add(new THREE.LineSegments(frameGeo, matSpoke));
+
+  // 上端の小さな固定点（バツ印）
+  const s = 0.12;
+  const markPts = new Float32Array([
+    -s,  4.2 + s, 0,   s,  4.2 - s, 0,
+     s,  4.2 + s, 0,  -s,  4.2 - s, 0,
+    -s, -4.2 + s, 0,   s, -4.2 - s, 0,
+     s, -4.2 + s, 0,  -s, -4.2 - s, 0
+  ]);
+  const markGeo = new THREE.BufferGeometry();
+  markGeo.setAttribute('position', new THREE.BufferAttribute(markPts, 3));
+  scene.add(new THREE.LineSegments(markGeo, matSpoke));
+}
+addFrame();
+
+// --- 物理状態 ---
+let outerAngle    = 0;      // 外側リングのZ軸回転（ユーザー操作）
+let outerAngVel   = 0;
+let middleAngle   = 0;      // 中間リングのX軸回転（ジャイロ抵抗で保たれる）
+let middleAngVel  = 0;
+let innerRotation = 0;      // 内側ロータのY軸高速回転
+
+// ジャイロの「剛性」：内側の回転速度が高いほど、中間リングは傾きにくい
+const GYRO_RIGIDITY = 3.5;
+const ROTOR_SPEED   = 4.0;   // rad/s（内側の回転速度）
+
+// --- マウスドラッグで外側リングを傾ける ---
+let isDragging = false;
+let prevMX = 0;
+let prevMY = 0;
+let manualTiltX = 0;   // ドラッグによる傾き蓄積（外側リングのZ回転）
+let manualTiltY = 0;   // ドラッグによるY回転（カメラ方向）
+
+// カメラ用の回転
+let camTheta = 0.5;    // 水平
+let camPhi   = 0.35;   // 垂直
+
+function updateCamera() {
+  const r = 12;
+  camera.position.x = r * Math.sin(camTheta) * Math.cos(camPhi);
+  camera.position.y = r * Math.sin(camPhi);
+  camera.position.z = r * Math.cos(camTheta) * Math.cos(camPhi);
+  camera.lookAt(0, 0, 0);
+}
+updateCamera();
+
+window.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  prevMX = e.clientX;
+  prevMY = e.clientY;
+});
+window.addEventListener('mouseup', () => { isDragging = false; });
+window.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const dx = (e.clientX - prevMX) / window.innerWidth;
+  const dy = (e.clientY - prevMY) / window.innerHeight;
+  prevMX = e.clientX;
+  prevMY = e.clientY;
+  // 左右ドラッグ → 外側リングを傾ける（Z軸）+ カメラ水平回転
+  outerAngVel += dx * 8.0;
+  camTheta    -= dx * 2.0;
+  camPhi       = Math.max(-0.5, Math.min(0.7, camPhi - dy * 1.5));
+  updateCamera();
+});
+
+// タッチ対応
+window.addEventListener('touchstart', (e) => {
+  isDragging = true;
+  prevMX = e.touches[0].clientX;
+  prevMY = e.touches[0].clientY;
+}, { passive: true });
+window.addEventListener('touchend', () => { isDragging = false; });
+window.addEventListener('touchmove', (e) => {
+  if (!isDragging) return;
+  const dx = (e.touches[0].clientX - prevMX) / window.innerWidth;
+  const dy = (e.touches[0].clientY - prevMY) / window.innerHeight;
+  prevMX = e.touches[0].clientX;
+  prevMY = e.touches[0].clientY;
+  outerAngVel += dx * 8.0;
+  camTheta    -= dx * 2.0;
+  camPhi       = Math.max(-0.5, Math.min(0.7, camPhi - dy * 1.5));
+  updateCamera();
+}, { passive: true });
+
+// アニメーション
+let lastTime = 0;
+let elapsed  = 0;
+
+function animate(time) {
+  requestAnimationFrame(animate);
+  const t  = time / 1000;
+  const dt = Math.min(t - lastTime, 0.05);
+  lastTime = t;
+  elapsed += dt;
+
+  // --- 外側リングの物理 ---
+  // 操作がなければゆっくり復元 + 減衰
+  const outerRestore = -outerAngle * 0.8;
+  const outerDamp    = -outerAngVel * 2.5;
+  // 緩やかな自律揺れ（静止状態を避ける）
+  const outerNoise   = Math.sin(elapsed * 0.4) * 0.03;
+  outerAngVel += (outerRestore + outerDamp + outerNoise) * dt;
+  outerAngVel *= Math.pow(0.97, dt * 60);
+  outerAngle  += outerAngVel * dt;
+  outerAngle   = Math.max(-Math.PI * 0.4, Math.min(Math.PI * 0.4, outerAngle));
+
+  // --- 内側ロータの回転 ---
+  innerRotation += ROTOR_SPEED * dt;
+
+  // --- 中間リングのジャイロ効果 ---
+  // ジャイロスコープ：内側が高速回転していると、外側が傾いても中間は抵抗する
+  // 簡略モデル：外側の傾き変化速度に比例したプレセッション（歳差運動）
+  const outerChangeRate = outerAngVel;    // 外側の角速度
+  const gyroTorque      = outerChangeRate * GYRO_RIGIDITY * 0.12;
+  // 中間リングへの影響（外側傾きに対して遅れて追従するが、剛性で抑制）
+  const middleTargetAngle = outerAngle * 0.25;  // 完全に同期しない（ジャイロ効果）
+  const middleRestore     = (middleTargetAngle - middleAngle) * 0.6;
+  const middleDamp        = -middleAngVel * 3.0;
+  const precession        = gyroTorque;
+  middleAngVel += (middleRestore + middleDamp + precession) * dt;
+  middleAngle  += middleAngVel * dt;
+  middleAngle   = Math.max(-Math.PI * 0.25, Math.min(Math.PI * 0.25, middleAngle));
+
+  // --- グループに回転を適用 ---
+  // 外側リング：Z軸を中心に傾く（ジンバルの外側は上下に吊られているのでZ軸）
+  outerGroup.rotation.z = outerAngle;
+
+  // 中間リング：X軸回転（外側に対して独立）
+  // 外側が傾いたときに中間がX軸で補正しようとする
+  middleGroup.rotation.x = middleAngle;
+
+  // 内側ロータ：Y軸で高速回転
+  innerGroup.rotation.y = innerRotation;
+  // 追加で少しXとZ方向に揺れる（歳差運動の視覚化）
+  const precessAmplitude = Math.abs(outerAngle) * 0.15;
+  innerGroup.rotation.x = Math.sin(elapsed * 2.1) * precessAmplitude;
+  innerGroup.rotation.z = Math.cos(elapsed * 1.7) * precessAmplitude;
+
+  renderer.render(scene, camera);
+}
+
+animate(0);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '249',
+  title:  'Gyroscope',
+  detail: 'ドラッグすると外側のリングが傾き、内側の円盤が水平を保とうとします。内側が高速で回転しているほど、傾きへの抵抗が大きくなります（ジャイロ効果）。視点は一緒に回転します。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
