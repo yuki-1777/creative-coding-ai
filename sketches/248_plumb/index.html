@@ -108,8 +108,8 @@ class PlumbBob {
 
     // 振り子の物理
     // 初期角度：各々少しずつずれている（ランダム）
-    this.angle    = (Math.random() - 0.5) * 0.15;   // ラジアン
-    this.angVel   = (Math.random() - 0.5) * 0.08;
+    this.angle    = (Math.random() - 0.5) * 0.5;    // ラジアン
+    this.angVel   = (Math.random() - 0.5) * 0.2;
     // 減衰係数（わずかに個体差）
     this.damping  = 0.992 + Math.random() * 0.006;
     // 固有振動数（糸の長さで決まる。少しバラバラに）
@@ -125,7 +125,7 @@ class PlumbBob {
     this.nextKick -= dt;
     if (this.nextKick < 0) {
       // 小さな外乱
-      this.angVel  += (Math.random() - 0.5) * 0.12;
+      this.angVel  += (Math.random() - 0.5) * 0.3;
       this.nextKick = 5.0 + Math.random() * 6.0;
     }
 
