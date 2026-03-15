@@ -165,12 +165,10 @@
       letter-spacing: 0.02em;
       pointer-events: none;
       opacity: 0;
-      transform: translateY(6px);
-      transition: opacity 0.2s ease, transform 0.2s ease;
+      transition: opacity 0.2s ease;
     }
     #sketch-detail-panel.visible {
       opacity: 1;
-      transform: translateY(0);
       pointer-events: auto;
     }
   `;
@@ -203,13 +201,14 @@
     document.body.appendChild(panel);
 
     const detailBtn = document.getElementById('sketch-detail-btn');
-    detailBtn.addEventListener('click', () => {
+    detailBtn.addEventListener('click', e => {
+      e.stopPropagation();
       const isOpen = panel.classList.toggle('visible');
       detailBtn.classList.toggle('active', isOpen);
     });
 
     document.addEventListener('click', e => {
-      if (!panel.contains(e.target) && e.target !== detailBtn) {
+      if (!panel.contains(e.target)) {
         panel.classList.remove('visible');
         detailBtn.classList.remove('active');
       }
