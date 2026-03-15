@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>224 – Morse</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: #f5f2ed; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Morse code table
+const MORSE = {
+  '.-': 'A', '-...': 'B', '-.-.': 'C', '-..': 'D', '.': 'E',
+  '..-.': 'F', '--.': 'G', '....': 'H', '..': 'I', '.---': 'J',
+  '-.-': 'K', '.-..': 'L', '--': 'M', '-.': 'N', '---': 'O',
+  '.--.': 'P', '--.-': 'Q', '.-.': 'R', '...': 'S', '-': 'T',
+  '..-': 'U', '...-': 'V', '.--': 'W', '-..-': 'X', '-.--': 'Y',
+  '--..': 'Z',
+  '-----': '0', '.----': '1', '..---': '2', '...--': '3', '....-': '4',
+  '.....': '5', '-....': '6', '--...': '7', '---..': '8', '----.': '9'
+};
+
+const DOT_THRESH = 350; // ms: shorter = dot, longer = dash
+
+let pressStart = 0;
+let currentCode = '';   // current letter being built, e.g. ".-"
+let letterGap = null;   // timer for letter separation
+let wordGap = null;
+
+// Displayed items: {type: 'dot'|'dash'|'letter'|'space', char?, opacity, y, phase}
+let symbols = [];
+let decodedText = '';
+
+// Pre-populate demo: "HI" in morse for visual richness on load
+// H = .... I = ..
+const DEMO = [
+  {type:'dot', fadeAge:400},{type:'dot', fadeAge:400},{type:'dot', fadeAge:400},{type:'dot', fadeAge:400},
+  {type:'letter', char:'H', fadeAge:400},
+  {type:'dot', fadeAge:300},{type:'dot', fadeAge:300},
+  {type:'letter', char:'I', fadeAge:300},
+  {type:'space', fadeAge:200},
+  // Morse for HELLO
+  {type:'dot', fadeAge:180},{type:'dot', fadeAge:180},{type:'dot', fadeAge:180},{type:'dot', fadeAge:180},
+  {type:'letter', char:'H', fadeAge:180},
+  {type:'dot', fadeAge:140},{type:'dash', fadeAge:140},
+  {type:'letter', char:'E', fadeAge:140},
+  {type:'dot', fadeAge:100},{type:'dash', fadeAge:100},{type:'dot', fadeAge:100},{type:'dot', fadeAge:100},
+  {type:'letter', char:'L', fadeAge:100},
+];
+for (const d of DEMO) symbols.push(Object.assign({opacity:255}, d));
+decodedText = 'HI H';
+
+// Layout
+let MARGIN;
+
+function setup() {
+  const cnv = createCanvas(windowWidth, windowHeight);
+  cnv.parent(document.body);
+  document.getElementById('c')?.remove();
+  textFont('monospace');
+  colorMode(RGB);
+  resetLayout();
+}
+
+function resetLayout() {
+  MARGIN = width * 0.08;
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  resetLayout();
+}
+
+// ---- input ----
+function keyPressed() {
+  if (key === ' ') {
+    pressStart = millis();
+    // cancel letter timeout
+    if (letterGap !== null) { clearTimeout(letterGap); letterGap = null; }
+    if (wordGap !== null)  { clearTimeout(wordGap); wordGap = null; }
+    return false;
+  }
+}
+
+function keyReleased() {
+  if (key === ' ') {
+    const dur = millis() - pressStart;
+    const isDot = dur < DOT_THRESH;
+    const sym = isDot ? '.' : '-';
+    currentCode += sym;
+
+    // Add visual dot/dash symbol to stream
+    symbols.push({
+      type: isDot ? 'dot' : 'dash',
+      opacity: 255,
+      fadeAge: 0
+    });
+
+    // Start letter-separation timer (letter gap = 3 units, ~900ms)
+    if (letterGap !== null) clearTimeout(letterGap);
+    letterGap = setTimeout(finalizeLetter, 900);
+    return false;
+  }
+}
+
+function finalizeLetter() {
+  letterGap = null;
+  if (currentCode.length === 0) return;
+
+  const decoded = MORSE[currentCode] || '?';
+  decodedText += decoded;
+  symbols.push({ type: 'letter', char: decoded, opacity: 255, fadeAge: 0 });
+  currentCode = '';
+
+  // Word gap
+  if (wordGap !== null) clearTimeout(wordGap);
+  wordGap = setTimeout(finalizeWord, 2000);
+}
+
+function finalizeWord() {
+  wordGap = null;
+  decodedText += ' ';
+  symbols.push({ type: 'space', opacity: 255, fadeAge: 0 });
+}
+
+// ---- draw ----
+function draw() {
+  background(245, 242, 237);
+
+  // Draw decoded text at top
+  drawDecodedText();
+
+  // Draw input stream (dots, dashes, decoded letters)
+  drawStream();
+
+  // Draw current code being built
+  drawCurrentCode();
+
+  // Hint at bottom
+  drawHint();
+
+  // Fade old symbols
+  for (let s of symbols) {
+    s.fadeAge++;
+  }
+  // Remove very old
+  while (symbols.length > 200) symbols.shift();
+}
+
+function drawDecodedText() {
+  // Large rendered text in center top area
+  const msg = decodedText.replace(/ +$/, '');
+  if (msg.length === 0) return;
+
+  push();
+  fill(60, 56, 50, 220);
+  noStroke();
+  textSize(48);
+  textAlign(LEFT, TOP);
+
+  const maxW = width - MARGIN * 2;
+  let x = MARGIN;
+  let y = height * 0.12;
+
+  for (let i = 0; i < msg.length; i++) {
+    const ch = msg[i];
+    const cw = textWidth(ch);
+    if (x + cw > MARGIN + maxW) {
+      x = MARGIN;
+      y += 64;
+    }
+    text(ch, x, y);
+    x += cw + 4;
+  }
+  pop();
+}
+
+function drawStream() {
+  // Draw the morse stream in a flowing line near bottom third
+  const baseY = height * 0.7;
+  let x = MARGIN;
+  const dotR = 6;
+  const dashW = 22;
+  const dashH = 6;
+  const gap = 10;
+  const letterGapW = 20;
+
+  push();
+  noStroke();
+
+  for (let s of symbols) {
+    const age = s.fadeAge;
+    const alpha = constrain(200 - age * 0.3, 0, 200);
+
+    if (s.type === 'dot') {
+      fill(60, 56, 50, alpha);
+      ellipse(x + dotR, baseY, dotR * 2, dotR * 2);
+      x += dotR * 2 + gap;
+    } else if (s.type === 'dash') {
+      fill(60, 56, 50, alpha);
+      rect(x, baseY - dashH / 2, dashW, dashH, 3);
+      x += dashW + gap;
+    } else if (s.type === 'letter') {
+      fill(120, 100, 80, alpha);
+      textSize(22);
+      textAlign(LEFT, CENTER);
+      text(s.char, x, baseY + 22);
+      x += textWidth(s.char) + letterGapW;
+    } else if (s.type === 'space') {
+      x += 30;
+    }
+
+    if (x > width - MARGIN) {
+      x = MARGIN;
+    }
+  }
+  pop();
+}
+
+function drawCurrentCode() {
+  if (currentCode.length === 0) return;
+
+  const x = MARGIN;
+  const y = height * 0.83;
+  const dotR = 7;
+  const dashW = 26;
+  const dashH = 7;
+  const gap = 12;
+  let cx = x;
+
+  push();
+  noStroke();
+
+  for (let i = 0; i < currentCode.length; i++) {
+    if (currentCode[i] === '.') {
+      fill(80, 70, 60, 200);
+      ellipse(cx + dotR, y, dotR * 2, dotR * 2);
+      cx += dotR * 2 + gap;
+    } else {
+      fill(80, 70, 60, 200);
+      rect(cx, y - dashH / 2, dashW, dashH, 3);
+      cx += dashW + gap;
+    }
+  }
+
+  // Show possible decodes
+  const possible = Object.entries(MORSE).filter(([k]) => k.startsWith(currentCode));
+  if (possible.length > 0 && possible.length <= 6) {
+    fill(140, 120, 100, 160);
+    textSize(14);
+    textAlign(LEFT, TOP);
+    const hints = possible.map(([k, v]) => `${k}=${v}`).join('  ');
+    text(hints, x, y + 20);
+  }
+  pop();
+}
+
+function drawHint() {
+  push();
+  fill(160, 150, 140, 180);
+  noStroke();
+  textSize(13);
+  textAlign(CENTER, BOTTOM);
+  text('スペースキーを短く押す = ・　長く押す = ―　離して少し待つと文字が確定', width / 2, height - 24);
+  pop();
+}
+
+// Prevent space from scrolling page
+document.addEventListener('keydown', function(e) {
+  if (e.key === ' ' || e.code === 'Space') e.preventDefault();
+});
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '224',
+  title:  'Morse',
+  detail: 'スペースキーを短く押すと「・」、長く押すと「―」が記録される。押すのをやめて少し待つと文字が確定し、上に大きく表示される。さらに待つと単語の区切りになる。モールス信号の規則通り、点と線の組み合わせだけでアルファベットや数字を入力できる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
