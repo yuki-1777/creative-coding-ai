@@ -102,12 +102,6 @@ function playClapBurst() {
 function setup() {
   createCanvas(windowWidth, windowHeight);
   initGrid();
-  // Seed with a few initial clappers
-  for (let i = 0; i < 5; i++) {
-    const r = floor(random(ROWS));
-    const c = floor(random(COLS));
-    triggerClapping(r, c);
-  }
 }
 
 function initGrid() {
