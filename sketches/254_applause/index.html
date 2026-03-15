@@ -39,45 +39,64 @@ function initAudio() {
 
 function playClap(delayOffset) {
   if (!audioCtx) return;
-  const duration = 0.06;
+  const duration = 0.07;
   const bufferSize = Math.ceil(audioCtx.sampleRate * duration);
   const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < bufferSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.18));
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.16));
   }
 
   const t = audioCtx.currentTime + (delayOffset || 0);
 
-  const source = audioCtx.createBufferSource();
-  source.buffer = buffer;
+  const source1 = audioCtx.createBufferSource();
+  source1.buffer = buffer;
+  const source2 = audioCtx.createBufferSource();
+  source2.buffer = buffer;
 
-  // バンドパスフィルタ
-  const bpf = audioCtx.createBiquadFilter();
-  bpf.type = 'bandpass';
-  bpf.frequency.value = 1800;
-  bpf.Q.value = 0.8;
-
-  // ハイパスフィルタ（クリスピーに）
+  // --- 打撃成分: highpass(1500Hz) + bandpass(2200Hz, Q=1.2) ---
   const hpf = audioCtx.createBiquadFilter();
   hpf.type = 'highpass';
-  hpf.frequency.value = 1000;
+  hpf.frequency.value = 1500;
 
-  const gain = audioCtx.createGain();
-  gain.gain.setValueAtTime(0.25, t);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  const bpf = audioCtx.createBiquadFilter();
+  bpf.type = 'bandpass';
+  bpf.frequency.value = 2200;
+  bpf.Q.value = 1.2;
 
-  source.connect(bpf);
-  bpf.connect(hpf);
-  hpf.connect(gain);
-  gain.connect(audioCtx.destination);
-  source.start(t);
+  const gainHigh = audioCtx.createGain();
+  gainHigh.gain.setValueAtTime(0.20, t);
+  gainHigh.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+  source1.connect(hpf);
+  hpf.connect(bpf);
+  bpf.connect(gainHigh);
+  gainHigh.connect(audioCtx.destination);
+
+  // --- ボディ成分: bandpass(800Hz, Q=2.0) ---
+  const bpfBody = audioCtx.createBiquadFilter();
+  bpfBody.type = 'bandpass';
+  bpfBody.frequency.value = 800;
+  bpfBody.Q.value = 2.0;
+
+  const gainBody = audioCtx.createGain();
+  gainBody.gain.setValueAtTime(0.08, t);
+  gainBody.gain.exponentialRampToValueAtTime(0.001, t + duration * 0.8);
+
+  source2.connect(bpfBody);
+  bpfBody.connect(gainBody);
+  gainBody.connect(audioCtx.destination);
+
+  source1.start(t);
+  source2.start(t);
 }
 
 function playClapBurst() {
-  // 2バーストを5msずらして重ねて「パン」感
-  playClap(0);
-  playClap(0.005);
+  // 3バーストをランダム間隔で重ねて自然なパン感
+  const offsets = [0, 0.008, 0.018];
+  for (const off of offsets) {
+    playClap(off + (Math.random() * 0.004));
+  }
 }
 
 function setup() {
@@ -100,8 +119,8 @@ function initGrid() {
     nextGrid.push([]);
     prevSinMap.push([]);
     for (let c = 0; c < COLS; c++) {
-      grid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI), clapped: false });
-      nextGrid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI), clapped: false });
+      grid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI), beatRate: random(0.10, 0.26), clapped: false });
+      nextGrid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI), beatRate: random(0.10, 0.26), clapped: false });
       prevSinMap[r].push(0);
     }
   }
@@ -163,6 +182,7 @@ function updateGrid() {
       nextGrid[r][c].intensity = grid[r][c].intensity;
       nextGrid[r][c].timer = grid[r][c].timer;
       nextGrid[r][c].beatPhase = grid[r][c].beatPhase;
+      nextGrid[r][c].beatRate = grid[r][c].beatRate;
       nextGrid[r][c].clapped = false; // 毎フレームリセット
     }
   }
@@ -178,7 +198,7 @@ function updateGrid() {
       if (cell.state === STATES.CLAPPING) {
         next.timer--;
         // Beat pulse
-        next.beatPhase = (cell.beatPhase + 0.18) % TWO_PI;
+        next.beatPhase = (cell.beatPhase + cell.beatRate) % TWO_PI;
         next.intensity = 0.6 + 0.4 * abs(sin(cell.beatPhase));
 
         // 極大点通過の検出（sin値が前フレームより低下 → ピーク通過）
@@ -209,6 +229,7 @@ function updateGrid() {
                   nextGrid[nr][nc].intensity = 0.8;
                   nextGrid[nr][nc].timer = floor(random(35, 85));
                   nextGrid[nr][nc].beatPhase = cell.beatPhase + random(-0.5, 0.5);
+                  nextGrid[nr][nc].beatRate = constrain(cell.beatRate + random(-0.02, 0.02), 0.10, 0.26);
                 }
               }
             }
