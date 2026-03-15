@@ -57,7 +57,7 @@ function playClap(delayOffset) {
   // --- 打撃成分: BPF 1600Hz, Q=3.0 — 高さを保ちつつ共鳴で柔らかく ---
   const bpf = audioCtx.createBiquadFilter();
   bpf.type = 'bandpass';
-  bpf.frequency.value = 1600;
+  bpf.frequency.value = 1900;
   bpf.Q.value = 3.0;
 
   const gainHigh = audioCtx.createGain();
@@ -71,7 +71,7 @@ function playClap(delayOffset) {
   // --- ボディ成分: BPF 900Hz, Q=2.0 ---
   const bpfBody = audioCtx.createBiquadFilter();
   bpfBody.type = 'bandpass';
-  bpfBody.frequency.value = 900;
+  bpfBody.frequency.value = 1100;
   bpfBody.Q.value = 2.0;
 
   const gainBody = audioCtx.createGain();
