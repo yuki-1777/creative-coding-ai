@@ -877,19 +877,16 @@
       });
     }
 
+    function openOverlay() { renderFb(); overlay.style.display = 'block'; localStorage.setItem('fb_overlay_open', '1'); }
+    function closeOverlay() { overlay.style.display = 'none'; localStorage.removeItem('fb_overlay_open'); }
+
+    if (localStorage.getItem('fb_overlay_open') === '1') openOverlay();
+
     trigger.addEventListener('click', () => {
-      const isOpen = overlay.style.display !== 'none';
-      if (isOpen) {
-        overlay.style.display = 'none';
-      } else {
-        renderFb();
-        overlay.style.display = 'block';
-      }
+      overlay.style.display !== 'none' ? closeOverlay() : openOverlay();
     });
 
-    document.getElementById('fb-overlay-close').addEventListener('click', () => {
-      overlay.style.display = 'none';
-    });
+    document.getElementById('fb-overlay-close').addEventListener('click', closeOverlay);
 
     document.getElementById('fb-copy-json').addEventListener('click', () => {
       let all = {};
