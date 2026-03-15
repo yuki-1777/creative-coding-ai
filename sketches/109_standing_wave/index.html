@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>109 — Standing Wave</title>
+  <meta name="description" content="進まない波がある。重なって、止まった。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="109 — Standing Wave | Creative Coding">
+  <meta property="og:description" content="進まない波がある。重なって、止まった。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/109_standing_wave/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_109.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="109 — Standing Wave | Creative Coding">
+  <meta name="twitter:description" content="進まない波がある。重なって、止まった。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_109.png">
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float asp = uResolution.x / uResolution.y;
+  vec2 p = (uv - 0.5) * vec2(asp, 1.0);
+
+  // マウスで波の本数（モード）を変化させる
+  float mx = uMouse.x;
+  float modeX = 2.0 + floor(mx * 5.0);  // 2〜6
+  float modeY = 2.0 + floor(uMouse.y * 5.0);
+
+  // 定常波：sin(kx)*cos(wt) + sin(ky)*cos(wt)
+  float kx = modeX * 3.14159;
+  float ky = modeY * 3.14159;
+  float omega = 2.8;
+
+  float wx = sin(kx * (p.x + 0.5)) * cos(omega * uTime);
+  float wy = sin(ky * (p.y + 0.5)) * cos(omega * uTime + 1.0);
+
+  float wave = wx + wy;
+
+  // 等値線として表示（ゼロ交差を線にする）
+  float contour = abs(wave);
+  float lines = smoothstep(0.08, 0.0, contour);
+
+  // 振幅の大きい場所はやや濃く
+  float fill = smoothstep(0.5, 1.5, abs(wave)) * 0.07;
+
+  float ink = lines * 0.55 + fill;
+
+  vec3 paper    = vec3(0.961, 0.953, 0.934);
+  vec3 graphite = vec3(0.22, 0.21, 0.20);
+
+  vec3 color = mix(paper, graphite, clamp(ink, 0.0, 1.0));
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s)); return null;
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = { x: 0.4, y: 0.4 };
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX / window.innerWidth;
+  mouse.y = 1.0 - e.clientY / window.innerHeight;
+});
+
+function resize() {
+  canvas.width  = window.innerWidth  * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const startTime = performance.now();
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '109',
+  title:  'Standing Wave',
+  desc:   '進まない波がある。重なって、止まった。縦横に走る定常波の等値線が呼吸するように伸び縮みする。マウスのX・Y座標で波の本数が変わり、格子の細かさが切り替わる。',
+  detail: 'マウスを動かすと横方向・縦方向の波の本数が変化します。定常波とは、向き合う2つの波が重なって「進まない」ように見える波のことです。楽器の弦や太鼓が振動するときと同じ原理です。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
