@@ -674,6 +674,7 @@
       favFilterBtn.className = 'tag-btn';
       favFilterBtn.dataset.filter = 'fav';
       favFilterBtn.textContent = '★';
+      favFilterBtn.addEventListener('click', () => applyFilter('fav'));
       document.querySelector('.filter-bar').appendChild(favFilterBtn);
     }
 
