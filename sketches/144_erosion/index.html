@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>144 — Erosion</title>
+  <meta name="description" content="砂粒が積もる。風が吹くと、飛ばされる。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="144 — Erosion | Creative Coding">
+  <meta property="og:description" content="砂粒が積もる。風が吹くと、飛ばされる。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/144_erosion/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_144.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="144 — Erosion | Creative Coding">
+  <meta name="twitter:description" content="砂粒が積もる。風が吹くと、飛ばされる。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_144.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Erosion: sand grains fall from the top, pile up using a height-map approach.
+// Mouse drag creates wind that erodes the pile.
+// Uses a column-based height map for efficient stacking.
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+
+const GR = 3; // grain visual radius (px)
+const CELL = 4; // height-map cell width in px
+const SPAWN_RATE = 3;
+const MAX_ACTIVE = 400; // max falling grains at once
+const GRAVITY = 0.3;
+const DAMPING = 0.45;
+const SETTLE_SPEED = 1.2;
+
+let heightMap = []; // heightMap[col] = surface y (from top)
+let numCols = 0;
+
+// Active (falling) grains
+let activeGrains = [];
+
+let mouseX = -999, mouseY = -999;
+let prevMouseX = -999, prevMouseY = -999;
+let mouseVX = 0, mouseVY = 0;
+let isMouseDown = false;
+let frameCount = 0;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  numCols = Math.ceil(W / CELL);
+  heightMap = new Float32Array(numCols).fill(H);
+  activeGrains = [];
+}
+window.addEventListener('resize', resize);
+resize();
+
+class Grain {
+  constructor(x) {
+    this.x = x;
+    this.y = -GR;
+    this.vx = (Math.random() - 0.5) * 0.6;
+    this.vy = 1 + Math.random() * 0.5;
+    this.r = GR * (0.8 + Math.random() * 0.4);
+    this.alpha = 0.5 + Math.random() * 0.25;
+  }
+
+  colIdx() {
+    return Math.max(0, Math.min(numCols - 1, Math.floor(this.x / CELL)));
+  }
+
+  // Returns true if grain has settled
+  update() {
+    this.vy += GRAVITY;
+    this.x += this.vx;
+    this.y += this.vy;
+
+    // Wall bounce
+    if (this.x - this.r < 0) { this.x = this.r; this.vx = Math.abs(this.vx) * 0.5; }
+    if (this.x + this.r > W) { this.x = W - this.r; this.vx = -Math.abs(this.vx) * 0.5; }
+
+    // Check against height map
+    const col = this.colIdx();
+    const surfaceY = heightMap[col];
+
+    if (this.y + this.r >= surfaceY) {
+      // Land on surface
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (speed < SETTLE_SPEED || this.vy > 0) {
+        // Settle: lower the height map
+        this.y = surfaceY - this.r;
+
+        // Avalanche: try to slide to a lower neighbor
+        const leftSurf = col > 0 ? heightMap[col - 1] : surfaceY;
+        const rightSurf = col < numCols - 1 ? heightMap[col + 1] : surfaceY;
+        const minNeighbor = Math.min(leftSurf, rightSurf);
+        const angle = 32; // repose angle in px per cell
+        if (minNeighbor > surfaceY + angle) {
+          // Slide toward lower neighbor
+          if (leftSurf < rightSurf && col > 0) {
+            this.x = (col - 0.5) * CELL;
+            this.vx = -0.5;
+            this.vy = -0.2;
+            return false;
+          } else if (col < numCols - 1) {
+            this.x = (col + 1.5) * CELL;
+            this.vx = 0.5;
+            this.vy = -0.2;
+            return false;
+          }
+        }
+
+        // Settle here
+        heightMap[col] = Math.min(surfaceY, this.y - this.r);
+        // Smooth neighbors slightly (angle of repose)
+        if (col > 0) heightMap[col - 1] = Math.min(heightMap[col - 1], heightMap[col] + angle * 1.2);
+        if (col < numCols - 1) heightMap[col + 1] = Math.min(heightMap[col + 1], heightMap[col] + angle * 1.2);
+        return true; // settled
+      } else {
+        // Bounce
+        this.y = surfaceY - this.r;
+        this.vy *= -DAMPING;
+        this.vx *= 0.85;
+      }
+    }
+
+    // Floor safety
+    if (this.y + this.r >= H) {
+      this.y = H - this.r;
+      heightMap[col] = Math.min(heightMap[col], H - this.r * 2);
+      return true;
+    }
+
+    return false;
+  }
+
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(42,42,42,${this.alpha.toFixed(2)})`;
+    ctx.fill();
+  }
+}
+
+// Draw settled surface as dots — use deterministic positions to avoid flicker
+function drawSurface() {
+  const dotR = GR * 0.85;
+  const rowStep = GR * 2.1;
+  for (let c = 0; c < numCols; c++) {
+    const surfY = heightMap[c];
+    if (surfY >= H - GR) continue; // empty column
+
+    const baseX = c * CELL + CELL / 2;
+    // Per-column deterministic x-jitter
+    const jitter = ((c * 1327) % 100) / 100 * 2 - 1;
+    let row = 0;
+    let y = surfY + GR;
+    while (y < H) {
+      // Row-based deterministic offset
+      const rowJitter = ((c * 7 + row * 13) % 100) / 100 * 1.5 - 0.75;
+      ctx.beginPath();
+      ctx.arc(baseX + jitter + rowJitter * 0.5, y, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(42,42,42,0.4)`;
+      ctx.fill();
+      y += rowStep;
+      row++;
+    }
+  }
+}
+
+// Apply wind from mouse drag
+function applyWind() {
+  if (!isMouseDown || mouseX === -999) return;
+
+  const windStrength = Math.sqrt(mouseVX * mouseVX + mouseVY * mouseVY);
+  if (windStrength < 1) return;
+
+  const windRadius = 110;
+  const startCol = Math.max(0, Math.floor((mouseX - windRadius) / CELL));
+  const endCol = Math.min(numCols - 1, Math.ceil((mouseX + windRadius) / CELL));
+
+  for (let c = startCol; c <= endCol; c++) {
+    const cx = c * CELL + CELL / 2;
+    const dist = Math.abs(cx - mouseX);
+    if (dist > windRadius) continue;
+
+    const influence = (1 - dist / windRadius);
+    const surfY = heightMap[c];
+
+    // Only erode if surface is near mouse Y
+    const ydist = Math.abs(surfY - mouseY);
+    if (ydist > windRadius * 1.5) continue;
+
+    const erodedY = surfY + influence * windStrength * 1.8;
+    if (erodedY > H) { heightMap[c] = H; continue; }
+
+    // Spawn a grain from eroded surface
+    if (Math.random() < influence * 0.4 && activeGrains.length < MAX_ACTIVE * 1.5) {
+      const g = new Grain(cx);
+      g.x = cx;
+      g.y = surfY;
+      g.vx = mouseVX * influence * 0.4 + (Math.random() - 0.5) * 2;
+      g.vy = mouseVY * influence * 0.3 - Math.random() * 2;
+      activeGrains.push(g);
+      heightMap[c] = Math.min(H, surfY + GR * 2.2 * influence);
+    }
+  }
+}
+
+// Mouse
+canvas.addEventListener('mousemove', (e) => {
+  mouseVX = mouseX === -999 ? 0 : e.clientX - mouseX;
+  mouseVY = mouseY === -999 ? 0 : e.clientY - mouseY;
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+canvas.addEventListener('mousedown', () => { isMouseDown = true; });
+canvas.addEventListener('mouseup', () => { isMouseDown = false; mouseVX = 0; mouseVY = 0; });
+canvas.addEventListener('mouseleave', () => {
+  mouseX = -999; mouseY = -999; mouseVX = 0; mouseVY = 0; isMouseDown = false;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  mouseVX = mouseX === -999 ? 0 : t.clientX - mouseX;
+  mouseVY = mouseY === -999 ? 0 : t.clientY - mouseY;
+  mouseX = t.clientX;
+  mouseY = t.clientY;
+  isMouseDown = true;
+}, { passive: false });
+canvas.addEventListener('touchend', () => { isMouseDown = false; mouseX = -999; mouseVX = 0; mouseVY = 0; }, { passive: false });
+
+function tick() {
+  requestAnimationFrame(tick);
+  frameCount++;
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw settled surface
+  drawSurface();
+
+  // Spawn new grains
+  if (activeGrains.length < MAX_ACTIVE) {
+    for (let i = 0; i < SPAWN_RATE; i++) {
+      const x = W * 0.15 + Math.random() * W * 0.7;
+      activeGrains.push(new Grain(x));
+    }
+  }
+
+  // Apply wind erosion
+  applyWind();
+
+  // Update and draw active grains
+  for (let i = activeGrains.length - 1; i >= 0; i--) {
+    const settled = activeGrains[i].update();
+    if (settled) {
+      activeGrains.splice(i, 1);
+    } else {
+      activeGrains[i].draw();
+    }
+  }
+
+  // Hint
+  if (frameCount < 300) {
+    const alpha = Math.min(1, frameCount / 60) * Math.max(0, 1 - (frameCount - 200) / 100) * 0.18;
+    if (alpha > 0.005) {
+      ctx.font = '13px Georgia, serif';
+      ctx.fillStyle = `rgba(42,42,42,${alpha.toFixed(3)})`;
+      const msg = 'drag to blow the sand';
+      ctx.fillText(msg, W / 2 - ctx.measureText(msg).width / 2, H * 0.35);
+    }
+  }
+
+  mouseVX *= 0.8;
+  mouseVY *= 0.8;
+}
+
+tick();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '144',
+  title:  'Erosion',
+  desc:   '砂粒が上から降り積もる。しばらく待つと砂山ができる。マウスをドラッグすると、砂が吹き飛ばされる。また積もり始める。',
+  detail: '高さマップで砂の表面を管理しています。各砂粒は落下・跳ね返り・堆積を経て、安息角（32px）に基づいてなだれを起こします。マウスドラッグで接触した表面の砂粒が舞い上がります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
