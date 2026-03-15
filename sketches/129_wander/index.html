@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>129 — Wander</title>
+  <meta name="description" content="1本の線が画面を歩き続ける。制約がある。時計回りにしか曲がれない。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="129 — Wander | Creative Coding">
+  <meta property="og:description" content="1本の線が画面を歩き続ける。制約がある。時計回りにしか曲がれない。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/129_wander/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_129.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="129 — Wander | Creative Coding">
+  <meta name="twitter:description" content="1本の線が画面を歩き続ける。制約がある。時計回りにしか曲がれない。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_129.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  resetWander();
+}
+window.addEventListener('resize', resize);
+
+// Wander state — constraint: clockwise-only turns (angle can only increase)
+let wx, wy, wangle;
+const SPEED = 2.0;
+// Min/max clockwise turn per frame
+const TURN_MIN = 0.0002;  // nearly straight most of the time
+const TURN_MAX = 0.05;
+
+// Path storage: keep a rolling buffer of points
+const MAX_POINTS = 6000;
+const allPoints = []; // {x, y}
+
+function resetWander() {
+  wx = W * 0.3 + Math.random() * W * 0.4;
+  wy = H * 0.3 + Math.random() * H * 0.4;
+  // Start heading in a random direction
+  wangle = Math.random() * Math.PI * 2;
+  allPoints.length = 0;
+  allPoints.push({ x: wx, y: wy });
+}
+
+resize();
+
+function updateWander() {
+  // Clockwise-only turn: delta is always positive
+  // Occasionally make a sharper turn for variety
+  let turnDelta;
+  if (Math.random() < 0.008) {
+    // Occasional sharper clockwise turn
+    turnDelta = TURN_MAX * (1 + Math.random() * 2);
+  } else {
+    // Mostly very gentle clockwise drift
+    turnDelta = TURN_MIN + Math.random() * (TURN_MAX - TURN_MIN) * 0.15;
+  }
+  wangle += turnDelta;
+
+  wx += Math.cos(wangle) * SPEED;
+  wy += Math.sin(wangle) * SPEED;
+
+  // Wrap around edges — torus topology
+  if (wx < 0) wx += W;
+  if (wx > W) wx -= W;
+  if (wy < 0) wy += H;
+  if (wy > H) wy -= H;
+
+  const last = allPoints[allPoints.length - 1];
+  // Detect wrap (discontinuity) — insert a break marker
+  const dx = wx - last.x, dy = wy - last.y;
+  if (Math.abs(dx) > W * 0.5 || Math.abs(dy) > H * 0.5) {
+    allPoints.push(null); // break marker
+  }
+  allPoints.push({ x: wx, y: wy });
+
+  if (allPoints.length > MAX_POINTS) {
+    allPoints.splice(0, 200);
+  }
+}
+
+function drawAllPoints() {
+  const n = allPoints.length;
+  if (n < 2) return;
+
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  let segStart = 0;
+  for (let i = 1; i <= n; i++) {
+    const pt = allPoints[i];
+    if (pt === null || pt === undefined) {
+      // Draw segment from segStart to i-1
+      drawSegment(segStart, i - 1, n);
+      segStart = i + 1;
+    }
+  }
+  // Draw remaining
+  if (segStart < n - 1) {
+    drawSegment(segStart, n - 1, n);
+  }
+}
+
+function drawSegment(from, to, total) {
+  if (to - from < 2) return;
+  // Fade from dim (old) to solid (recent)
+  const alphaOld = 0.06;
+  const alphaNew = 0.45;
+  ctx.beginPath();
+  ctx.moveTo(allPoints[from].x, allPoints[from].y);
+  for (let i = from + 1; i <= to; i++) {
+    if (!allPoints[i]) break;
+    ctx.lineTo(allPoints[i].x, allPoints[i].y);
+  }
+  // Gradient-like effect: use the recency ratio
+  const ratio = to / total;
+  const alpha = alphaOld + (alphaNew - alphaOld) * ratio;
+  ctx.strokeStyle = `rgba(42, 42, 42, ${alpha})`;
+  ctx.lineWidth = 0.7 + ratio * 0.5;
+  ctx.stroke();
+}
+
+let frame = 0;
+
+function draw() {
+  requestAnimationFrame(draw);
+  frame++;
+
+  // Run multiple steps per frame for faster coverage
+  for (let i = 0; i < 3; i++) updateWander();
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  drawAllPoints();
+
+  // Draw head dot
+  ctx.beginPath();
+  ctx.arc(wx, wy, 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(42, 42, 42, 0.7)';
+  ctx.fill();
+}
+
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '129',
+  title:  'Wander',
+  desc:   '1本の線が画面を歩き続ける。制約がある。時計回りにしか曲がれない。その結果、いつも右へ右へと進んでいく。',
+  detail: '線は時計回りにしか曲がることができません。壁に近づくと、ひたすら時計回りに回り続けて向きを変えます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
