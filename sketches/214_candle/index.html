@@ -127,25 +127,34 @@ function drawFlame() {
   const cx = canvas.width / 2;
   const wickTop = canvas.height * 0.55 - 14;
   const windX = (mouseX - canvas.width / 2) * 0.003;
-  const gx = cx + windX * 8;
 
-  // Flame silhouette — teardrop outline
-  const fh = 34 + Math.sin(t * 0.09) * 4;
-  const fw = 11 + Math.sin(t * 0.13) * 1.5;
-  ctx.save();
-  ctx.translate(gx, wickTop);
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.bezierCurveTo( fw,      -fh * 0.25,  fw * 0.7, -fh * 0.75, 0, -fh);
-  ctx.bezierCurveTo(-fw * 0.7, -fh * 0.75, -fw,      -fh * 0.25, 0, 0);
-  ctx.fillStyle = 'rgba(160,128,68,0.13)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(140,108,52,0.5)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.restore();
+  // Flame as organic rising lines — base spread, tip convergence
+  const strands = [
+    { ph: 0,   fh: 46, w: 3.0, a: 0.55 },
+    { ph: 1.3, fh: 40, w: 2.5, a: 0.48 },
+    { ph: 2.6, fh: 42, w: 2.0, a: 0.40 },
+    { ph: 0.7, fh: 36, w: 1.5, a: 0.32 },
+    { ph: 2.0, fh: 32, w: 1.2, a: 0.25 },
+  ];
+  for (const s of strands) {
+    const fh = s.fh + Math.sin(t * 0.07 + s.ph) * 4;
+    const steps = 40;
+    ctx.beginPath();
+    ctx.moveTo(cx, wickTop);
+    for (let i = 1; i <= steps; i++) {
+      const prog = i / steps;
+      const sway = Math.sin(t * 0.09 + s.ph + prog * 1.4) * 6 * (1 - prog * 0.5);
+      const x = cx + sway + windX * 14 * prog;
+      const y = wickTop - fh * prog;
+      ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = `rgba(148,116,52,${s.a})`;
+    ctx.lineWidth = s.w;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
 
-  // Ember particles
+  // Embers
   particles.forEach(p => {
     p.life++;
     if (p.life > p.maxLife) resetParticle(p);
@@ -161,7 +170,7 @@ function drawFlame() {
 
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.size * (1 + progress * 0.5), 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(160,128,68,${(alpha * 0.6).toFixed(2)})`;
+    ctx.fillStyle = `rgba(160,128,68,${(alpha * 0.5).toFixed(2)})`;
     ctx.fill();
   });
 }
