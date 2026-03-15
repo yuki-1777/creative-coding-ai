@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>170 – Membrane</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; overflow: hidden; cursor: crosshair; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Membrane — 170
+// 薄い膜に触れると波が広がる。波同士が干渉し、端で反射して戻ってくる。
+// クリックした場所から新しい波が発生する。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// -------------------------------------------------------
+// Shader sources
+// -------------------------------------------------------
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+uniform vec2  u_res;
+uniform float u_time;
+
+// 波源（最大8個）: x, y, t0
+uniform vec3  u_waves[8];
+uniform int   u_wave_count;
+
+// 一つの波源からの変位（アスペクト補正込み）
+float waveSample(vec2 uv, float cx, float cy, float t0, float t, float aspect) {
+  float elapsed = t - t0;
+  if(elapsed < 0.0 || elapsed > 12.0) return 0.0;
+
+  // アスペクト補正した距離
+  float dx = (uv.x - cx) * aspect;
+  float dy = uv.y - cy;
+  float dist = sqrt(dx * dx + dy * dy);
+
+  // 波速：遅くして画面内に長く留まるようにする
+  float speed = 0.12;
+  float radius = elapsed * speed;
+
+  // 波の厚み
+  float ww = 0.025 + elapsed * 0.008;
+
+  // 振動 cos 項（波の山と谷）
+  float phase = (dist - radius) / ww;
+  float wave = cos(phase * 3.14159) * exp(-phase * phase);
+
+  // 時間と距離による減衰
+  float decay = exp(-elapsed * 0.35) * exp(-dist * 0.8);
+
+  // 反射波（4辺の鏡像）
+  float refl = 0.0;
+  // 左辺: x=0 の鏡
+  float dxL = (-cx - uv.x) * aspect * (-1.0);
+  float distL = sqrt((uv.x + cx) * (uv.x + cx) * aspect * aspect + dy * dy);
+  float phL = (distL - radius) / ww;
+  refl += cos(phL * 3.14159) * exp(-phL * phL) * exp(-elapsed * 0.5) * exp(-distL * 0.8);
+  // 右辺: x=1 の鏡
+  float distR = sqrt((2.0 - uv.x - cx) * (2.0 - uv.x - cx) * aspect * aspect + dy * dy);
+  float phR = (distR - radius) / ww;
+  refl += cos(phR * 3.14159) * exp(-phR * phR) * exp(-elapsed * 0.5) * exp(-distR * 0.8);
+  // 下辺: y=0 の鏡
+  float distB = sqrt(dx * dx + (uv.y + cy) * (uv.y + cy));
+  float phB = (distB - radius) / ww;
+  refl += cos(phB * 3.14159) * exp(-phB * phB) * exp(-elapsed * 0.5) * exp(-distB * 0.8);
+  // 上辺: y=1 の鏡
+  float distT = sqrt(dx * dx + (2.0 - uv.y - cy) * (2.0 - uv.y - cy));
+  float phT = (distT - radius) / ww;
+  refl += cos(phT * 3.14159) * exp(-phT * phT) * exp(-elapsed * 0.5) * exp(-distT * 0.8);
+
+  return (wave * decay + refl * 0.35);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  float aspect = u_res.x / u_res.y;
+
+  vec3 base = vec3(0.941, 0.929, 0.910);
+  vec3 dark_col = vec3(0.30, 0.32, 0.36);
+  vec3 light_col = vec3(0.97, 0.96, 0.95);
+
+  float total = 0.0;
+  for(int i = 0; i < 8; i++) {
+    if(i >= u_wave_count) break;
+    total += waveSample(uv, u_waves[i].x, u_waves[i].y, u_waves[i].z, u_time, aspect);
+  }
+
+  // 変位を明暗として描画
+  float t = clamp(total * 2.5, -1.0, 1.0);
+  vec3 col = mix(base, dark_col, max(0.0, t) * 0.55);
+  col = mix(col, light_col, max(0.0, -t) * 0.4);
+
+  // 等高線（変位=0 の線）
+  float edge = smoothstep(0.04, 0.0, abs(total));
+  col = mix(col, dark_col * 0.8, edge * clamp(abs(total) * 12.0, 0.0, 0.4));
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+// -------------------------------------------------------
+// WebGL setup
+// -------------------------------------------------------
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const locPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(locPos);
+gl.vertexAttribPointer(locPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes       = gl.getUniformLocation(prog, 'u_res');
+const uTime      = gl.getUniformLocation(prog, 'u_time');
+const uWaveCount = gl.getUniformLocation(prog, 'u_wave_count');
+
+// 波源管理
+const MAX_WAVES = 8;
+const waves = [];
+
+// -------------------------------------------------------
+// Animation loop
+// -------------------------------------------------------
+const startTime = performance.now();
+
+// 初期波：ページ読み込み直後に3か所から発生
+waves.push({ x: 0.5,  y: 0.5,  t0: 0.0 });
+waves.push({ x: 0.3,  y: 0.7,  t0: 1.5 });
+waves.push({ x: 0.72, y: 0.3,  t0: 2.8 });
+
+// クリックで波を追加
+let lastClick = -1.0;
+canvas.addEventListener('click', (e) => {
+  const now = (performance.now() - startTime) / 1000;
+  if (now - lastClick < 0.15) return;
+  lastClick = now;
+  waves.push({
+    x: e.clientX / window.innerWidth,
+    y: 1.0 - e.clientY / window.innerHeight,
+    t0: now
+  });
+  if (waves.length > MAX_WAVES) waves.shift();
+});
+
+function render() {
+  const t = (performance.now() - startTime) / 1000;
+
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+
+  const n = Math.min(waves.length, MAX_WAVES);
+  for (let i = 0; i < MAX_WAVES; i++) {
+    const loc = gl.getUniformLocation(prog, `u_waves[${i}]`);
+    if (i < n) {
+      gl.uniform3f(loc, waves[i].x, waves[i].y, waves[i].t0);
+    } else {
+      gl.uniform3f(loc, 0.0, 0.0, -999.0); // 無効値（elapsed < 0）
+    }
+  }
+  gl.uniform1i(uWaveCount, n);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '170',
+  title:  'Membrane',
+  detail: 'クリックした場所から波が広がります。複数回クリックすると波同士が干渉します。端に当たると反射して戻ってきます。波の変位を明暗で描いています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
