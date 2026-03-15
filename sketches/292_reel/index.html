@@ -142,6 +142,16 @@ function drawReel(cx, cy, r, angle, isLeft) {
     ctx.restore();
   }
 
+  // Film winding rings (concentric, between hub and outer ring)
+  const ringRadii = [r * 0.35, r * 0.55, r * 0.74];
+  for (const rr of ringRadii) {
+    ctx.beginPath();
+    ctx.arc(0, 0, rr, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(50,45,40,0.18)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+
   // Film wrapped around outer edge: scalloped film perforations
   const PERF_COUNT = 32;
   for (let i = 0; i < PERF_COUNT; i++) {
@@ -163,8 +173,8 @@ function drawReel(cx, cy, r, angle, isLeft) {
 // ── Draw film strip between reels ────────────────────────────────────────────
 function drawFilmStrip(l, filmOffset) {
   // Clip film strip to the region between the two reels (not overlapping reels)
-  const stripClipLeft  = l.reelLX + l.reelR + 2;
-  const stripClipRight = l.reelRX - l.reelR - 2;
+  const stripClipLeft  = l.reelLX + l.reelR - 3;
+  const stripClipRight = l.reelRX - l.reelR + 3;
   if (stripClipRight <= stripClipLeft) return;
   const STRIP_H = l.filmH * 1.35;   // total film height including perforations
   const PERF_H  = STRIP_H * 0.14;   // perforation strip on each side
@@ -239,14 +249,14 @@ function drawFilmStrip(l, filmOffset) {
 
   // Gate vignette — fade out toward gate edges
   const grad = ctx.createLinearGradient(l.gateX - 24, 0, l.gateX, 0);
-  grad.addColorStop(0, 'rgba(238,235,227,0.92)');
+  grad.addColorStop(0, 'rgba(238,235,227,0.55)');
   grad.addColorStop(1, 'rgba(238,235,227,0)');
   ctx.fillStyle = grad;
   ctx.fillRect(stripClipLeft, stripY - 2, l.gateX - stripClipLeft + 24, STRIP_H + 4);
 
   const gradR = ctx.createLinearGradient(l.gateX + l.gateW, 0, l.gateX + l.gateW + 24, 0);
   gradR.addColorStop(0, 'rgba(238,235,227,0)');
-  gradR.addColorStop(1, 'rgba(238,235,227,0.92)');
+  gradR.addColorStop(1, 'rgba(238,235,227,0.55)');
   ctx.fillStyle = gradR;
   ctx.fillRect(l.gateX + l.gateW, stripY - 2, stripClipRight - l.gateX - l.gateW + 24, STRIP_H + 4);
 
