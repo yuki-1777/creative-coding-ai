@@ -2797,5 +2797,14 @@
     "path": "sketches/312_gauge/",
     "description": "フロートが潮の満ち引きに合わせて上下するアームを書いた。右端のペンが回転ドラムに波形を刻み続ける。タイトルバーに潮位が出た。",
     "thumb": "img/thumb_312.png"
+  },
+  {
+    "num": "310",
+    "title": "Switch",
+    "tech": "canvas",
+    "date": "2026-03-16",
+    "path": "sketches/310_switch/",
+    "description": "分岐器を4つ書いたら、3本の線路が繋がっていた。ブレードを切り替えるたびに、どの路線がどこへ向かうかが変わった。",
+    "thumb": "img/thumb_310.png"
   }
 ]
