@@ -94,8 +94,15 @@
       font-weight: 300;
     }
 
-    #sketch-overlay-title {
+    /* info カード内のヘッダー行 */
+    #sketch-overlay-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
       margin: 0 0 8px;
+    }
+    #sketch-overlay-title {
+      margin: 0;
       font-size: 0.8rem;
       font-weight: 300;
       letter-spacing: 0.2em;
@@ -104,6 +111,19 @@
       align-items: baseline;
       gap: 10px;
     }
+    #sketch-close-btn {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.85rem;
+      background: transparent;
+      border: none;
+      color: rgba(42,42,42,0.3);
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      transition: color 0.2s ease;
+      flex-shrink: 0;
+    }
+    #sketch-close-btn:hover { color: rgba(42,42,42,0.65); }
     #sketch-overlay-desc {
       font-family: 'Cormorant Garamond', serif;
       font-weight: 300;
@@ -206,10 +226,13 @@
   const overlay = document.createElement('div');
   overlay.id = 'sketch-overlay';
   overlay.innerHTML = `
-    <h1 id="sketch-overlay-title">
-      <span>${meta.num} — ${meta.title}</span>
-      ${hasDetail ? '<button id="sketch-detail-btn">?</button>' : ''}
-    </h1>
+    <div id="sketch-overlay-header">
+      <h1 id="sketch-overlay-title">
+        <span>${meta.num} — ${meta.title}</span>
+        ${hasDetail ? '<button id="sketch-detail-btn">?</button>' : ''}
+      </h1>
+      <button id="sketch-close-btn">×</button>
+    </div>
     <div id="sketch-overlay-desc">${meta.desc}</div>
   `;
   container.appendChild(overlay);
@@ -284,6 +307,7 @@
     toggleBtn.classList.toggle('visible', hidden);
   }
 
+  document.getElementById('sketch-close-btn').addEventListener('click', toggleOverlay);
   toggleBtn.addEventListener('click', toggleOverlay);
 
   // H キーで表示トグル
