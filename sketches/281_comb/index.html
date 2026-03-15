@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comb</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe3; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; cursor: crosshair; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  initTeeth();
+}
+
+// Comb: evenly spaced vertical teeth
+// Drag across them to bend them; they slowly spring back
+const NUM_TEETH = 60;
+const teeth = []; // { x, baseY, len, offset, vel }
+
+function initTeeth() {
+  teeth.length = 0;
+  const margin = W * 0.1;
+  const span = W - margin * 2;
+  const toothLen = H * 0.35;
+  const baseY = H * 0.35;
+
+  for (let i = 0; i < NUM_TEETH; i++) {
+    const x = margin + (span / (NUM_TEETH - 1)) * i;
+    teeth.push({
+      x,
+      baseY,
+      len: toothLen,
+      offset: 0,    // horizontal displacement of tip
+      vel: 0
+    });
+  }
+}
+
+// Spring constants
+const SPRING_K = 0.04;
+const DAMPING  = 0.88;
+
+// Drag state
+let dragging = false;
+let prevMouseX = 0;
+let prevMouseY = 0;
+let mouseX = 0;
+let mouseY = 0;
+
+// Influence: bend teeth near cursor
+function applyForce(mx, my, strength) {
+  const RADIUS = W * 0.06;
+  for (const t of teeth) {
+    const dx = mx - t.x;
+    if (Math.abs(dx) < RADIUS) {
+      const falloff = 1 - Math.abs(dx) / RADIUS;
+      t.vel += strength * falloff * 0.5;
+    }
+  }
+}
+
+canvas.addEventListener('mousedown', e => {
+  dragging = true;
+  prevMouseX = e.clientX;
+  prevMouseY = e.clientY;
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - prevMouseX;
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+  applyForce(mouseX, mouseY, dx * 0.25);
+  prevMouseX = e.clientX;
+  prevMouseY = e.clientY;
+});
+
+canvas.addEventListener('mouseup', () => { dragging = false; });
+canvas.addEventListener('mouseleave', () => { dragging = false; });
+
+// Touch support
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  dragging = true;
+  prevMouseX = e.touches[0].clientX;
+  prevMouseY = e.touches[0].clientY;
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!dragging) return;
+  const dx = e.touches[0].clientX - prevMouseX;
+  mouseX = e.touches[0].clientX;
+  mouseY = e.touches[0].clientY;
+  applyForce(mouseX, mouseY, dx * 0.25);
+  prevMouseX = e.touches[0].clientX;
+  prevMouseY = e.touches[0].clientY;
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => { dragging = false; });
+
+function update() {
+  for (const t of teeth) {
+    // Spring back
+    const springForce = -SPRING_K * t.offset;
+    t.vel += springForce;
+    t.vel *= DAMPING;
+    t.offset += t.vel;
+
+    // Near-zero clamp
+    if (Math.abs(t.offset) < 0.001 && Math.abs(t.vel) < 0.001) {
+      t.offset = 0;
+      t.vel = 0;
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Spine (horizontal bar at top of teeth)
+  const spineY = teeth[0].baseY;
+  const leftX = teeth[0].x;
+  const rightX = teeth[NUM_TEETH - 1].x;
+  const spineThick = H * 0.012;
+
+  ctx.fillStyle = 'rgba(60,55,50,0.85)';
+  ctx.beginPath();
+  ctx.rect(leftX, spineY - spineThick, rightX - leftX, spineThick);
+  ctx.fill();
+
+  // Teeth: vertical lines from spine down
+  for (let i = 0; i < teeth.length; i++) {
+    const t = teeth[i];
+    const tipX = t.x + t.offset;
+    const tipY = t.baseY + t.len;
+
+    // Bend as a straight line from base to displaced tip
+    const alpha = 0.75 + 0.25 * (1 - Math.min(1, Math.abs(t.offset) / 30));
+    ctx.strokeStyle = `rgba(60,55,50,${alpha.toFixed(2)})`;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(t.x, t.baseY);
+    ctx.lineTo(tipX, tipY);
+    ctx.stroke();
+  }
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+resize();
+window.addEventListener('resize', resize);
+loop();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '281',
+  title: 'Comb',
+  detail: '画面上でドラッグすると、くしの歯が曲がります。手を離すと、ゆっくり元の形に戻ります。歯の端を少しずつ通過するように動かすと、波が伝わるように揺れます。縦線だけで作りました。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

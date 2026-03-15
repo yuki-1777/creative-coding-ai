@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Turnstile</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe3; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// Turnstile: a row of revolving-door arms (3-arm cross) that click 90° at irregular intervals
+// The body/housing is not drawn — only the 3 arms
+// Arms rotate with a quick snap + slight overshoot (mechanical feel)
+// Constraint: only the spinning arms exist
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0xeeebe3, 1);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 4, 14);
+camera.lookAt(0, 0, 0);
+
+const COUNT = 6;  // number of turnstile units
+const SPACING = 3.5;
+const ARM_LEN = 1.1;
+const ARM_THICK = 0.06;
+
+// Material: dark graphite lines
+const mat = new THREE.LineBasicMaterial({ color: 0x302d28, linewidth: 1.5 });
+
+// Each unit: { group, currentAngle, targetAngle, omega, nextClickTime }
+const units = [];
+
+function makeArmGeometry() {
+  // 3 arms at 120° each, as line segments
+  const pts = [];
+  for (let i = 0; i < 3; i++) {
+    const angle = (i / 3) * Math.PI * 2;
+    pts.push(new THREE.Vector3(0, 0, 0));
+    pts.push(new THREE.Vector3(Math.cos(angle) * ARM_LEN, Math.sin(angle) * ARM_LEN, 0));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  return geo;
+}
+
+function makeSpoke() {
+  // Small center hub circle
+  const pts = [];
+  const N = 16;
+  const R = 0.10;
+  for (let i = 0; i <= N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.cos(a) * R, Math.sin(a) * R, 0));
+  }
+  return new THREE.BufferGeometry().setFromPoints(pts);
+}
+
+for (let i = 0; i < COUNT; i++) {
+  const group = new THREE.Group();
+  const xPos = (i - (COUNT - 1) / 2) * SPACING;
+  group.position.set(xPos, 0, 0);
+
+  // Arms
+  const geo = makeArmGeometry();
+  const arms = new THREE.LineSegments(geo, mat);
+  group.add(arms);
+
+  // Hub
+  const hubGeo = makeSpoke();
+  const hubLine = new THREE.Line(hubGeo, mat);
+  group.add(hubLine);
+
+  scene.add(group);
+
+  const startAngle = Math.random() * Math.PI * 2;
+  group.rotation.z = startAngle;
+
+  units.push({
+    group,
+    currentAngle: startAngle,
+    targetAngle: startAngle,
+    omega: 0,          // angular velocity
+    nextClickTime: 1.5 + Math.random() * 2.5,
+    count: 0           // number of 90° clicks done
+  });
+}
+
+// Subtle vertical line (axis) for each unit, in background
+for (let i = 0; i < COUNT; i++) {
+  const xPos = (i - (COUNT - 1) / 2) * SPACING;
+  const axisPts = [
+    new THREE.Vector3(xPos, -0.5, -0.1),
+    new THREE.Vector3(xPos,  0.5, -0.1)
+  ];
+  const axisGeo = new THREE.BufferGeometry().setFromPoints(axisPts);
+  const axisMat = new THREE.LineBasicMaterial({ color: 0x302d28, transparent: true, opacity: 0.18 });
+  scene.add(new THREE.Line(axisGeo, axisMat));
+}
+
+let elapsed = 0;
+
+function animate(time) {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, time / 1000 - elapsed);
+  elapsed = time / 1000;
+
+  for (const u of units) {
+    u.nextClickTime -= dt;
+
+    // Snap trigger: add 90° snap
+    if (u.nextClickTime <= 0) {
+      u.targetAngle += Math.PI / 2;
+      u.omega = 8.0;  // high initial velocity for snap
+      u.nextClickTime = 0.8 + Math.random() * 3.0;
+    }
+
+    // Physics: spring toward target with overdamping for mechanical snap
+    const diff = u.targetAngle - u.currentAngle;
+    const STIFFNESS = 28;
+    const DAMPING = 7.5;
+    const acc = STIFFNESS * diff - DAMPING * u.omega;
+    u.omega += acc * dt;
+    u.currentAngle += u.omega * dt;
+
+    u.group.rotation.z = u.currentAngle;
+  }
+
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+animate(0);
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '284',
+  title: 'Turnstile',
+  detail: '6基の回転式改札の腕が、ランダムなタイミングでカチッと90度回転します。本体は描かれておらず、腕だけが空中で回っています。改札本体があるかどうかは、想像に任せています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

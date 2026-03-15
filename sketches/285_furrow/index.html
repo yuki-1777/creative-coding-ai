@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Furrow</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe3; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Furrow: autonomous plowing — parallel furrows with slight drift accumulate
+// Each furrow is drawn as a straight horizontal line segment.
+// The plow drifts in Y slightly between rows, and occasionally skips.
+// Constraint: straight lines ONLY. No curves, no arcs.
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  reset();
+}
+
+// Hash for pseudo-random
+function hash(n) {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+let furrows = [];
+let currentFurrow = 0;
+let drawTimer = 0;
+const DRAW_INTERVAL = 18; // ms per furrow step
+
+function reset() {
+  furrows = [];
+  ctx.fillStyle = '#eeebe3';
+  ctx.fillRect(0, 0, W, H);
+  buildFurrows();
+  currentFurrow = 0;
+  drawTimer = 0;
+}
+
+function buildFurrows() {
+  furrows = [];
+  const margin = W * 0.08;
+  const topMargin = H * 0.12;
+  const bottomMargin = H * 0.12;
+
+  // Number of rows
+  const rowCount = Math.floor((H - topMargin - bottomMargin) / 9);
+  const baseSpacing = (H - topMargin - bottomMargin) / rowCount;
+
+  let yAcc = topMargin;
+
+  for (let row = 0; row < rowCount; row++) {
+    const h = hash(row * 3.7 + 1.1);
+    const h2 = hash(row * 5.3 + 2.2);
+    const h3 = hash(row * 7.1 + 3.3);
+    const h4 = hash(row * 11.9 + 4.4);
+
+    // Skip occasionally (stones in the field)
+    if (h4 < 0.04) {
+      yAcc += baseSpacing * (0.5 + h2 * 0.6);
+      continue;
+    }
+
+    // Slightly irregular y spacing
+    yAcc += baseSpacing * (0.7 + h * 0.6);
+    const y = yAcc;
+
+    // Horizontal extent: left boundary slightly irregular
+    const leftBound = margin + (h2 - 0.5) * margin * 0.5;
+    const rightBound = W - margin + (h3 - 0.5) * margin * 0.5;
+
+    // Furrow may be broken into 1–3 collinear segments (interrupted by stones)
+    const numSegments = h4 < 0.25 ? 2 : 1;
+    const segLen = (rightBound - leftBound) / numSegments;
+
+    for (let s = 0; s < numSegments; s++) {
+      const gapHash = hash(row * 17.3 + s * 5.7);
+      // Gap between segments
+      if (s > 0 && gapHash < 0.4) continue;
+
+      const x1 = leftBound + s * segLen + (s > 0 ? hash(row + s * 31.3) * 8 : 0);
+      const x2 = leftBound + (s + 1) * segLen - hash(row * 3.3 + s * 9.7) * 6;
+
+      // Line weight: deeper furrows are thicker
+      const depth = 0.3 + hash(row * 9.1 + s * 3.3) * 0.7;
+      const weight = 0.5 + depth * 1.5;
+      const alpha  = 0.25 + depth * 0.55;
+
+      furrows.push({ x1, y, x2, weight, alpha, row, seg: s });
+    }
+  }
+}
+
+let lastTime = 0;
+function loop(time) {
+  requestAnimationFrame(loop);
+  const dt = time - lastTime;
+  lastTime = time;
+
+  drawTimer += dt;
+  while (drawTimer >= DRAW_INTERVAL && currentFurrow < furrows.length) {
+    const f = furrows[currentFurrow];
+    ctx.strokeStyle = `rgba(55,48,40,${f.alpha.toFixed(3)})`;
+    ctx.lineWidth = f.weight;
+    ctx.lineCap = 'butt';
+    ctx.beginPath();
+    ctx.moveTo(f.x1, f.y);
+    ctx.lineTo(f.x2, f.y);
+    ctx.stroke();
+    currentFurrow++;
+    drawTimer -= DRAW_INTERVAL;
+  }
+
+  // When all furrows drawn, slowly restart
+  if (currentFurrow >= furrows.length) {
+    // Wait 2s then fade and redo
+    if (drawTimer > 2000) {
+      // Fade out existing
+      ctx.fillStyle = 'rgba(238,235,227,0.04)';
+      ctx.fillRect(0, 0, W, H);
+      drawTimer -= 40;
+      if (drawTimer > 3000) {
+        reset();
+      }
+    }
+  }
+}
+
+resize();
+window.addEventListener('resize', resize);
+requestAnimationFrame(loop);
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '285',
+  title: 'Furrow',
+  detail: '鋤が畑を耕すように、横線が上から順番に引かれていきます。深さによって線の太さが変わり、石に当たった場所では線が途切れます。直線だけで作っています。引き終わると、ゆっくり消えてまた始まります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vessel</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe3; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Vessel: branching network that fills space like blood vessels
+// Growth is driven by scroll/wheel input (speed) and autonomous timer
+// Constraint: branches terminate at canvas edges, never outside
+
+let branches = [];
+let growing = true;
+let speed = 1.0; // controlled by scroll wheel
+
+const BG = '#eeebe3';
+const FG = 'rgba(55,50,45,';
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  background(BG);
+  initGrowth();
+}
+
+function initGrowth() {
+  branches = [];
+  background(BG);
+  const cx = width / 2;
+  const cy = height / 2;
+  // Start with a few root branches radiating from center
+  const angles = [0, TWO_PI / 3, (2 * TWO_PI) / 3];
+  for (const a of angles) {
+    branches.push(makeBranch(cx, cy, a, 1.0));
+  }
+  growing = true;
+}
+
+function makeBranch(x, y, angle, generation) {
+  const baseLen = min(width, height) * 0.045;
+  return {
+    x, y, angle,
+    generation,
+    len: baseLen / (1 + generation * 0.12),
+    width: max(0.4, 2.0 - generation * 0.08),
+    alpha: max(0.2, 0.85 - generation * 0.03),
+    grown: 0,     // 0..1 progress
+    done: false,
+    children: [],
+    childrenSpawned: false,
+    dead: false   // hit edge
+  };
+}
+
+function draw() {
+  // Don't clear: accumulate strokes
+
+  const maxGen = 28;
+  const growRate = 0.045 * speed;
+
+  let anyGrowing = false;
+  for (const b of branches) {
+    if (b.done || b.dead) continue;
+    anyGrowing = true;
+
+    const prevGrown = b.grown;
+    b.grown = min(1, b.grown + growRate);
+
+    // Draw the incremental segment
+    const fromX = b.x + cos(b.angle) * b.len * prevGrown;
+    const fromY = b.y + sin(b.angle) * b.len * prevGrown;
+    const toX   = b.x + cos(b.angle) * b.len * b.grown;
+    const toY   = b.y + sin(b.angle) * b.len * b.grown;
+
+    stroke(`${FG}${b.alpha.toFixed(2)})`);
+    strokeWeight(b.width);
+    line(fromX, fromY, toX, toY);
+
+    // Mark done when fully grown
+    if (b.grown >= 1) {
+      b.done = true;
+      const endX = b.x + cos(b.angle) * b.len;
+      const endY = b.y + sin(b.angle) * b.len;
+
+      // Stop at edges
+      if (endX < 0 || endX > width || endY < 0 || endY > height) {
+        b.dead = true;
+        continue;
+      }
+
+      if (!b.childrenSpawned && b.generation < maxGen) {
+        b.childrenSpawned = true;
+        spawnChildren(b, endX, endY);
+      }
+    }
+  }
+
+  if (!anyGrowing) {
+    growing = false;
+  }
+}
+
+function spawnChildren(parent, x, y) {
+  const gen = parent.generation + 1;
+  const density = 0.55;  // probability of branching (reduces density)
+
+  if (random() > density) return;
+
+  // Decide: straight, single fork, or double fork
+  const r = random();
+  let numChildren;
+  if (r < 0.20) {
+    numChildren = 1; // continue straight-ish
+  } else if (r < 0.80) {
+    numChildren = 2; // typical branch
+  } else {
+    numChildren = 3; // rare triple
+  }
+
+  const maxSpread = PI * 0.30;
+  for (let i = 0; i < numChildren; i++) {
+    let angle;
+    if (numChildren === 1) {
+      angle = parent.angle + random(-0.15, 0.15);
+    } else {
+      const spread = random(maxSpread * 0.4, maxSpread);
+      const t = numChildren === 1 ? 0 : (i / (numChildren - 1) - 0.5) * 2;
+      angle = parent.angle + t * spread + random(-0.08, 0.08);
+    }
+    branches.push(makeBranch(x, y, angle, gen));
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  initGrowth();
+}
+
+// Scroll wheel: controls growth speed
+function mouseWheel(event) {
+  speed = constrain(speed - event.delta * 0.002, 0.1, 4.0);
+  return false;
+}
+
+// Click: restart
+function mousePressed() {
+  initGrowth();
+}
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '282',
+  title: 'Vessel',
+  detail: '中心から細い管が分岐しながら広がっていきます。スクロールホイールで成長速度を変えられます。速く回すと枝が一気に伸び、遅くすると一本一本の伸びが見えます。クリックで最初からやり直します。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

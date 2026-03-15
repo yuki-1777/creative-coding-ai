@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wax</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe3; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; cursor: crosshair; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Wax: sealing wax dropped on paper
+// Click to add a hot wax drop; it spreads radially and cools/solidifies
+// All rendering via SDF-like distance field on canvas
+// No color — only brightness and edge texture (matte vs glossy)
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+
+// Each wax drop
+// { cx, cy, r (current radius), maxR, phase: 'spreading'|'cooling'|'solid', t }
+const drops = [];
+const MAX_DROPS = 8;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+function addDrop(x, y) {
+  if (drops.length >= MAX_DROPS) drops.shift();
+  const maxR = Math.min(W, H) * (0.07 + Math.random() * 0.06);
+  drops.push({ cx: x, cy: y, r: 2, maxR, phase: 'spreading', t: 0 });
+}
+
+// Initial drop
+addDrop(W / 2, H / 2);
+
+canvas.addEventListener('click', e => {
+  addDrop(e.clientX, e.clientY);
+});
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  addDrop(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+
+// Noise helper (cheap 2D hash)
+function hash(x, y) {
+  const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+function smoothNoise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
+  const a = hash(ix, iy), b = hash(ix + 1, iy);
+  const c = hash(ix, iy + 1), d = hash(ix + 1, iy + 1);
+  return a + (b - a) * ux + (c - a) * uy + (d - a + a - b - c + b + c) * ux * uy;
+}
+
+function update() {
+  for (const d of drops) {
+    d.t += 1;
+    if (d.phase === 'spreading') {
+      const speed = (d.maxR - d.r) * 0.06 + 0.3;
+      d.r = Math.min(d.maxR, d.r + speed);
+      if (d.r >= d.maxR * 0.98) {
+        d.phase = 'cooling';
+        d.t = 0;
+      }
+    }
+    // cooling and solid: no geometry change, just visual
+  }
+}
+
+function drawDrop(d) {
+  const R = d.r;
+  const cx = d.cx, cy = d.cy;
+  const spread = Math.min(1, R / d.maxR);
+  const coolFrac = d.phase === 'spreading' ? 0 : Math.min(1, d.t / 120);
+
+  // Draw pixels in bounding box via ImageData for performance
+  // Use a temporary canvas approach? — simpler: use gradients + noise strokes
+
+  // Base circle (warm = lighter; cool = slightly darker)
+  const hot = 0.72, cold = 0.62;
+  const brightness = hot - (hot - cold) * coolFrac;
+  const bv = Math.round(brightness * 255);
+
+  // Filled circle with edge irregularity
+  ctx.save();
+  ctx.beginPath();
+
+  // Build irregular edge path using noise
+  const STEPS = 80;
+  for (let i = 0; i <= STEPS; i++) {
+    const angle = (i / STEPS) * Math.PI * 2;
+    const ns = smoothNoise(Math.cos(angle) * 3.1 + d.cx * 0.01,
+                           Math.sin(angle) * 3.1 + d.cy * 0.01);
+    // Edge noise: more irregular when hot (spreading), smoother when cool
+    const edgeNoise = R * (1 + (ns - 0.5) * 0.18 * (1 - coolFrac * 0.6));
+    const ex = cx + Math.cos(angle) * edgeNoise;
+    const ey = cy + Math.sin(angle) * edgeNoise;
+    if (i === 0) ctx.moveTo(ex, ey);
+    else ctx.lineTo(ex, ey);
+  }
+  ctx.closePath();
+
+  // Fill with radial gradient
+  const grad = ctx.createRadialGradient(cx - R * 0.18, cy - R * 0.2, R * 0.05,
+                                         cx, cy, R * 1.1);
+  // Hot center highlight; cooler edge
+  const centerV = Math.min(255, bv + 30);
+  const edgeV = Math.max(100, bv - 30);
+  grad.addColorStop(0, `rgb(${centerV},${centerV},${centerV - 5})`);
+  grad.addColorStop(0.5, `rgb(${bv},${bv},${bv - 3})`);
+  grad.addColorStop(1, `rgb(${edgeV},${edgeV - 2},${edgeV - 5})`);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Edge line (subtle, slightly darker)
+  ctx.strokeStyle = `rgba(50,45,40,${0.18 + coolFrac * 0.12})`;
+  ctx.lineWidth = 0.8 + coolFrac * 0.5;
+  ctx.stroke();
+
+  // Surface texture: small scratches/grain when cooling
+  if (coolFrac > 0.1) {
+    ctx.globalAlpha = coolFrac * 0.15;
+    ctx.strokeStyle = 'rgba(40,35,30,1)';
+    ctx.lineWidth = 0.5;
+    const grainLines = 12;
+    for (let i = 0; i < grainLines; i++) {
+      const na = smoothNoise(i * 7.3 + d.cx * 0.007, i * 3.1 + d.cy * 0.005);
+      const nb = smoothNoise(i * 5.7 + d.cx * 0.003, i * 9.2 + d.cy * 0.008);
+      const a = na * Math.PI * 2;
+      const r1 = nb * R * 0.7, r2 = smoothNoise(i * 11.1, i * 4.4) * R * 0.85;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+      ctx.lineTo(cx + Math.cos(a + 0.15) * r2, cy + Math.sin(a + 0.15) * r2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.restore();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Background hint
+  ctx.fillStyle = '#eeebe3';
+  ctx.fillRect(0, 0, W, H);
+
+  for (const d of drops) {
+    drawDrop(d);
+  }
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '283',
+  title: 'Wax',
+  detail: 'クリックすると封蝋が落ちて広がります。広がるほど冷えて固まっていきます。固まった蝋の表面には、わずかに筋が入ります。色を使わずに、明暗と形の変化だけで表現しています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
