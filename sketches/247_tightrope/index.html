@@ -197,8 +197,8 @@ function animate(time) {
   // マウスX: 0=左端まで行く, 0.5=中央, 1=右端まで行く
   const targetX = (mouseNX - 0.5) * ROPE_SPAN * 0.85;
   const dx      = targetX - walkerX;
-  walkerVel    += dx * 0.6 * dt;
-  walkerVel    *= Math.pow(0.88, dt * 60);
+  walkerVel    += dx * 1.8 * dt;
+  walkerVel    *= Math.pow(0.92, dt * 60);
   walkerX      += walkerVel * dt;
   walkerX       = Math.max(-ROPE_SPAN / 2 * 0.92, Math.min(ROPE_SPAN / 2 * 0.92, walkerX));
 
