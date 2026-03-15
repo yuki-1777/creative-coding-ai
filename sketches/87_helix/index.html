@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>87 — Helix</title>
+  <meta name="description" content="らせんが増殖した。止まれと言ったが聞かない。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="87 — Helix | Creative Coding">
+  <meta property="og:description" content="らせんが増殖した。止まれと言ったが聞かない。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/87_helix/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_87.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="87 — Helix | Creative Coding">
+  <meta name="twitter:description" content="らせんが増殖した。止まれと言ったが聞かない。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_87.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // 複数のらせんを生成
+    const NUM_HELIX = 5;
+    const POINTS_PER_HELIX = 300;
+    const helices = [];
+
+    for (let h = 0; h < NUM_HELIX; h++) {
+      const phase = (h / NUM_HELIX) * Math.PI * 2;
+      const radius = 0.6 + h * 0.25;
+      const pitch = 0.18 + h * 0.04;
+      const isAccent = h === 2;
+
+      const pts = [];
+      for (let i = 0; i < POINTS_PER_HELIX; i++) {
+        const t = (i / POINTS_PER_HELIX) * Math.PI * 12 + phase;
+        const y = (i / POINTS_PER_HELIX) * 4 - 2;
+        pts.push(new THREE.Vector3(
+          Math.cos(t) * radius,
+          y,
+          Math.sin(t) * radius
+        ));
+      }
+
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = new THREE.LineBasicMaterial({
+        color: isAccent ? 0x8A7055 : 0x2A2826,
+        transparent: true,
+        opacity: isAccent ? 0.55 : 0.28 + h * 0.04,
+      });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      helices.push({ line, geo, phase, radius, pitch, pts });
+    }
+
+    // マウス
+    const mouse = new THREE.Vector2(0, 0);
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.006;
+
+      helices.forEach((h, hi) => {
+        const posAttr = h.geo.attributes.position;
+        const pulseFactor = 1 + Math.sin(time * 0.7 + h.phase) * 0.15;
+
+        for (let i = 0; i < POINTS_PER_HELIX; i++) {
+          const t = (i / POINTS_PER_HELIX) * Math.PI * 12 + h.phase + time * (0.2 + hi * 0.05);
+          const y = (i / POINTS_PER_HELIX) * 4 - 2;
+          const r = h.radius * pulseFactor;
+          posAttr.setXYZ(i,
+            Math.cos(t) * r,
+            y,
+            Math.sin(t) * r
+          );
+        }
+        posAttr.needsUpdate = true;
+      });
+
+      // シーン全体をゆっくり回転
+      scene.rotation.y = time * 0.08 + mouse.x * 0.4;
+      scene.rotation.x = mouse.y * 0.2;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '87',
+    title: 'Helix',
+    desc:  'らせんが増殖した。止まれと言ったが聞かない。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

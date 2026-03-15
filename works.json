@@ -808,5 +808,50 @@
     "path": "sketches/90_tide/",
     "thumb": "img/thumb_90.png",
     "description": "格子の面に波を通した。潮が引いたあとの砂紋に似ている。"
+  },
+  {
+    "num": "91",
+    "title": "Domain Warp",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/91_domain_warp/",
+    "thumb": "img/thumb_91.png",
+    "description": "ノイズでノイズを曲げた。曲げた先でまた曲げた。地層みたいな縞が流れる。"
+  },
+  {
+    "num": "92",
+    "title": "Turing Pattern",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/92_turing_pattern/",
+    "thumb": "img/thumb_92.png",
+    "description": "活性と抑制。2つのノイズの差が零になる場所に線が出る。豹の斑みたいな形になった。"
+  },
+  {
+    "num": "93",
+    "title": "Polar Harmonics",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/93_polar_harmonics/",
+    "thumb": "img/thumb_93.png",
+    "description": "角度と半径で波を作ったら、勝手に花になった。マウスを左右に動かすと弁の数が変わる。"
+  },
+  {
+    "num": "94",
+    "title": "Contour Field",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/94_reaction_diffusion/",
+    "thumb": "img/thumb_94.png",
+    "description": "高さを測ったことのない土地の、等高線だけ描いた。マウスを上下に動かすと密度が変わる。"
+  },
+  {
+    "num": "95",
+    "title": "Geodesic Lines",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/95_geodesic_lines/",
+    "thumb": "img/thumb_95.png",
+    "description": "球の表面に最短経路を引いた。平面に戻すと曲がる。マウスで球を回せる。"
   }
 ]

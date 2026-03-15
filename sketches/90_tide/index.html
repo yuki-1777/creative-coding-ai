@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>90 — Tide</title>
+  <meta name="description" content="格子の面に波を通した。潮が引いたあとの砂紋に似ている。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="90 — Tide | Creative Coding">
+  <meta property="og:description" content="格子の面に波を通した。潮が引いたあとの砂紋に似ている。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/90_tide/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_90.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="90 — Tide | Creative Coding">
+  <meta name="twitter:description" content="格子の面に波を通した。潮が引いたあとの砂紋に似ている。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_90.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 4, 6);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // 波動する格子平面
+    const GRID = 50;
+    const SIZE = 5;
+    const geo = new THREE.PlaneGeometry(SIZE, SIZE, GRID, GRID);
+    geo.rotateX(-Math.PI / 2);
+
+    const posAttr = geo.attributes.position;
+    const vertCount = posAttr.count;
+
+    // 元のX, Z位置を保存
+    const baseX = new Float32Array(vertCount);
+    const baseZ = new Float32Array(vertCount);
+    for (let i = 0; i < vertCount; i++) {
+      baseX[i] = posAttr.getX(i);
+      baseZ[i] = posAttr.getZ(i);
+    }
+
+    const edges = new THREE.EdgesGeometry(geo);
+    const edgePos = edges.attributes.position;
+
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x2A2826,
+      transparent: true,
+      opacity: 0.3,
+    });
+    const mesh = new THREE.LineSegments(edges, mat);
+    scene.add(mesh);
+
+    // マウスで波の発生点を変える
+    const mouse = new THREE.Vector2(0, 0);
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * SIZE;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * SIZE;
+    });
+
+    let time = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.012;
+
+      for (let i = 0; i < vertCount; i++) {
+        const x = baseX[i];
+        const z = baseZ[i];
+
+        // 複数の波源からの干渉
+        const d1 = Math.sqrt(x * x + z * z);
+        const d2 = Math.sqrt((x - mouse.x * 0.4) * (x - mouse.x * 0.4) + (z - mouse.y * 0.4) * (z - mouse.y * 0.4));
+
+        const wave1 = Math.sin(d1 * 2.5 - time * 1.2) * 0.18 / (1 + d1 * 0.5);
+        const wave2 = Math.sin(d2 * 3.0 - time * 1.5) * 0.12 / (1 + d2 * 0.4);
+
+        posAttr.setY(i, wave1 + wave2);
+      }
+      posAttr.needsUpdate = true;
+
+      // EdgesGeometryを再同期
+      const src = geo.attributes.position;
+      const idx = edges.index;
+      if (idx) {
+        for (let i = 0; i < idx.count; i++) {
+          const vi = idx.getX(i);
+          edgePos.setXYZ(i, src.getX(vi), src.getY(vi), src.getZ(vi));
+        }
+        edgePos.needsUpdate = true;
+      }
+
+      mesh.rotation.y = time * 0.04;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '90',
+    title: 'Tide',
+    desc:  '格子の面に波を通した。潮が引いたあとの砂紋に似ている。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

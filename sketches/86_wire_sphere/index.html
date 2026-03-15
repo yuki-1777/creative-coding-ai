@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>86 — Wire Sphere</title>
+  <meta name="description" content="球を線だけで作ったら、触れるとへこんだ。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="86 — Wire Sphere | Creative Coding">
+  <meta property="og:description" content="球を線だけで作ったら、触れるとへこんだ。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/86_wire_sphere/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_86.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="86 — Wire Sphere | Creative Coding">
+  <meta name="twitter:description" content="球を線だけで作ったら、触れるとへこんだ。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_86.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // 球のジオメトリを頂点レベルで変形する
+    const SEGMENTS = 32;
+    const RADIUS = 1.8;
+    const geo = new THREE.SphereGeometry(RADIUS, SEGMENTS, Math.floor(SEGMENTS * 0.6));
+    const posAttr = geo.attributes.position;
+    const vertCount = posAttr.count;
+
+    // 元の頂点位置を保存
+    const basePos = new Float32Array(vertCount * 3);
+    for (let i = 0; i < vertCount; i++) {
+      basePos[i * 3]     = posAttr.getX(i);
+      basePos[i * 3 + 1] = posAttr.getY(i);
+      basePos[i * 3 + 2] = posAttr.getZ(i);
+    }
+
+    const edges = new THREE.EdgesGeometry(geo);
+    const edgePos = edges.attributes.position;
+
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x2A2826,
+      transparent: true,
+      opacity: 0.45,
+    });
+    const wireframe = new THREE.LineSegments(edges, mat);
+    scene.add(wireframe);
+
+    // アクセント線（赤道ライン相当）
+    const eqGeo = new THREE.EdgesGeometry(new THREE.TorusGeometry(RADIUS, 0.001, 2, SEGMENTS));
+    const eqMat = new THREE.LineBasicMaterial({ color: 0x8A7055, transparent: true, opacity: 0.6 });
+    const equator = new THREE.LineSegments(eqGeo, eqMat);
+    scene.add(equator);
+
+    // マウス位置（正規化）
+    const mouse = new THREE.Vector2(0, 0);
+    const mouseNorm = new THREE.Vector3(0, 0, 0);
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+      mouseNorm.set(mouse.x, mouse.y, 0).normalize();
+    });
+
+    let time = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.007;
+
+      // 球のへこみ：マウス方向の頂点を内側へ押し込む
+      const dent = 0.55 * (0.5 + 0.5 * Math.sin(time * 0.5));
+
+      for (let i = 0; i < vertCount; i++) {
+        const bx = basePos[i * 3];
+        const by = basePos[i * 3 + 1];
+        const bz = basePos[i * 3 + 2];
+        const len = Math.sqrt(bx * bx + by * by + bz * bz);
+        const nx = bx / len, ny = by / len, nz = bz / len;
+
+        // マウス方向との内積でへこみの影響を計算
+        const dot = nx * mouseNorm.x + ny * mouseNorm.y + nz * mouseNorm.z;
+        const influence = Math.max(0, dot);
+        const push = 1.0 - dent * influence * influence;
+
+        posAttr.setXYZ(i, bx * push, by * push, bz * push);
+      }
+      posAttr.needsUpdate = true;
+
+      // EdgesGeometryを再同期
+      const src = geo.attributes.position;
+      const idx = edges.index;
+      if (idx) {
+        for (let i = 0; i < idx.count; i++) {
+          const vi = idx.getX(i);
+          edgePos.setXYZ(i, src.getX(vi), src.getY(vi), src.getZ(vi));
+        }
+        edgePos.needsUpdate = true;
+      }
+
+      wireframe.rotation.y = time * 0.06 + mouse.x * 0.3;
+      wireframe.rotation.x = time * 0.03 + mouse.y * 0.2;
+      equator.rotation.y = wireframe.rotation.y;
+      equator.rotation.x = wireframe.rotation.x;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '86',
+    title: 'Wire Sphere',
+    desc:  '球を線だけで作ったら、触れるとへこんだ。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
