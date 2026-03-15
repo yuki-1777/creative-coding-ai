@@ -113,8 +113,8 @@ function initGrid() {
     nextGrid.push([]);
     prevSinMap.push([]);
     for (let c = 0; c < COLS; c++) {
-      grid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI), beatRate: random(0.10, 0.26), clapped: false });
-      nextGrid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI), beatRate: random(0.10, 0.26), clapped: false });
+      grid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI), beatRate: random(0.06, 0.12), clapped: false });
+      nextGrid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI), beatRate: random(0.06, 0.12), clapped: false });
       prevSinMap[r].push(0);
     }
   }
@@ -223,7 +223,7 @@ function updateGrid() {
                   nextGrid[nr][nc].intensity = 0.8;
                   nextGrid[nr][nc].timer = floor(random(35, 85));
                   nextGrid[nr][nc].beatPhase = cell.beatPhase + random(-0.5, 0.5);
-                  nextGrid[nr][nc].beatRate = constrain(cell.beatRate + random(-0.02, 0.02), 0.10, 0.26);
+                  nextGrid[nr][nc].beatRate = constrain(cell.beatRate + random(-0.01, 0.01), 0.06, 0.12);
                 }
               }
             }
