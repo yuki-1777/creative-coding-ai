@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>260 – Compass</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #edeae3; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xedeae3);
+
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 18, 28);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+// Grid of compass needles
+const ROWS = 14;
+const COLS = 20;
+const SPACING = 2.2;
+
+// Materials
+const matRed   = new THREE.MeshBasicMaterial({ color: 0xb84040 });
+const matDark  = new THREE.MeshBasicMaterial({ color: 0x3a3530 });
+const matPivot = new THREE.MeshBasicMaterial({ color: 0x8a8278 });
+
+const needles = [];
+
+for (let row = 0; row < ROWS; row++) {
+  for (let col = 0; col < COLS; col++) {
+    const group = new THREE.Group();
+    const x = (col - (COLS - 1) / 2) * SPACING;
+    const z = (row - (ROWS - 1) / 2) * SPACING;
+    group.position.set(x, 0, z);
+
+    // Red half (north)
+    const redGeo = new THREE.BoxGeometry(0.15, 0.06, 0.9);
+    const redMesh = new THREE.Mesh(redGeo, matRed);
+    redMesh.position.set(0, 0, -0.45);
+    group.add(redMesh);
+
+    // Dark half (south)
+    const darkGeo = new THREE.BoxGeometry(0.15, 0.06, 0.9);
+    const darkMesh = new THREE.Mesh(darkGeo, matDark);
+    darkMesh.position.set(0, 0, 0.45);
+    group.add(darkMesh);
+
+    // Pivot dot
+    const pivotGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.1, 8);
+    const pivotMesh = new THREE.Mesh(pivotGeo, matPivot);
+    pivotMesh.rotation.x = Math.PI / 2;
+    group.add(pivotMesh);
+
+    scene.add(group);
+    needles.push({
+      group,
+      angle: Math.random() * Math.PI * 2,
+      targetAngle: 0,
+      x, z
+    });
+  }
+}
+
+// Mouse magnetic pole position
+let poleX = 0;
+let poleZ = 0;
+let mouseNDC = { x: 0, y: 0 };
+
+window.addEventListener('mousemove', (e) => {
+  mouseNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouseNDC.y = -((e.clientY / window.innerHeight) * 2 - 1);
+
+  // Project mouse to world XZ plane (y=0)
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouseNDC, camera);
+  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const target = new THREE.Vector3();
+  raycaster.ray.intersectPlane(plane, target);
+  if (target) {
+    poleX = target.x;
+    poleZ = target.z;
+  }
+});
+
+let time = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  time += 0.016;
+
+  for (let n of needles) {
+    // Direction from needle to magnetic pole
+    const dx = poleX - n.x;
+    const dz = poleZ - n.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+
+    // Add slight wobble based on distance
+    const wobble = Math.sin(time * 1.8 + n.x * 0.3 + n.z * 0.2) * 0.04 / (1 + dist * 0.05);
+
+    // Target: point toward pole in XZ plane, needle rotates around Y
+    let target = Math.atan2(dx, dz) + wobble;
+    n.targetAngle = target;
+
+    // Smooth follow with inertia
+    let diff = n.targetAngle - n.angle;
+    // Normalize to [-PI, PI]
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    n.angle += diff * 0.06;
+
+    n.group.rotation.y = n.angle;
+  }
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '260',
+  title:  'Compass',
+  detail: 'マウスを動かすと、全ての針がその方向を向きます。それぞれの針が少しずつ遅れて反応するので、波のような動きが生まれます。赤い先が北。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
