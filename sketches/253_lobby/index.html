@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lobby</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+const ROWS = 5;
+const COLS = 8;
+const SEAT_W = 72;
+const SEAT_H = 54;
+const GAP_X = 32;
+const GAP_Y = 48;
+const PERSON_R = 5;
+
+// State: 0=empty, 1=waiting, 2=departing
+const seats = [];
+const people = []; // { seat, phase, timer, alpha, offsetX, offsetY }
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Init seats grid
+const gridW = COLS * (SEAT_W + GAP_X) - GAP_X;
+const gridH = ROWS * (SEAT_H + GAP_Y) - GAP_Y;
+
+function seatPos(row, col) {
+  const startX = (W - gridW) / 2;
+  const startY = (H - gridH) / 2 + 10;
+  return {
+    x: startX + col * (SEAT_W + GAP_X),
+    y: startY + row * (SEAT_H + GAP_Y)
+  };
+}
+
+// Init seat states
+for (let r = 0; r < ROWS; r++) {
+  seats.push([]);
+  for (let c = 0; c < COLS; c++) {
+    seats[r].push({ occupied: false, personIdx: -1 });
+  }
+}
+
+// Person management
+let personIdCounter = 0;
+
+function addPerson() {
+  // Find empty seat
+  const emptySeatList = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (!seats[r][c].occupied) emptySeatList.push({ r, c });
+    }
+  }
+  if (emptySeatList.length === 0) return;
+  const pick = emptySeatList[Math.floor(Math.random() * emptySeatList.length)];
+  const { r, c } = pick;
+  seats[r][c].occupied = true;
+  const pos = seatPos(r, c);
+  const id = personIdCounter++;
+  people.push({
+    id,
+    row: r,
+    col: c,
+    phase: 'arriving', // arriving -> sitting -> departing
+    timer: 0,
+    sitDuration: 300 + Math.random() * 600, // frames to sit
+    alpha: 0,
+    x: pos.x + SEAT_W / 2 + (Math.random() - 0.5) * 6,
+    y: pos.y + SEAT_H * 0.3 + (Math.random() - 0.5) * 4,
+    destX: pos.x + SEAT_W / 2 + (Math.random() - 0.5) * 4,
+    destY: pos.y + SEAT_H * 0.3,
+    startX: pos.x + SEAT_W / 2 + (Math.random() - 0.5) * 80,
+    startY: pos.y - 60,
+    arrivalT: 0
+  });
+  seats[r][c].personIdx = id;
+}
+
+function removePerson(person) {
+  seats[person.row][person.col].occupied = false;
+  seats[person.row][person.col].personIdx = -1;
+}
+
+// Timers for arrival/departure
+let arrivalTimer = 0;
+const ARRIVAL_INTERVAL_MIN = 80;
+const ARRIVAL_INTERVAL_MAX = 180;
+let nextArrival = 60;
+
+let t = 0;
+
+function drawSeat(x, y, occupied) {
+  // Seat back
+  ctx.strokeStyle = occupied ? '#8a7a6e' : '#c8bfb4';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.rect(x, y, SEAT_W, SEAT_H * 0.55);
+  ctx.stroke();
+  // Seat bottom
+  ctx.beginPath();
+  ctx.rect(x, y + SEAT_H * 0.55, SEAT_W, SEAT_H * 0.45);
+  ctx.stroke();
+  // Subtle fill
+  ctx.fillStyle = occupied ? 'rgba(138,122,110,0.07)' : 'rgba(200,191,180,0.04)';
+  ctx.fillRect(x, y, SEAT_W, SEAT_H);
+}
+
+function drawPerson(p) {
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
+  const x = p.x;
+  const y = p.y;
+  // Head
+  ctx.beginPath();
+  ctx.arc(x, y - PERSON_R, PERSON_R, 0, Math.PI * 2);
+  ctx.strokeStyle = '#5a4e44';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  // Shoulders
+  ctx.beginPath();
+  ctx.moveTo(x - PERSON_R * 1.5, y + PERSON_R * 0.5);
+  ctx.quadraticCurveTo(x, y + PERSON_R * 2, x + PERSON_R * 1.5, y + PERSON_R * 0.5);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function easeOut(t) { return 1 - (1 - t) * (1 - t); }
+
+function update() {
+  t++;
+  arrivalTimer++;
+
+  // Arrival
+  if (arrivalTimer >= nextArrival) {
+    addPerson();
+    arrivalTimer = 0;
+    nextArrival = ARRIVAL_INTERVAL_MIN + Math.random() * (ARRIVAL_INTERVAL_MAX - ARRIVAL_INTERVAL_MIN);
+  }
+
+  // Update people
+  for (let i = people.length - 1; i >= 0; i--) {
+    const p = people[i];
+    p.timer++;
+
+    if (p.phase === 'arriving') {
+      p.arrivalT = Math.min(1, p.arrivalT + 0.035);
+      const ease = easeOut(p.arrivalT);
+      p.x = lerp(p.startX, p.destX, ease);
+      p.y = lerp(p.startY, p.destY, ease);
+      p.alpha = p.arrivalT * 1.2;
+      if (p.arrivalT >= 1) {
+        p.phase = 'sitting';
+        p.timer = 0;
+        p.alpha = 1;
+      }
+    } else if (p.phase === 'sitting') {
+      // Slight idle motion
+      const pos = seatPos(p.row, p.col);
+      p.x = pos.x + SEAT_W / 2 + Math.sin(t * 0.012 + p.id * 1.7) * 0.8;
+      p.y = pos.y + SEAT_H * 0.3 + Math.sin(t * 0.009 + p.id * 2.3) * 0.5;
+      if (p.timer >= p.sitDuration) {
+        p.phase = 'departing';
+        p.timer = 0;
+        p.departAlpha = 1;
+      }
+    } else if (p.phase === 'departing') {
+      p.alpha = 1 - p.timer / 40;
+      p.y -= 0.7;
+      if (p.timer >= 40) {
+        removePerson(p);
+        people.splice(i, 1);
+      }
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Background hint — subtle row lines
+  ctx.strokeStyle = 'rgba(160,150,140,0.06)';
+  ctx.lineWidth = 1;
+
+  // Draw seats
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const pos = seatPos(r, c);
+      drawSeat(pos.x, pos.y, seats[r][c].occupied);
+    }
+  }
+
+  // Draw people
+  for (const p of people) {
+    drawPerson(p);
+  }
+
+  // Occupancy count — very subtle
+  const total = ROWS * COLS;
+  const occupied = people.length;
+  ctx.fillStyle = 'rgba(120,110,100,0.3)';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(`${occupied} / ${total}`, W - 24, H - 24);
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// Start with a few people already seated
+for (let i = 0; i < 8; i++) {
+  addPerson();
+}
+
+loop();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '253',
+  title:  'Lobby',
+  detail: '待合室の椅子が埋まったり空いたりするリズム。一定の間隔で人が来て、しばらく待ってから立ち去る。操作は不要。ただ見ていると、静かなリズムが感じられる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

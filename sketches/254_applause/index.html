@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Applause</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Applause: clapping spreads through a crowd like a contagion
+// Cells represent audience members; each can be: silent, clapping, resting
+// Clapping is infectious — a silent neighbor can catch the impulse
+
+const ROWS = 22;
+const COLS = 32;
+const STATES = { SILENT: 0, CLAPPING: 1, RESTING: 2 };
+
+let grid = [];
+let nextGrid = [];
+let cellW, cellH;
+let framesSinceLastClick = 0;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  initGrid();
+  // Seed with a few initial clappers
+  for (let i = 0; i < 5; i++) {
+    const r = floor(random(ROWS));
+    const c = floor(random(COLS));
+    triggerClapping(r, c);
+  }
+}
+
+function initGrid() {
+  grid = [];
+  nextGrid = [];
+  for (let r = 0; r < ROWS; r++) {
+    grid.push([]);
+    nextGrid.push([]);
+    for (let c = 0; c < COLS; c++) {
+      grid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI) });
+      nextGrid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI) });
+    }
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+
+function getCellSize() {
+  const margin = 60;
+  cellW = (width - margin * 2) / COLS;
+  cellH = (height - margin * 2) / ROWS;
+}
+
+function cellToXY(r, c) {
+  const margin = 60;
+  return {
+    x: margin + c * cellW + cellW / 2,
+    y: margin + r * cellH + cellH / 2
+  };
+}
+
+function xyToCell(x, y) {
+  const margin = 60;
+  const c = floor((x - margin) / cellW);
+  const r = floor((y - margin) / cellH);
+  return { r, c };
+}
+
+function triggerClapping(r, c) {
+  if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return;
+  if (grid[r][c].state === STATES.SILENT) {
+    grid[r][c].state = STATES.CLAPPING;
+    grid[r][c].intensity = 1.0;
+    grid[r][c].timer = floor(random(40, 90));
+  }
+}
+
+function mousePressed() {
+  getCellSize();
+  const { r, c } = xyToCell(mouseX, mouseY);
+  // Trigger a cluster around click
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -2; dc <= 2; dc++) {
+      if (random() < 0.7) triggerClapping(r + dr, c + dc);
+    }
+  }
+  framesSinceLastClick = 0;
+}
+
+function updateGrid() {
+  // Deep copy
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      nextGrid[r][c].state = grid[r][c].state;
+      nextGrid[r][c].intensity = grid[r][c].intensity;
+      nextGrid[r][c].timer = grid[r][c].timer;
+      nextGrid[r][c].beatPhase = grid[r][c].beatPhase;
+    }
+  }
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = grid[r][c];
+      const next = nextGrid[r][c];
+
+      if (cell.state === STATES.CLAPPING) {
+        next.timer--;
+        // Beat pulse
+        next.beatPhase = (cell.beatPhase + 0.18) % TWO_PI;
+        next.intensity = 0.6 + 0.4 * abs(sin(cell.beatPhase));
+
+        if (next.timer <= 0) {
+          next.state = STATES.RESTING;
+          next.timer = floor(random(20, 50));
+          next.intensity = 0;
+        } else {
+          // Spread to neighbors with probability based on neighbor count
+          const dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+          for (const [dr, dc] of dirs) {
+            const nr = r + dr;
+            const nc = c + dc;
+            if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+              if (grid[nr][nc].state === STATES.SILENT) {
+                // Infection probability: lower for diagonals
+                const isDiag = dr !== 0 && dc !== 0;
+                const prob = isDiag ? 0.018 : 0.032;
+                if (random() < prob) {
+                  nextGrid[nr][nc].state = STATES.CLAPPING;
+                  nextGrid[nr][nc].intensity = 0.8;
+                  nextGrid[nr][nc].timer = floor(random(35, 85));
+                  nextGrid[nr][nc].beatPhase = cell.beatPhase + random(-0.5, 0.5);
+                }
+              }
+            }
+          }
+        }
+      } else if (cell.state === STATES.RESTING) {
+        next.timer--;
+        next.intensity = max(0, cell.intensity - 0.04);
+        if (next.timer <= 0) {
+          next.state = STATES.SILENT;
+          next.intensity = 0;
+        }
+      }
+    }
+  }
+
+  // Swap
+  const tmp = grid;
+  grid = nextGrid;
+  nextGrid = tmp;
+}
+
+function draw() {
+  background(240, 237, 232);
+  getCellSize();
+  framesSinceLastClick++;
+
+  updateGrid();
+
+  // Count clapping cells for overall energy
+  let clapCount = 0;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (grid[r][c].state === STATES.CLAPPING) clapCount++;
+    }
+  }
+
+  // Draw cells
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = grid[r][c];
+      const { x, y } = cellToXY(r, c);
+
+      const maxR = min(cellW, cellH) * 0.35;
+
+      if (cell.state === STATES.CLAPPING) {
+        // Person circle — size pulses with beat
+        const pulse = 0.7 + 0.3 * abs(sin(cell.beatPhase));
+        const r2 = maxR * 0.55 * pulse;
+
+        // Ripple ring
+        const rippleR = maxR * 0.9 * (1 - abs(sin(cell.beatPhase)) * 0.3);
+        stroke(160, 130, 100, 60 * cell.intensity);
+        strokeWeight(0.8);
+        noFill();
+        circle(x, y, rippleR * 2);
+
+        // Person dot
+        noStroke();
+        fill(90, 70, 55, 200 * cell.intensity);
+        circle(x, y, r2 * 2);
+
+        // Tiny hands flicker
+        const hOff = r2 * 1.5 * pulse;
+        stroke(90, 70, 55, 150 * cell.intensity);
+        strokeWeight(1.0);
+        noFill();
+        // left hand
+        arc(x - hOff, y + r2 * 0.2, r2 * 0.8, r2 * 0.8, -PI * 0.8, 0);
+        // right hand
+        arc(x + hOff, y + r2 * 0.2, r2 * 0.8, r2 * 0.8, PI, PI * 1.8);
+
+      } else if (cell.state === STATES.RESTING) {
+        // Fading dot
+        noStroke();
+        fill(160, 140, 120, 80 * cell.intensity);
+        const r2 = maxR * 0.35;
+        circle(x, y, r2 * 2);
+      } else {
+        // Silent — small person silhouette
+        noStroke();
+        fill(190, 182, 172, 90);
+        circle(x, y - maxR * 0.18, maxR * 0.28 * 2);
+        // shoulders
+        stroke(190, 182, 172, 70);
+        strokeWeight(0.8);
+        noFill();
+        arc(x, y + maxR * 0.15, maxR * 0.6 * 2, maxR * 0.5 * 2, PI, TWO_PI);
+      }
+    }
+  }
+
+  // Hint text if nothing happening
+  if (framesSinceLastClick > 180 && clapCount === 0) {
+    noStroke();
+    fill(160, 150, 140, map(sin(frameCount * 0.04), -1, 1, 60, 130));
+    textAlign(CENTER, CENTER);
+    textSize(13);
+    text('click', width / 2, height / 2);
+  }
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '254',
+  title:  'Applause',
+  detail: 'クリックした場所から拍手が広がる。隣の席に伝わり、また隣へ。しばらくすると自然に収まる。クリックした場所によって、広がり方が変わる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
