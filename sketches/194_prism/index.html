@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prism</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xf5f4f0);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+  camera.position.set(0, 0, 5);
+
+  let W = window.innerWidth, H = window.innerHeight;
+  renderer.setSize(W, H);
+  const aspect = W / H;
+  camera.left = -aspect; camera.right = aspect;
+  camera.updateProjectionMatrix();
+
+  // Light rays: beam enters prism and splits
+  // We draw the incoming beam + 3 outgoing beams (R, G, B approximate)
+  const beamGroup = new THREE.Group();
+  scene.add(beamGroup);
+
+  // Prism triangle vertices (outline only)
+  const prismShape = new THREE.Shape();
+  prismShape.moveTo(0, 0.4);
+  prismShape.lineTo(-0.35, -0.25);
+  prismShape.lineTo(0.35, -0.25);
+  prismShape.lineTo(0, 0.4);
+
+  const prismPoints = [];
+  prismShape.getPoints().forEach(p => prismPoints.push(new THREE.Vector3(p.x, p.y, 0)));
+  const prismGeo = new THREE.BufferGeometry().setFromPoints(prismPoints);
+  const prismLine = new THREE.Line(prismGeo, new THREE.LineBasicMaterial({ color: 0x888880, linewidth: 1 }));
+  scene.add(prismLine);
+
+  // Mouse
+  let mouseX = 0.3;
+  canvas.addEventListener('mousemove', e => {
+    mouseX = (e.clientX / W) * 2 - 1;
+  });
+
+  // Create beam lines (4 segments: 1 incoming + 3 outgoing)
+  const makeBeam = (color) => {
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(6);
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.LineBasicMaterial({ color });
+    return new THREE.Line(geo, mat);
+  };
+
+  const inBeam = makeBeam(0x888880);
+  const redBeam = makeBeam(0xc87860);
+  const greenBeam = makeBeam(0x7a9070);
+  const blueBeam = makeBeam(0x607090);
+
+  scene.add(inBeam);
+  scene.add(redBeam);
+  scene.add(greenBeam);
+  scene.add(blueBeam);
+
+  // Dashes for beam extension
+  const makeDash = (color) => {
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(60); // 10 dashes * 2 points * 3 coords
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35 }));
+    return mat;
+  };
+
+  // Simple refraction: incident angle -> slight dispersion
+  function updateBeams(t) {
+    const angle = mouseX * 0.5 + 0.2; // angle of incoming beam
+    // Incoming beam from left: hits left face of prism
+    // Prism left face: from (0,0.4) to (-0.35,-0.25)
+    // Intersection with left face at y=0
+    const hitX = -0.17;
+    const hitY = 0.07;
+
+    // Incoming direction
+    const dx = Math.cos(angle) * 0.9;
+    const dy = Math.sin(angle) * 0.9;
+
+    // Incoming beam start
+    const startX = hitX - dx * 1.5;
+    const startY = hitY - dy * 1.5;
+
+    // Set incoming beam
+    const inPos = inBeam.geometry.attributes.position.array;
+    inPos[0] = startX; inPos[1] = startY; inPos[2] = 0;
+    inPos[3] = hitX; inPos[4] = hitY; inPos[5] = 0;
+    inBeam.geometry.attributes.position.needsUpdate = true;
+
+    // Outgoing: slight dispersion per wavelength
+    const dispersionAngles = [
+      angle - 0.30 + Math.sin(t * 0.2) * 0.05,  // red: least refraction
+      angle - 0.42 + Math.sin(t * 0.2) * 0.05,  // green
+      angle - 0.55 + Math.sin(t * 0.2) * 0.05   // blue: most refraction
+    ];
+
+    const beams = [redBeam, greenBeam, blueBeam];
+    beams.forEach((beam, i) => {
+      const a = dispersionAngles[i];
+      const ex = hitX + Math.cos(a) * 1.5;
+      const ey = hitY + Math.sin(a) * 1.5;
+      const pos = beam.geometry.attributes.position.array;
+      pos[0] = hitX; pos[1] = hitY; pos[2] = 0;
+      pos[3] = ex; pos[4] = ey; pos[5] = 0;
+      beam.geometry.attributes.position.needsUpdate = true;
+    });
+  }
+
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    t += 0.016;
+    updateBeams(t);
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    W = window.innerWidth; H = window.innerHeight;
+    renderer.setSize(W, H);
+    const aspect = W / H;
+    camera.left = -aspect; camera.right = aspect;
+    camera.updateProjectionMatrix();
+  });
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '194',
+  title:  'Prism',
+  detail: 'マウスを左右に動かすと光の入射角が変わります。白い光がプリズムに入り、赤・緑・青の3本に分かれます。実際のプリズムでは波長ごとに屈折率が違うため、色ごとに異なる角度で出てきます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
