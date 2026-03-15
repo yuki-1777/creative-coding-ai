@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>209 – Tide Mark</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f3ef; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// ============================================================
+//  209 – Tide Mark
+//  潮が引いた後の水位の跡（等値線）をGLSLで描く
+//  時間とともに潮位が変化し、跡が積み重なる
+//  制約：等値線のみ（塗りなし）
+// ============================================================
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_time;
+uniform float u_seed;
+
+float hash(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7) + u_seed * 0.1);
+  p += dot(p, p + 17.5);
+  return fract(p.x * p.y);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float amp = 0.5;
+  float freq = 1.0;
+  for (int i = 0; i < 5; i++) {
+    v += amp * noise(p * freq);
+    freq *= 2.1;
+    amp  *= 0.5;
+  }
+  return v;
+}
+
+// 海岸線の高さ場（地形）
+// fbmで不規則な海岸を表現
+float terrain(vec2 uv) {
+  // 基本傾斜（左が低い海、右が高い陸）
+  float base = uv.x * 0.4 + 0.2;
+
+  // 海岸線の凸凹
+  float coast = fbm(vec2(uv.x * 2.5 + u_seed * 0.3, uv.y * 3.0 + u_seed * 0.7)) * 0.4;
+  float coast2 = fbm(vec2(uv.x * 5.0 + u_seed, uv.y * 6.0)) * 0.15;
+
+  // 入り江（海が陸に食い込む部分）
+  float bay = fbm(vec2(uv.y * 2.0 + u_seed * 2.1, uv.x * 4.0)) * 0.25;
+
+  return base + coast + coast2 - bay;
+}
+
+// 潮位関数（時間とともに変化）
+float tideLevel(float t) {
+  // 2重正弦で潮汐の周期的変化
+  return 0.5 + 0.2 * sin(t * 0.4) + 0.08 * sin(t * 1.1 + 1.3);
+}
+
+// 等値線（level での contour line）
+float contourLine(float field, float level, float width) {
+  float d = abs(field - level);
+  return smoothstep(width, 0.0, d);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+
+  float h = terrain(uv);
+
+  // 現在の潮位
+  float currentTide = tideLevel(u_time);
+
+  // 過去の潮位跡（複数の水位線）
+  float totalMark = 0.0;
+
+  // 現在から過去方向に等値線を描く（一定時間ごとの水位）
+  // 跡は薄くフェードする（古いほど薄い）
+  for (int i = 0; i < 12; i++) {
+    float fi = float(i);
+
+    // 過去の時刻での潮位
+    float pastTime = u_time - fi * 1.5;
+    float pastTide = tideLevel(pastTime);
+
+    // 古いほど薄く
+    float age = fi / 12.0;
+    float opacity = (1.0 - age * 0.75);
+
+    // 水際線の幅（古いほど細い＆薄い）
+    float lineWidth = 0.008 - age * 0.004;
+
+    float mark = contourLine(h, pastTide, lineWidth) * opacity;
+    totalMark = max(totalMark, mark);
+  }
+
+  // 現在の水際線（一番濃い）
+  float currentMark = contourLine(h, currentTide, 0.010);
+  totalMark = max(totalMark, currentMark * 0.9);
+
+  // 水面（現在の水位より低い部分に薄いシャドウ）
+  float waterZone = smoothstep(currentTide + 0.02, currentTide - 0.02, h);
+  float waterShading = waterZone * 0.06;
+
+  float total = clamp(totalMark + waterShading, 0.0, 1.0);
+
+  vec3 bg      = vec3(0.961, 0.953, 0.941);
+  vec3 markCol = vec3(0.32, 0.30, 0.28);
+
+  vec3 col = mix(bg, markCol, total);
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+function createProgram(vs, fs) {
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(prog));
+  }
+  return prog;
+}
+
+const prog = createProgram(VS, FS);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes  = gl.getUniformLocation(prog, 'u_res');
+const uTime = gl.getUniformLocation(prog, 'u_time');
+const uSeed = gl.getUniformLocation(prog, 'u_seed');
+
+const startTime = performance.now();
+let seed = Math.random() * 100.0;
+
+canvas.addEventListener('click', () => {
+  seed = Math.random() * 100.0;
+});
+
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform1f(uSeed, seed);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '209',
+  title:  'Tide Mark',
+  detail: '潮の満ち引きが地形の上を動いていく。残るのは線だけ——かつて水がそこにあった証拠。古い線ほど薄くなる。クリックで地形が変わる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
