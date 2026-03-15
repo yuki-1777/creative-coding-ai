@@ -22,7 +22,7 @@
     #fb-trigger {
       position: fixed;
       bottom: 32px;
-      right: 100px;
+      right: 32px;
       z-index: 9999;
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
       font-weight: 300;
@@ -40,7 +40,7 @@
 
     #fb-overlay {
       position: fixed;
-      bottom: 72px;
+      bottom: 110px;
       right: 32px;
       z-index: 9998;
       width: min(360px, calc(100vw - 64px));
@@ -142,6 +142,13 @@
   const trigger = document.createElement('button');
   trigger.id = 'fb-trigger';
   trigger.textContent = 'FB';
+  // スケッチページ: save thumb の上に縦積み / ギャラリー: DEV ボタン横
+  if (isSketchPage) {
+    trigger.style.bottom = '70px';
+    trigger.style.right  = '32px';
+  } else {
+    trigger.style.right  = '100px';
+  }
   document.body.appendChild(trigger);
 
   const overlay = document.createElement('div');
