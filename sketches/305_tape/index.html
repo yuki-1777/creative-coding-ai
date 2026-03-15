@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tape</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #edebe3; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Tape — ホイールを回すとテープが引き出される/巻き戻される。
+// テープの中身は描かない。透明感は色の薄い重なりで表現。
+// favicon でリール残量を示す。
+// 制約: テープが「何に貼ってあるか」は一切描かない。
+
+// ─── テープの物理パラメータ ──────────────────────────────────────────────────
+const TAPE_WIDTH    = 18;   // テープの幅 (px)
+const TAPE_LAYER_H  = 3.5;  // 1巻きごとの厚み (px)
+const MIN_CORE_R    = 28;   // コア（芯）の最小半径
+const MAX_LAYERS    = 30;   // 最大巻き数
+const TAPE_COLOR_R  = 238;
+const TAPE_COLOR_G  = 230;
+const TAPE_COLOR_B  = 200;
+const TAPE_ALPHA    = 0.55; // テープの透明度
+
+// ─── 状態 ───────────────────────────────────────────────────────────────────
+let layers     = 22;     // 現在の巻き数（0〜MAX_LAYERS）
+let pullLen    = 0;      // 引き出したテープの長さ (px)
+let pullTarget = 0;     // 目標引き出し長さ（ホイールで変化）
+let rX, rY;             // リールの中心位置
+let pullAngle  = -Math.PI / 4; // テープが引き出される方向
+
+// favicon canvas
+let favCanvas, favCtx;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  rX = width  * 0.5;
+  rY = height * 0.5;
+  colorMode(RGB, 255);
+
+  // favicon の初期化
+  favCanvas = document.createElement('canvas');
+  favCanvas.width  = 32;
+  favCanvas.height = 32;
+  favCtx = favCanvas.getContext('2d');
+  setupFavicon();
+  updateFavicon();
+}
+
+function setupFavicon() {
+  let link = document.querySelector("link[rel~='icon']");
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'icon';
+    document.head.appendChild(link);
+  }
+  link.href = favCanvas.toDataURL();
+}
+
+function updateFavicon() {
+  const fc = favCtx;
+  const w  = 32, h = 32, cx = 16, cy = 16;
+  fc.clearRect(0, 0, w, h);
+
+  // 背景
+  fc.fillStyle = 'rgba(237,235,227,1)';
+  fc.fillRect(0, 0, w, h);
+
+  // リール（残量=外周弧）
+  const ratio = layers / MAX_LAYERS;
+  const outerR = 13;
+  const innerR = 6;
+
+  // 全体リング（薄）
+  fc.strokeStyle = 'rgba(160,155,140,0.3)';
+  fc.lineWidth   = 5;
+  fc.beginPath();
+  fc.arc(cx, cy, (outerR + innerR) / 2, 0, Math.PI * 2);
+  fc.stroke();
+
+  // 残量弧
+  fc.strokeStyle = 'rgba(90,82,70,0.85)';
+  fc.lineWidth   = 5;
+  fc.beginPath();
+  fc.arc(cx, cy, (outerR + innerR) / 2, -Math.PI * 0.5, -Math.PI * 0.5 + ratio * Math.PI * 2);
+  fc.stroke();
+
+  // 芯
+  fc.fillStyle = 'rgba(90,82,70,0.5)';
+  fc.beginPath();
+  fc.arc(cx, cy, 3, 0, Math.PI * 2);
+  fc.fill();
+
+  // faviconに反映
+  let link = document.querySelector("link[rel~='icon']");
+  if (link) link.href = favCanvas.toDataURL();
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  rX = width  * 0.5;
+  rY = height * 0.5;
+}
+
+function draw() {
+  background(237, 235, 227);
+
+  // ── 引き出し長さのスムーズ追従 ─────────────────────────────────────────
+  pullLen = lerp(pullLen, pullTarget, 0.12);
+
+  // ── テープのリール描画 ──────────────────────────────────────────────────
+  drawReel();
+
+  // ── 引き出されたテープ ─────────────────────────────────────────────────
+  if (pullLen > 1) {
+    drawPulledTape();
+  }
+
+  // ── ヒントテキスト ─────────────────────────────────────────────────────
+  if (frameCount < 200 || (abs(pullTarget) < 1 && pullLen < 2)) {
+    noStroke();
+    fill(80, 74, 65, 55);
+    textFont('monospace');
+    textSize(11);
+    textAlign(CENTER);
+    text('ホイールを回すとテープが動く', rX, rY + outerRadius() + 48);
+    noFill();
+  }
+}
+
+function outerRadius() {
+  return MIN_CORE_R + layers * TAPE_LAYER_H;
+}
+
+function drawReel() {
+  const outerR = outerRadius();
+  const coreR  = MIN_CORE_R;
+
+  push();
+  translate(rX, rY);
+
+  // テープの巻き（外側から内側へ同心円で表現）
+  noFill();
+  for (let i = 0; i < layers; i++) {
+    const r = coreR + i * TAPE_LAYER_H + TAPE_LAYER_H / 2;
+    // テープの色：重なるほど少し濃くなる（透明感）
+    // 外側ほど薄く（透明感）、内側ほど濃く（重なりの蓄積）
+    const depthAlpha = map(i, 0, layers, 0.55, 0.15);
+    stroke(TAPE_COLOR_R - 20, TAPE_COLOR_G - 18, TAPE_COLOR_B - 40, depthAlpha * 255);
+    strokeWeight(TAPE_LAYER_H * 0.75);
+    circle(0, 0, r * 2);
+  }
+
+  // テープの側面のエッジ線（外周）
+  stroke(180, 172, 148, 140);
+  strokeWeight(1.0);
+  circle(0, 0, outerR * 2);
+
+  // 芯のリング
+  stroke(120, 112, 95, 180);
+  strokeWeight(1.2);
+  circle(0, 0, coreR * 2);
+
+  // 芯の中心十字
+  stroke(120, 112, 95, 130);
+  strokeWeight(0.8);
+  const cs = coreR * 0.45;
+  line(-cs, 0, cs, 0);
+  line(0, -cs, 0, cs);
+
+  // 引き出し口のノッチ（テープが出ていく角度）
+  if (pullLen > 1 || layers < MAX_LAYERS) {
+    stroke(140, 132, 110, 160);
+    strokeWeight(0.8);
+    const nx = cos(pullAngle) * outerR;
+    const ny = sin(pullAngle) * outerR;
+    line(nx * 0.85, ny * 0.85, nx * 1.12, ny * 1.12);
+  }
+
+  pop();
+}
+
+function drawPulledTape() {
+  const outerR = outerRadius();
+  const startX = rX + cos(pullAngle) * outerR;
+  const startY = rY + sin(pullAngle) * outerR;
+
+  // テープの先端位置
+  const tipX = startX + cos(pullAngle) * pullLen;
+  const tipY = startY + sin(pullAngle) * pullLen;
+
+  // テープ帯（幅を持った矩形を線で表現）
+  // 引き出し方向に垂直な単位ベクトル
+  const perpX = -sin(pullAngle);
+  const perpY =  cos(pullAngle);
+  const hw = TAPE_WIDTH / 2;  // 幅の半分
+
+  // テープ本体（薄い色の重なりで透明感）
+  for (let layer = 0; layer < 3; layer++) {
+    const alpha = (0.25 - layer * 0.06) * 255;
+    fill(TAPE_COLOR_R, TAPE_COLOR_G, TAPE_COLOR_B, alpha);
+    noStroke();
+    beginShape();
+    vertex(startX + perpX * hw, startY + perpY * hw);
+    vertex(tipX   + perpX * hw, tipY   + perpY * hw);
+    vertex(tipX   - perpX * hw, tipY   - perpY * hw);
+    vertex(startX - perpX * hw, startY - perpY * hw);
+    endShape(CLOSE);
+  }
+
+  // テープのエッジ線（上下）
+  stroke(180, 170, 142, 160);
+  strokeWeight(0.8);
+  noFill();
+  line(startX + perpX * hw, startY + perpY * hw, tipX + perpX * hw, tipY + perpY * hw);
+  line(startX - perpX * hw, startY - perpY * hw, tipX - perpX * hw, tipY - perpY * hw);
+
+  // テープ先端のギザギザ（切り口）
+  drawTapeTip(tipX, tipY, pullAngle, hw);
+
+  // テープ内部の縦縞（テクスチャ的な表現、数本）
+  stroke(170, 162, 136, 40);
+  strokeWeight(0.5);
+  const numStripes = 5;
+  for (let i = 1; i < numStripes; i++) {
+    const t = i / numStripes;
+    const ox = lerp(-hw, hw, t);
+    const sx = startX + perpX * ox;
+    const sy = startY + perpY * ox;
+    const ex = tipX   + perpX * ox;
+    const ey = tipY   + perpY * ox;
+    line(sx, sy, ex, ey);
+  }
+}
+
+function drawTapeTip(tx, ty, angle, hw) {
+  // テープの先端：少し不規則なギザギザ
+  const nx = cos(angle);
+  const ny = sin(angle);
+  const perpX = -sin(angle);
+  const perpY =  cos(angle);
+  const teeth = 6;
+  const depth = 3.5;
+
+  noStroke();
+  fill(237, 235, 227, 255); // 背景色でマスク
+  beginShape();
+  vertex(tx + perpX * hw, ty + perpY * hw);
+  for (let i = 0; i <= teeth; i++) {
+    const t = i / teeth;
+    const ox = lerp(-hw, hw, t);
+    const jitter = (i % 2 === 0) ? depth : 0;
+    vertex(tx + perpX * ox + nx * jitter, ty + perpY * ox + ny * jitter);
+  }
+  vertex(tx - perpX * hw, ty - perpY * hw);
+  vertex(tx - perpX * hw - nx * depth, ty - perpY * hw - ny * depth);
+  vertex(tx + perpX * hw - nx * depth, ty + perpY * hw - ny * depth);
+  endShape(CLOSE);
+
+  // 切り口の線
+  stroke(155, 145, 120, 130);
+  strokeWeight(0.7);
+  noFill();
+  beginShape();
+  for (let i = 0; i <= teeth; i++) {
+    const t = i / teeth;
+    const ox = lerp(-hw, hw, t);
+    const jitter = (i % 2 === 0) ? depth : 0;
+    vertex(tx + perpX * ox + nx * jitter, ty + perpY * ox + ny * jitter);
+  }
+  endShape();
+}
+
+function mouseWheel(event) {
+  // ホイールで引き出し量を変化
+  const delta = event.delta;
+
+  // ホイール上方向（deltaが負）→ テープを引き出す
+  // ホイール下方向（deltaが正）→ 巻き戻す
+  pullTarget += delta * 0.35;
+  pullTarget = constrain(pullTarget, 0, 600);
+
+  // 巻き戻し時は layers を増やす、引き出し時は減らす
+  const prevLayers = layers;
+  layers = round(map(pullTarget, 0, 600, 22, 3));
+  layers = constrain(layers, 5, MAX_LAYERS);
+
+  if (layers !== prevLayers) {
+    updateFavicon();
+  }
+
+  return false; // デフォルトのスクロールを防ぐ
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '305',
+  title:  'Tape',
+  detail: 'マウスホイールを回すとテープが引き出される。逆方向に回すと巻き戻る。テープの中身は描いていない。ブラウザのタブアイコンにリールの残量が表示される。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
