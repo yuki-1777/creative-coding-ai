@@ -37,8 +37,8 @@ const REST_LEN_BASE = 1.0;
 const GRAVITY = new THREE.Vector3(0, -0.012, 0);
 const DAMPING = 0.98;
 const CONSTRAINT_ITERS = 5;
-const MOUSE_RADIUS = 1.8;
-const MOUSE_FORCE = 0.18;
+const MOUSE_RADIUS = 3.5;
+const MOUSE_FORCE = 0.45;
 
 // Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -49,8 +49,8 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, -6, 28);
-camera.lookAt(0, -6, 0);
+camera.position.set(0, -8.5, 28);
+camera.lookAt(0, -8.5, 0);
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;

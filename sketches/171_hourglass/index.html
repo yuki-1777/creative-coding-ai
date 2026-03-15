@@ -160,6 +160,9 @@ function draw() {
   // 粒子
   for (let g of grains) {
     g.update();
+  }
+  resolveCollisions();
+  for (let g of grains) {
     g.draw();
   }
 
@@ -197,6 +200,35 @@ function drawHourglass() {
   // 上端・下端の横線
   line(-HG_W / 2, -HG_H / 2, HG_W / 2, -HG_H / 2);
   line(-HG_W / 2, HG_H / 2, HG_W / 2, HG_H / 2);
+}
+
+function resolveCollisions() {
+  const minDist = GRAIN_R * 2;
+  for (let i = 0; i < grains.length; i++) {
+    for (let j = i + 1; j < grains.length; j++) {
+      const a = grains[i];
+      const b = grains[j];
+      if (a.settled && b.settled) continue;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < minDist && d > 0) {
+        const overlap = (minDist - d) * 0.5;
+        const nx = dx / d;
+        const ny = dy / d;
+        if (!a.settled) { a.x -= nx * overlap; a.y -= ny * overlap; }
+        if (!b.settled) { b.x += nx * overlap; b.y += ny * overlap; }
+        const relVx = b.vx - a.vx;
+        const relVy = b.vy - a.vy;
+        const dot = relVx * nx + relVy * ny;
+        if (dot < 0) {
+          const impulse = dot * 0.4;
+          if (!a.settled) { a.vx += impulse * nx; a.vy += impulse * ny; }
+          if (!b.settled) { b.vx -= impulse * nx; b.vy -= impulse * ny; }
+        }
+      }
+    }
+  }
 }
 
 function mousePressed() {
