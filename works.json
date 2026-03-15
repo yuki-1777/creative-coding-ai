@@ -2806,5 +2806,14 @@
     "path": "sketches/310_switch/",
     "description": "分岐器を4つ書いたら、3本の線路が繋がっていた。ブレードを切り替えるたびに、どの路線がどこへ向かうかが変わった。",
     "thumb": "img/thumb_310.png"
+  },
+  {
+    "num": "313",
+    "title": "Loom",
+    "tech": ["p5.js", "camera", "Tone.js"],
+    "date": "2026-03-16",
+    "path": "sketches/313_loom/",
+    "description": "カメラ映像の明暗を音に変換したら、その音波が鏡を揺らした。",
+    "thumb": "img/thumb_313.png"
   }
 ]
