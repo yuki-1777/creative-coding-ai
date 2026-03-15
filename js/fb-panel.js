@@ -1,7 +1,9 @@
 /**
  * fb-panel.js
- * ギャラリー・スケッチページ共通のフィードバックパネル。
- * SKETCH_META が定義されているページ（スケッチ）では ../../works.json を参照する。
+ * ギャラリー・スケッチページ共通のフィードバックリストパネル。
+ * デバッグモード時のみ表示。
+ * スケッチページでは sketch-fb-panel 内の「list」ボタンがトリガー。
+ * ギャラリーページでは独立した「FB」ボタン（右下）がトリガー。
  */
 (function () {
   if (localStorage.getItem('debug_mode') !== 'true') return;
@@ -19,10 +21,11 @@
 
   const style = document.createElement('style');
   style.textContent = `
+    /* ギャラリーページ用スタンドアロンボタン */
     #fb-trigger {
       position: fixed;
       bottom: 32px;
-      right: 32px;
+      right: 100px;
       z-index: 9999;
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
       font-weight: 300;
@@ -40,11 +43,9 @@
 
     #fb-overlay {
       position: fixed;
-      bottom: 110px;
-      right: 32px;
-      z-index: 9998;
+      z-index: 10000;
       width: min(360px, calc(100vw - 64px));
-      max-height: calc(100vh - 120px);
+      max-height: 60vh;
       overflow-y: auto;
       background: rgba(245,243,238,0.97);
       border: 1px solid rgba(42,42,42,0.12);
@@ -139,18 +140,7 @@
   `;
   document.head.appendChild(style);
 
-  const trigger = document.createElement('button');
-  trigger.id = 'fb-trigger';
-  trigger.textContent = 'FB';
-  // スケッチページ: save thumb の上に縦積み / ギャラリー: DEV ボタン横
-  if (isSketchPage) {
-    trigger.style.bottom = '70px';
-    trigger.style.right  = '32px';
-  } else {
-    trigger.style.right  = '100px';
-  }
-  document.body.appendChild(trigger);
-
+  // オーバーレイ（共通）
   const overlay = document.createElement('div');
   overlay.id = 'fb-overlay';
   overlay.innerHTML = `
@@ -163,6 +153,33 @@
   `;
   document.body.appendChild(overlay);
 
+  // トリガー要素（ページ種別で異なる）
+  let trigger;
+
+  if (isSketchPage) {
+    // スケッチページ：sketch-fb-panel の「list」ボタンを使う
+    // sketch-ui.js が先に走るので DOM に存在するはず
+    trigger = document.getElementById('sketch-fb-list-btn');
+    if (trigger) {
+      // オーバーレイを sketch-fb-panel の左横に表示
+      const panel = document.getElementById('sketch-fb-panel');
+      if (panel) {
+        const rect = panel.getBoundingClientRect();
+        overlay.style.bottom = (window.innerHeight - rect.bottom) + 'px';
+        overlay.style.right  = (window.innerWidth - rect.left + 8) + 'px';
+      }
+    }
+  } else {
+    // ギャラリーページ：独立した「FB」ボタンを作成
+    trigger = document.createElement('button');
+    trigger.id = 'fb-trigger';
+    trigger.textContent = 'FB';
+    document.body.appendChild(trigger);
+    // オーバーレイはボタンの上に表示
+    overlay.style.bottom = '72px';
+    overlay.style.right  = '32px';
+  }
+
   function renderFb() {
     const list = document.getElementById('fb-list');
     const all = getFbData();
@@ -173,7 +190,7 @@
     }
     list.innerHTML = entries.map(([num, comment]) => {
       const path = pathMap[num];
-      const tag     = path ? `a href="${pathPrefix}${path}index.html"` : 'div';
+      const tag      = path ? `a href="${pathPrefix}${path}index.html"` : 'div';
       const closeTag = path ? 'a' : 'div';
       return `
       <${tag} class="fb-row">
@@ -196,22 +213,33 @@
   }
 
   function openOverlay() {
+    // スケッチページでは開くたびに位置を再計算（リサイズ対応）
+    if (isSketchPage) {
+      const panel = document.getElementById('sketch-fb-panel');
+      if (panel) {
+        const rect = panel.getBoundingClientRect();
+        overlay.style.bottom = (window.innerHeight - rect.bottom) + 'px';
+        overlay.style.right  = (window.innerWidth - rect.left + 8) + 'px';
+      }
+    }
     renderFb();
     overlay.style.display = 'block';
-    trigger.classList.add('open');
+    if (trigger) trigger.classList.add('open');
     localStorage.setItem('fb_overlay_open', '1');
   }
   function closeOverlay() {
     overlay.style.display = 'none';
-    trigger.classList.remove('open');
+    if (trigger) trigger.classList.remove('open');
     localStorage.removeItem('fb_overlay_open');
   }
 
   if (localStorage.getItem('fb_overlay_open') === '1') openOverlay();
 
-  trigger.addEventListener('click', () => {
-    overlay.style.display !== 'none' ? closeOverlay() : openOverlay();
-  });
+  if (trigger) {
+    trigger.addEventListener('click', () => {
+      overlay.style.display !== 'none' ? closeOverlay() : openOverlay();
+    });
+  }
 
   document.getElementById('fb-overlay-close').addEventListener('click', closeOverlay);
 
