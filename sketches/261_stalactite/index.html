@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stalactite</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0eeea; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const W = window.innerWidth, H = window.innerHeight;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xf0eeea);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 100);
+  camera.position.set(0, 0, 14);
+  camera.lookAt(0, 0, 0);
+
+  // 洞窟の高さ
+  const CAVE_H = 5.0;
+  const CAVE_W = 10.0;
+  const COLUMN_COUNT = 12;
+
+  // 天井と床の線
+  const ceilMat = new THREE.LineBasicMaterial({ color: 0x555550 });
+  const ceilPts = [
+    new THREE.Vector3(-CAVE_W / 2, CAVE_H / 2, 0),
+    new THREE.Vector3(CAVE_W / 2, CAVE_H / 2, 0)
+  ];
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ceilPts), ceilMat));
+
+  const floorPts = [
+    new THREE.Vector3(-CAVE_W / 2, -CAVE_H / 2, 0),
+    new THREE.Vector3(CAVE_W / 2, -CAVE_H / 2, 0)
+  ];
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(floorPts), ceilMat));
+
+  // 左右の壁
+  const wallMat = new THREE.LineBasicMaterial({ color: 0x888882 });
+  const leftWall = [
+    new THREE.Vector3(-CAVE_W / 2, CAVE_H / 2, 0),
+    new THREE.Vector3(-CAVE_W / 2, -CAVE_H / 2, 0)
+  ];
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(leftWall), wallMat));
+  const rightWall = [
+    new THREE.Vector3(CAVE_W / 2, CAVE_H / 2, 0),
+    new THREE.Vector3(CAVE_W / 2, -CAVE_H / 2, 0)
+  ];
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(rightWall), wallMat));
+
+  // 鍾乳石・石筍の構造
+  const stalactites = []; // 天井から
+  const stalagmites = []; // 床から
+  const drops = [];       // 落下中の水滴
+
+  function createColumn(isTop, xPos, maxLen, growSpeed, segments) {
+    const radBase = 0.08 + Math.random() * 0.06;
+    const radTip = 0.01 + Math.random() * 0.015;
+    return {
+      isTop,
+      x: xPos,
+      maxLen,
+      currentLen: 0.02,
+      growSpeed,
+      segments,
+      radBase,
+      radTip,
+      lines: null,
+      // 輪郭の揺らぎ
+      wobble: (Math.random() - 0.5) * 0.04
+    };
+  }
+
+  // 初期化
+  function initColumns() {
+    stalactites.length = 0;
+    stalagmites.length = 0;
+    const spacing = CAVE_W / (COLUMN_COUNT + 1);
+    for (let i = 0; i < COLUMN_COUNT; i++) {
+      const x = -CAVE_W / 2 + spacing * (i + 1) + (Math.random() - 0.5) * spacing * 0.4;
+      const maxLen = 1.0 + Math.random() * 1.8;
+      const speed = 0.0005 + Math.random() * 0.001;
+      const segs = 5 + Math.floor(Math.random() * 4);
+      stalactites.push(createColumn(true, x, maxLen, speed, segs));
+      // 石筍は少し短め
+      const maxLen2 = 0.6 + Math.random() * 1.2;
+      const speed2 = 0.0003 + Math.random() * 0.0008;
+      stalagmites.push(createColumn(false, x + (Math.random() - 0.5) * 0.3, maxLen2, speed2, segs));
+    }
+  }
+
+  initColumns();
+
+  // 列のジオメトリを更新
+  function updateColumnLines(col) {
+    if (col.lines) {
+      col.lines.forEach(l => scene.remove(l));
+    }
+    col.lines = [];
+
+    const yStart = col.isTop ? CAVE_H / 2 : -CAVE_H / 2;
+    const dir = col.isTop ? -1 : 1;
+    const len = col.currentLen;
+    const segs = col.segments;
+    const mat = new THREE.LineBasicMaterial({ color: 0x555550 });
+
+    // 左右の輪郭線
+    for (let side = -1; side <= 1; side += 2) {
+      const pts = [];
+      for (let s = 0; s <= segs; s++) {
+        const t = s / segs;
+        const y = yStart + dir * len * t;
+        // 根元は太く、先端は細い。少し揺らぎを加える
+        const r = (col.radBase * (1 - t) + col.radTip * t) + col.wobble * Math.sin(t * Math.PI);
+        const x = col.x + side * r;
+        pts.push(new THREE.Vector3(x, y, 0));
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      col.lines.push(line);
+    }
+
+    // 先端の短い横線
+    const tipY = yStart + dir * len;
+    const tipR = col.radTip;
+    const tipPts = [
+      new THREE.Vector3(col.x - tipR, tipY, 0),
+      new THREE.Vector3(col.x + tipR, tipY, 0)
+    ];
+    const tipLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(tipPts), mat);
+    scene.add(tipLine);
+    col.lines.push(tipLine);
+
+    // 水滴ハイライト（鍾乳石先端の小さな楕円）
+    if (col.isTop && col.currentLen > 0.1) {
+      const dropR = tipR * 1.5;
+      const dropPts = [];
+      for (let i = 0; i <= 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        dropPts.push(new THREE.Vector3(
+          col.x + Math.cos(a) * dropR * 0.6,
+          tipY + Math.sin(a) * dropR - dropR * 0.3,
+          0.01
+        ));
+      }
+      const dropMat = new THREE.LineBasicMaterial({ color: 0x888882, opacity: 0.7, transparent: true });
+      const dropLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(dropPts), dropMat);
+      scene.add(dropLine);
+      col.lines.push(dropLine);
+    }
+  }
+
+  // 水滴の落下
+  function spawnDrop(col) {
+    const tipY = CAVE_H / 2 - col.currentLen;
+    drops.push({
+      x: col.x,
+      y: tipY,
+      vy: -0.04,
+      line: null
+    });
+  }
+
+  // 水滴のビジュアル更新
+  function updateDropVisual(drop) {
+    if (drop.line) scene.remove(drop.line);
+    const r = 0.025;
+    const pts = [];
+    for (let i = 0; i <= 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      pts.push(new THREE.Vector3(drop.x + Math.cos(a) * r, drop.y + Math.sin(a) * r, 0.01));
+    }
+    drop.line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: 0x777772 })
+    );
+    scene.add(drop.line);
+  }
+
+  // クリックで水滴を発生させる
+  let time = 0;
+  renderer.domElement.addEventListener('click', e => {
+    // クリックした近くの鍾乳石から水滴を落とす
+    const nx = (e.clientX / W) * 2 - 1;
+    const worldX = nx * (CAVE_W / 2);
+    // 最近傍の鍾乳石を選ぶ
+    let closest = null;
+    let minDist = Infinity;
+    for (const col of stalactites) {
+      const d = Math.abs(col.x - worldX);
+      if (d < minDist) { minDist = d; closest = col; }
+    }
+    if (closest && closest.currentLen > 0.1) {
+      spawnDrop(closest);
+      // 水滴が落ちると石筍が少し成長
+      const stalagmite = stalagmites.find(s => Math.abs(s.x - closest.x) < 0.5);
+      if (stalagmite) stalagmite.currentLen = Math.min(stalagmite.maxLen, stalagmite.currentLen + 0.05);
+    }
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    time++;
+
+    // 鍾乳石・石筍の成長
+    for (const col of [...stalactites, ...stalagmites]) {
+      if (col.currentLen < col.maxLen) {
+        col.currentLen = Math.min(col.maxLen, col.currentLen + col.growSpeed);
+        updateColumnLines(col);
+      }
+    }
+
+    // 自動水滴（一定間隔）
+    if (time % 90 === 0) {
+      const idx = Math.floor(Math.random() * stalactites.length);
+      const col = stalactites[idx];
+      if (col.currentLen > 0.15) spawnDrop(col);
+    }
+
+    // 水滴更新
+    for (let i = drops.length - 1; i >= 0; i--) {
+      const drop = drops[i];
+      drop.vy -= 0.003; // 重力
+      drop.y += drop.vy;
+      if (drop.y < -CAVE_H / 2 + 0.02) {
+        // 着地 → 対応する石筍を少し成長
+        const stalagmite = stalagmites.find(s => Math.abs(s.x - drop.x) < 0.5);
+        if (stalagmite) stalagmite.currentLen = Math.min(stalagmite.maxLen, stalagmite.currentLen + 0.02);
+        if (drop.line) scene.remove(drop.line);
+        drops.splice(i, 1);
+      } else {
+        updateDropVisual(drop);
+      }
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  window.addEventListener('resize', () => {
+    const nW = window.innerWidth, nH = window.innerHeight;
+    renderer.setSize(nW, nH);
+    camera.aspect = nW / nH;
+    camera.updateProjectionMatrix();
+  });
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '261',
+  title:  'Stalactite',
+  detail: '時間とともに天井から鍾乳石が伸び、床から石筍が育ちます。クリックすると近くの鍾乳石から水滴が落ちて、石筍の成長が少し速くなります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
