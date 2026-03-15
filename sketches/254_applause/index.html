@@ -39,12 +39,12 @@ function initAudio() {
 
 function playClap(delayOffset) {
   if (!audioCtx) return;
-  const duration = 0.10;
+  const duration = 0.09;
   const bufferSize = Math.ceil(audioCtx.sampleRate * duration);
   const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < bufferSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.22));
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.30));
   }
 
   const t = audioCtx.currentTime + (delayOffset || 0);
@@ -54,11 +54,11 @@ function playClap(delayOffset) {
   const source2 = audioCtx.createBufferSource();
   source2.buffer = buffer;
 
-  // --- 打撃成分: bandpass(1000Hz, Q=2.0) — 丸みのある中域 ---
+  // --- 打撃成分: BPF 1600Hz, Q=3.0 — 高さを保ちつつ共鳴で柔らかく ---
   const bpf = audioCtx.createBiquadFilter();
   bpf.type = 'bandpass';
-  bpf.frequency.value = 1000;
-  bpf.Q.value = 2.0;
+  bpf.frequency.value = 1600;
+  bpf.Q.value = 3.0;
 
   const gainHigh = audioCtx.createGain();
   gainHigh.gain.setValueAtTime(0.18, t);
@@ -68,14 +68,14 @@ function playClap(delayOffset) {
   bpf.connect(gainHigh);
   gainHigh.connect(audioCtx.destination);
 
-  // --- ボディ成分: bandpass(600Hz, Q=1.8) — 低域の厚み ---
+  // --- ボディ成分: BPF 900Hz, Q=2.0 ---
   const bpfBody = audioCtx.createBiquadFilter();
   bpfBody.type = 'bandpass';
-  bpfBody.frequency.value = 600;
-  bpfBody.Q.value = 1.8;
+  bpfBody.frequency.value = 900;
+  bpfBody.Q.value = 2.0;
 
   const gainBody = audioCtx.createGain();
-  gainBody.gain.setValueAtTime(0.14, t);
+  gainBody.gain.setValueAtTime(0.12, t);
   gainBody.gain.exponentialRampToValueAtTime(0.001, t + duration);
 
   source2.connect(bpfBody);
