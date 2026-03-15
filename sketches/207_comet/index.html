@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>207 – Comet</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f3ef; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// ============================================================
+//  207 – Comet
+//  彗星の軌道と尾をGLSLで描く
+//  複数の彗星が異なる楕円軌道を周回する
+//  制約：楕円・放物線の幾何学的形状のみで構成
+// ============================================================
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_time;
+uniform float u_seed;
+
+float hash(float n) {
+  return fract(sin(n + u_seed * 0.31) * 43758.5453);
+}
+
+// 線分への最短距離
+float segDist(vec2 p, vec2 a, vec2 b) {
+  vec2 ab = b - a;
+  vec2 ap = p - a;
+  float t = clamp(dot(ap, ab) / dot(ab, ab), 0.0, 1.0);
+  return length(ap - ab * t);
+}
+
+// 1つの彗星を描く
+// idx: 彗星インデックス（0〜4）
+float comet(vec2 uv, int idx) {
+  float fi = float(idx);
+
+  // 軌道パラメータ（各彗星固有）
+  float orbitA    = 0.25 + hash(fi * 7.1) * 0.15;   // 長軸半径
+  float orbitB    = orbitA * (0.4 + hash(fi * 3.3) * 0.4); // 短軸
+  float speed     = 0.3 + hash(fi * 11.2) * 0.5;     // 公転速度
+  float phase     = hash(fi * 5.7) * 6.28318;         // 初期位相
+  float tilt      = hash(fi * 9.1) * 6.28318;         // 軌道傾き
+  vec2  focus     = vec2(
+    (hash(fi * 4.4) - 0.5) * 0.25 + 0.5,
+    (hash(fi * 6.6) - 0.5) * 0.25 + 0.5
+  );
+
+  // 現在位置（楕円上）
+  float angle = u_time * speed + phase;
+  vec2 headLocal = vec2(
+    orbitA * cos(angle),
+    orbitB * sin(angle)
+  );
+  // 傾き回転
+  float ct = cos(tilt);
+  float st = sin(tilt);
+  vec2 headPos = vec2(
+    ct * headLocal.x - st * headLocal.y,
+    st * headLocal.x + ct * headLocal.y
+  ) + focus;
+
+  // 尾（過去位置の軌跡）
+  // 楕円上の過去30ステップを線分で近似
+  float totalAlpha = 0.0;
+  vec2 prevPos = headPos;
+
+  // 尾は20セグメント（固定展開）
+  // 角度ステップで過去の軌道上の点を計算
+  float tailAngleSpan = 1.8; // 尾の角度幅（ラジアン）
+
+  for (int s = 0; s < 20; s++) {
+    float sf = float(s);
+    // 過去の角度（現在角度から後ろへ）
+    float pastAngle = angle - (sf + 1.0) * tailAngleSpan / 20.0;
+    vec2 pastLocal = vec2(
+      orbitA * cos(pastAngle),
+      orbitB * sin(pastAngle)
+    );
+    vec2 pastPos = vec2(
+      ct * pastLocal.x - st * pastLocal.y,
+      st * pastLocal.x + ct * pastLocal.y
+    ) + focus;
+
+    // 尾の透明度（先端→根元で薄くなる）
+    float fadeRatio = 1.0 - (sf + 1.0) / 21.0;
+    float segAlpha = fadeRatio * 0.85;
+
+    // 線幅（先端が細い）
+    float lineWidth = 0.0015 + fadeRatio * 0.002;
+
+    float d = segDist(uv, prevPos, pastPos);
+    float lineContrib = smoothstep(lineWidth, 0.0, d) * segAlpha;
+    totalAlpha = max(totalAlpha, lineContrib);
+
+    prevPos = pastPos;
+  }
+
+  // 彗星の核（点）
+  float headDist = length(uv - headPos);
+  float nucleus = smoothstep(0.007, 0.002, headDist);
+  float glow    = smoothstep(0.025, 0.007, headDist) * 0.3;
+
+  totalAlpha = max(totalAlpha, nucleus + glow);
+
+  return totalAlpha;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+
+  // アスペクト比補正
+  float aspect = u_res.x / u_res.y;
+  vec2 uvA = vec2((uv.x - 0.5) * aspect + 0.5, uv.y);
+
+  // 5つの彗星
+  float c0 = comet(uvA, 0);
+  float c1 = comet(uvA, 1);
+  float c2 = comet(uvA, 2);
+  float c3 = comet(uvA, 3);
+  float c4 = comet(uvA, 4);
+
+  float total = max(max(max(max(c0, c1), c2), c3), c4);
+  total = clamp(total, 0.0, 1.0);
+
+  vec3 bg     = vec3(0.961, 0.953, 0.941);
+  vec3 darkCol = vec3(0.22, 0.20, 0.18);
+
+  vec3 col = mix(bg, darkCol, total);
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+function createProgram(vs, fs) {
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(prog));
+  }
+  return prog;
+}
+
+const prog = createProgram(VS, FS);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes  = gl.getUniformLocation(prog, 'u_res');
+const uTime = gl.getUniformLocation(prog, 'u_time');
+const uSeed = gl.getUniformLocation(prog, 'u_seed');
+
+const startTime = performance.now();
+let seed = Math.random() * 100.0;
+
+canvas.addEventListener('click', () => {
+  seed = Math.random() * 100.0;
+});
+
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform1f(uSeed, seed);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '207',
+  title:  'Comet',
+  detail: '5つの彗星が、それぞれ異なる楕円軌道を周回している。尾は軌道上の過去の位置をなぞったもので、彗星が遠ざかるほど薄くなる。クリックで軌道パラメータが変わる。楕円の幾何だけで構成した。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
