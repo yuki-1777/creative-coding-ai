@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>112 — Weave</title>
+  <meta name="description" content="縦と横が交差する。どちらが上かで、全体が変わる。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="112 — Weave | Creative Coding">
+  <meta property="og:description" content="縦と横が交差する。どちらが上かで、全体が変わる。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/112_weave/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_112.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="112 — Weave | Creative Coding">
+  <meta name="twitter:description" content="縦と横が交差する。どちらが上かで、全体が変わる。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_112.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+
+// Grid size
+const CELL = 28;
+let COLS, ROWS;
+
+// Weave pattern: for each row i and column j,
+// pattern[i][j] = 1 means warp (vertical) is over weft (horizontal), 0 = weft over warp
+let pattern = [];
+let warpPhase = 0;   // animation phase for warp threads
+let weftPhase = 0;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  COLS = Math.ceil(W / CELL) + 2;
+  ROWS = Math.ceil(H / CELL) + 2;
+  generatePattern();
+}
+window.addEventListener('resize', resize);
+
+function generatePattern() {
+  // Generate a weave structure with some randomness
+  // Classic twill-like but with random seeds per row
+  pattern = [];
+  const offset = Math.floor(Math.random() * 4);
+  for (let row = 0; row < ROWS; row++) {
+    pattern[row] = [];
+    for (let col = 0; col < COLS; col++) {
+      // twill-like: shift by row
+      const shift = (row + offset) % (2 + Math.floor(Math.random() * 2));
+      pattern[row][col] = ((col + shift) % 2 === 0) ? 1 : 0;
+    }
+  }
+}
+
+// Threads have a slight vertical/horizontal oscillation (breath)
+function getWarpAmplitude(col, t) {
+  return Math.sin(col * 0.31 + t * 0.7) * 1.2;
+}
+function getWeftAmplitude(row, t) {
+  return Math.sin(row * 0.27 + t * 0.55) * 1.2;
+}
+
+function drawWeave(t) {
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  const marginX = ((W % CELL) / 2) - CELL;
+  const marginY = ((H % CELL) / 2) - CELL;
+
+  const threadW = CELL * 0.42;
+
+  // Draw weft threads (horizontal) - pass 1: bottom layer
+  for (let row = 0; row < ROWS; row++) {
+    const y = marginY + row * CELL + CELL * 0.5;
+    const dy = getWeftAmplitude(row, t);
+
+    for (let col = 0; col < COLS; col++) {
+      if (pattern[row][col] === 1) continue; // warp is on top here; skip weft segment
+
+      const x0 = marginX + col * CELL;
+      const x1 = x0 + CELL;
+
+      ctx.beginPath();
+      ctx.moveTo(x0, y + dy);
+      ctx.lineTo(x1, y + dy);
+      ctx.strokeStyle = 'rgba(42, 42, 42, 0.22)';
+      ctx.lineWidth = threadW;
+      ctx.lineCap = 'butt';
+      ctx.stroke();
+    }
+  }
+
+  // Draw warp threads (vertical) - pass 2
+  for (let col = 0; col < COLS; col++) {
+    const x = marginX + col * CELL + CELL * 0.5;
+    const dx = getWarpAmplitude(col, t);
+
+    for (let row = 0; row < ROWS; row++) {
+      const y0 = marginY + row * CELL;
+      const y1 = y0 + CELL;
+
+      ctx.beginPath();
+      ctx.moveTo(x + dx, y0);
+      ctx.lineTo(x + dx, y1);
+      if (pattern[row][col] === 1) {
+        // Warp on top
+        ctx.strokeStyle = 'rgba(42, 42, 42, 0.52)';
+        ctx.lineWidth = threadW;
+      } else {
+        // Warp behind weft — draw thinner, lighter
+        ctx.strokeStyle = 'rgba(42, 42, 42, 0.14)';
+        ctx.lineWidth = threadW * 0.85;
+      }
+      ctx.lineCap = 'butt';
+      ctx.stroke();
+    }
+  }
+
+  // Draw weft threads (horizontal) - pass 3: top layer (where weft is over warp)
+  for (let row = 0; row < ROWS; row++) {
+    const y = marginY + row * CELL + CELL * 0.5;
+    const dy = getWeftAmplitude(row, t);
+
+    for (let col = 0; col < COLS; col++) {
+      if (pattern[row][col] === 0) continue; // warp is on top; skip
+
+      const x0 = marginX + col * CELL;
+      const x1 = x0 + CELL;
+
+      ctx.beginPath();
+      ctx.moveTo(x0, y + dy);
+      ctx.lineTo(x1, y + dy);
+      ctx.strokeStyle = 'rgba(100, 85, 65, 0.38)';
+      ctx.lineWidth = threadW;
+      ctx.lineCap = 'butt';
+      ctx.stroke();
+    }
+  }
+}
+
+let time = 0;
+function loop() {
+  requestAnimationFrame(loop);
+  time += 0.016;
+  drawWeave(time);
+}
+
+canvas.addEventListener('click', () => {
+  generatePattern();
+});
+
+resize();
+loop();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '112',
+  title:  'Weave',
+  desc:   '縦と横が交差する。どちらが上かだけで、布の模様が変わる。クリックで模様が変わる。',
+  detail: '縦糸（暗い色）と横糸（茶色寄り）が格子状に交差しています。交差点ごとに「どちらが上か」が決まっていて、その組み合わせで全体の模様が生まれます。糸はわずかに揺れています。クリックすると新しい模様になります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
