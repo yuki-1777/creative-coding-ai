@@ -220,10 +220,10 @@
       opacity: 0.7;
     }
 
-    .overlay-num {
-      font-size: 0.52rem;
-      letter-spacing: 0.14em;
-      color: var(--dim);
+    .overlay-header {
+      font-size: 0.65rem;
+      letter-spacing: 0.16em;
+      color: var(--mid);
       margin-bottom: 8px;
     }
 
@@ -233,19 +233,7 @@
       font-size: 1.15rem;
       line-height: 1.5;
       color: var(--graphite);
-      margin-bottom: 14px;
-    }
-
-    .overlay-meta {
-      display: flex;
-      gap: 16px;
-      align-items: center;
-    }
-
-    .overlay-title {
-      font-size: 0.65rem;
-      letter-spacing: 0.1em;
-      color: var(--mid);
+      margin-bottom: 10px;
     }
 
     .overlay-tech {
@@ -588,12 +576,9 @@
         <a class="work-link" href="${w.path}" aria-label="${w.title} — ${techLabel}">
           ${thumbContent}
           <div class="work-overlay">
-            <div class="overlay-num">${w.num}</div>
+            <div class="overlay-header">${w.num} — ${w.title}</div>
             <div class="overlay-desc">${w.description || ''}</div>
-            <div class="overlay-meta">
-              <span class="overlay-title">${w.title}</span>
-              <span class="overlay-tech">${techLabel}</span>
-            </div>
+            <div class="overlay-tech">${techLabel}</div>
           </div>
         </a>
         <a class="work-link" href="${w.path}" aria-label="${w.title}" style="display:none" data-list-link>
