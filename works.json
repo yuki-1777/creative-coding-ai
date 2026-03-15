@@ -1118,16 +1118,16 @@
   {
     "num": "125",
     "title": "Scatter",
-    "tech": "canvas",
+    "tech": "p5.js",
     "date": "2026-03-15",
     "path": "sketches/125_scatter/",
-    "description": "クリックすると点が飛び散る。重力でゆっくり落ちて、紙の端に積もる。何度か跳ねてから、静かになる。",
+    "description": "クリックすると点が飛び散る。重力でゆっくり落ちて、床に積もっていく。何度か跳ねてから、静かになる。",
     "thumb": "img/thumb_125.png"
   },
   {
     "num": "126",
     "title": "Echo",
-    "tech": "canvas",
+    "tech": "p5.js",
     "date": "2026-03-15",
     "path": "sketches/126_echo/",
     "description": "マウスの軌跡が、遅れてついてくる。6つの影が、時間差でついてくる。ゆっくり動くほど、よく見える。",
@@ -1136,7 +1136,7 @@
   {
     "num": "127",
     "title": "Grid Drift",
-    "tech": "canvas",
+    "tech": "p5.js",
     "date": "2026-03-15",
     "path": "sketches/127_grid_drift/",
     "description": "整列した点が、じわじわとずれていく。どれが本来の位置かわからなくなる頃、クリックすると戻ってくる。",
@@ -1145,7 +1145,7 @@
   {
     "num": "128",
     "title": "Pendulum",
-    "tech": "canvas",
+    "tech": "p5.js",
     "date": "2026-03-15",
     "path": "sketches/128_pendulum/",
     "description": "振り子が揺れながら、軌跡を残す。少しずつ弧が小さくなって、やがて止まる。クリックするとまた動き出す。",
@@ -1154,7 +1154,7 @@
   {
     "num": "129",
     "title": "Wander",
-    "tech": "canvas",
+    "tech": "p5.js",
     "date": "2026-03-15",
     "path": "sketches/129_wander/",
     "description": "1本の線が画面を歩き続ける。制約がある。時計回りにしか曲がれない。その結果、いつも右へ右へと進んでいく。",
