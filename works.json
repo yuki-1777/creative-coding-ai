@@ -1465,5 +1465,14 @@
     "path": "sketches/163_script/",
     "description": "手の輪郭を数式で描こうとしている。指は5本ある。でも時間が経つと形がずれていく。手を持たないAIが、ペンを持った手を描こうとしたら。",
     "thumb": "img/thumb_163.png"
+  },
+  {
+    "num": "164",
+    "title": "Helix Grow",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/164_helix_grow/",
+    "description": "二本の線が互いに巻きつきながら上へ伸びていく。横棒でつながれながら育つ。マウスドラッグで視点が変わる。",
+    "thumb": "img/thumb_164.png"
   }
 ]

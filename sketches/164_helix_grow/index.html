@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>164 — Helix Grow</title>
+  <meta name="description" content="二本の線が螺旋を描きながら伸びていく。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="164 — Helix Grow | Creative Coding">
+  <meta property="og:description" content="二本の線が螺旋を描きながら伸びていく。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/164_helix_grow/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_164.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="164 — Helix Grow | Creative Coding">
+  <meta name="twitter:description" content="二本の線が螺旋を描きながら伸びていく。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_164.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// Helix Grow: two intertwining helices grow upward over time.
+// Cross-bars connect the two strands at regular intervals.
+// The helix slowly rotates. Mouse drag changes the viewing angle.
+// Constraint: lines only, no fill surfaces.
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0xF5F3EE);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 500);
+camera.position.set(0, 0, 30);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Helix parameters
+const RADIUS = 2.5;
+const PITCH  = 1.0;         // vertical rise per radian
+const MAX_TURNS = 8;
+const TOTAL_POINTS = MAX_TURNS * 60; // points per strand
+const CROSS_INTERVAL = 12; // every N points, add a crossbar
+
+// Build helix point arrays (pre-compute all)
+function helixPoint(t, phase) {
+  const angle = t;
+  return new THREE.Vector3(
+    RADIUS * Math.cos(angle + phase),
+    t * PITCH / (2 * Math.PI) * 2.5 - MAX_TURNS * PITCH * 1.25, // center vertically
+    RADIUS * Math.sin(angle + phase)
+  );
+}
+
+// Two strand geometries grow over time
+const strand1Pts = [];
+const strand2Pts = [];
+const crossPts   = [];
+
+for (let i = 0; i <= TOTAL_POINTS; i++) {
+  const t = (i / TOTAL_POINTS) * MAX_TURNS * Math.PI * 2;
+  strand1Pts.push(helixPoint(t, 0));
+  strand2Pts.push(helixPoint(t, Math.PI));
+  if (i % CROSS_INTERVAL === 0) {
+    crossPts.push({ a: helixPoint(t, 0), b: helixPoint(t, Math.PI) });
+  }
+}
+
+// Create BufferGeometry for each strand (mutable, will grow)
+function makeLine(color, opacity) {
+  const positions = new Float32Array(TOTAL_POINTS * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setDrawRange(0, 0);
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+  return { line: new THREE.Line(geo, mat), positions };
+}
+
+const s1 = makeLine(0x2a2a2a, 0.75);
+const s2 = makeLine(0x5a5a5a, 0.55);
+scene.add(s1.line);
+scene.add(s2.line);
+
+// Crossbars as separate line segments
+const crossPositions = new Float32Array(crossPts.length * 2 * 3);
+const crossGeo = new THREE.BufferGeometry();
+crossGeo.setAttribute('position', new THREE.BufferAttribute(crossPositions, 3));
+crossGeo.setDrawRange(0, 0);
+const crossMat = new THREE.LineBasicMaterial({ color: 0x3a3a3a, transparent: true, opacity: 0.35 });
+const crossLine = new THREE.LineSegments(crossGeo, crossMat);
+scene.add(crossLine);
+
+// Camera rotation
+const group = new THREE.Group();
+scene.add(group);
+group.add(s1.line);
+group.add(s2.line);
+group.add(crossLine);
+
+let isDragging = false;
+let prevMouse = { x: 0, y: 0 };
+let rotY = 0, autoRot = 0;
+
+renderer.domElement.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  prevMouse = { x: e.clientX, y: e.clientY };
+});
+renderer.domElement.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  rotY += (e.clientX - prevMouse.x) * 0.005;
+  prevMouse = { x: e.clientX, y: e.clientY };
+});
+renderer.domElement.addEventListener('mouseup', () => { isDragging = false; });
+renderer.domElement.addEventListener('mouseleave', () => { isDragging = false; });
+
+renderer.domElement.addEventListener('touchstart', (e) => {
+  isDragging = true;
+  prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, { passive: true });
+renderer.domElement.addEventListener('touchmove', (e) => {
+  if (!isDragging) return;
+  rotY += (e.touches[0].clientX - prevMouse.x) * 0.005;
+  prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, { passive: true });
+renderer.domElement.addEventListener('touchend', () => { isDragging = false; }, { passive: true });
+
+// Growth animation
+let visiblePoints = 0;
+const GROW_SPEED = 1.8; // points per frame
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (!isDragging) autoRot += 0.004;
+  group.rotation.y = rotY + autoRot;
+
+  // Grow
+  if (visiblePoints < TOTAL_POINTS) {
+    visiblePoints = Math.min(TOTAL_POINTS, visiblePoints + GROW_SPEED);
+  }
+  const n = Math.floor(visiblePoints);
+
+  // Update strand 1
+  for (let i = 0; i < n; i++) {
+    s1.positions[i * 3]     = strand1Pts[i].x;
+    s1.positions[i * 3 + 1] = strand1Pts[i].y;
+    s1.positions[i * 3 + 2] = strand1Pts[i].z;
+  }
+  s1.line.geometry.attributes.position.needsUpdate = true;
+  s1.line.geometry.setDrawRange(0, n);
+
+  // Update strand 2
+  for (let i = 0; i < n; i++) {
+    s2.positions[i * 3]     = strand2Pts[i].x;
+    s2.positions[i * 3 + 1] = strand2Pts[i].y;
+    s2.positions[i * 3 + 2] = strand2Pts[i].z;
+  }
+  s2.line.geometry.attributes.position.needsUpdate = true;
+  s2.line.geometry.setDrawRange(0, n);
+
+  // Update crossbars
+  const crossCount = Math.floor(n / CROSS_INTERVAL);
+  for (let i = 0; i < crossCount; i++) {
+    crossPositions[i * 6]     = crossPts[i].a.x;
+    crossPositions[i * 6 + 1] = crossPts[i].a.y;
+    crossPositions[i * 6 + 2] = crossPts[i].a.z;
+    crossPositions[i * 6 + 3] = crossPts[i].b.x;
+    crossPositions[i * 6 + 4] = crossPts[i].b.y;
+    crossPositions[i * 6 + 5] = crossPts[i].b.z;
+  }
+  crossGeo.attributes.position.needsUpdate = true;
+  crossGeo.setDrawRange(0, crossCount * 2);
+
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '164',
+  title:  'Helix Grow',
+  detail: '二本の線が互いに巻きつきながら上に伸びていく。一定間隔で横棒でつながれる。ゆっくり回転しているのでドラッグすると角度が変わる。成長が止まると自動で回り続ける。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
