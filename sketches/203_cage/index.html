@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cage</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xf5f4f0);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 4);
+
+  let W = window.innerWidth, H = window.innerHeight;
+  renderer.setSize(W, H);
+
+  // Icosahedral cage: 12 vertices, 30 edges
+  const phi = (1 + Math.sqrt(5)) / 2;
+  const icoVerts = [
+    [-1, phi, 0], [1, phi, 0], [-1, -phi, 0], [1, -phi, 0],
+    [0, -1, phi], [0, 1, phi], [0, -1, -phi], [0, 1, -phi],
+    [phi, 0, -1], [phi, 0, 1], [-phi, 0, -1], [-phi, 0, 1]
+  ];
+  // Normalize
+  const norm = Math.sqrt(1 + phi * phi);
+  const verts = icoVerts.map(v => new THREE.Vector3(v[0] / norm, v[1] / norm, v[2] / norm));
+
+  // Edges: connect if distance ~ 2/norm
+  const edgeDist = 2 / norm + 0.01;
+  const edges = [];
+  for (let i = 0; i < verts.length; i++) {
+    for (let j = i + 1; j < verts.length; j++) {
+      if (verts[i].distanceTo(verts[j]) < edgeDist) {
+        edges.push([i, j]);
+      }
+    }
+  }
+
+  // Create edge lines with multiple nested cages
+  const N_CAGES = 4;
+  const cages = [];
+  for (let c = 0; c < N_CAGES; c++) {
+    const scale = 0.6 + c * 0.28;
+    const opacity = 0.7 - c * 0.15;
+    const edgeLines = [];
+    edges.forEach(([i, j]) => {
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(6);
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      const mat = new THREE.LineBasicMaterial({
+        color: c === 0 ? 0x555550 : 0x999990,
+        transparent: true,
+        opacity
+      });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      edgeLines.push({ line, geo, pos });
+    });
+    cages.push({ scale, edgeLines, rotX: 0, rotY: 0 });
+  }
+
+  // Inner object: a small pulsing sphere suggestion (point at center)
+  const innerMat = new THREE.PointsMaterial({ color: 0x777770, size: 0.04 });
+  const innerGeo = new THREE.BufferGeometry();
+  innerGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0]), 3));
+  scene.add(new THREE.Points(innerGeo, innerMat));
+
+  let mouseX = 0, mouseY = 0;
+  canvas.addEventListener('mousemove', e => {
+    mouseX = (e.clientX / W - 0.5) * 2;
+    mouseY = (e.clientY / H - 0.5) * 2;
+  });
+
+  // Build rotation matrices per cage
+  const tmpV = new THREE.Vector3();
+  function updateCage(c, t) {
+    const cage = cages[c];
+    // Each cage rotates at slightly different speed
+    const rx = t * (0.2 + c * 0.07) + mouseY * 0.5;
+    const ry = t * (0.15 + c * 0.05) + mouseX * 0.5;
+    const rz = t * 0.1 * (c % 2 === 0 ? 1 : -1);
+
+    const mx = new THREE.Matrix4().makeRotationX(rx);
+    const my = new THREE.Matrix4().makeRotationY(ry);
+    const mz = new THREE.Matrix4().makeRotationZ(rz);
+    const m = new THREE.Matrix4().multiplyMatrices(mz, my).multiply(mx);
+
+    cage.edgeLines.forEach(({ geo, pos }, i) => {
+      const [vi, vj] = edges[i];
+      const a = verts[vi].clone().multiplyScalar(cage.scale).applyMatrix4(m);
+      const b = verts[vj].clone().multiplyScalar(cage.scale).applyMatrix4(m);
+      pos[0] = a.x; pos[1] = a.y; pos[2] = a.z;
+      pos[3] = b.x; pos[4] = b.y; pos[5] = b.z;
+      geo.attributes.position.needsUpdate = true;
+    });
+  }
+
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    t += 0.016;
+    for (let c = 0; c < N_CAGES; c++) updateCage(c, t);
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    W = window.innerWidth; H = window.innerHeight;
+    renderer.setSize(W, H);
+    camera.aspect = W / H;
+    camera.updateProjectionMatrix();
+  });
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '203',
+  title:  'Cage',
+  detail: 'マウスを動かすと檻の向きが変わります。4つの大きさが違う正二十面体の骨格が入れ子になって回転しています。それぞれ速度が違うので、重なり方が絶えず変わります。何かが中心にいるかもしれません。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
