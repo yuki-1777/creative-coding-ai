@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hold</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #edeae2; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Hold — 電話の保留音。音は使わない。
+// リングトーンのON/OFFリズムをリングの太さと密度で表現。
+// 制約: 音なし。保留音の「感触」を視覚だけで表現する。
+// ページタイトルが通話状態を反映する。
+
+// 日本の電話呼び出し音リズム: 1秒ON → 2秒OFF
+const RING_ON  = 1000; // ms
+const RING_OFF = 2000; // ms
+const RING_CYCLE = RING_ON + RING_OFF;
+
+// ─── Ring（拡散するリング）──────────────────────────────────────────────────
+class Ring {
+  constructor(cx, cy, phase) {
+    this.cx = cx;
+    this.cy = cy;
+    this.r  = 0;
+    this.maxR = max(width, height) * 0.5;
+    this.life = 1.0;
+    this.speed = 1.8 + phase * 0.4;  // 外側ほど遅い
+    this.weight = 1.0;
+  }
+
+  update(ringing) {
+    this.r += this.speed;
+    // リング鳴動中は太く、消音中は細く
+    this.weight = ringing ? map(this.life, 0, 1, 0.3, 1.8) : map(this.life, 0, 1, 0.2, 0.6);
+    this.life = 1.0 - this.r / this.maxR;
+  }
+
+  draw(ringing) {
+    if (this.life <= 0) return;
+    const a = this.life * (ringing ? 0.65 : 0.28);
+    stroke(52, 48, 44, a * 255);
+    strokeWeight(this.weight);
+    noFill();
+    circle(this.cx, this.cy, this.r * 2);
+  }
+
+  isDead() { return this.life <= 0; }
+}
+
+// ─── Globals ─────────────────────────────────────────────────────────────────
+let rings = [];
+let cx, cy;
+let ringTimer  = 0;   // リング生成インターバル (ms)
+let elapsedMs  = 0;   // 累積経過時間
+let ringing    = false;  // 現在ON?
+let ringPhase  = 0;      // 今サイクルの何番目のリングか
+let waitCount  = 0;      // OFFの間隔カウンタ
+let titlePhase = 0;      // タイトルアニメ用
+
+// 保留開始からの経過秒数
+let holdStart  = 0;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  cx = width  * 0.5;
+  cy = height * 0.47;
+  colorMode(RGB, 255);
+  noFill();
+  holdStart = millis();
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  cx = width  * 0.5;
+  cy = height * 0.47;
+}
+
+function draw() {
+  const now = millis();
+  elapsedMs = now - holdStart;
+  const cyclePos = elapsedMs % RING_CYCLE;
+
+  // 鳴動/無音 の判定
+  ringing = cyclePos < RING_ON;
+
+  // ── ページタイトルの更新 ─────────────────────────────────────────────────
+  updateTitle(ringing, now);
+
+  // ── 背景 ────────────────────────────────────────────────────────────────
+  background(237, 234, 226);
+
+  // ── リング生成 ────────────────────────────────────────────────────────
+  if (ringing) {
+    ringTimer += deltaTime;
+    // 鳴動中は 150ms ごとに新しいリングを出す
+    while (ringTimer > 150) {
+      ringTimer -= 150;
+      rings.push(new Ring(cx, cy, ringPhase));
+      ringPhase = (ringPhase + 1) % 5;
+    }
+  } else {
+    ringTimer = 0;
+    ringPhase = 0;
+  }
+
+  // ── リング更新・描画 ─────────────────────────────────────────────────
+  for (let i = rings.length - 1; i >= 0; i--) {
+    rings[i].update(ringing);
+    rings[i].draw(ringing);
+    if (rings[i].isDead()) rings.splice(i, 1);
+  }
+
+  // ── 中心の受話器シルエット（抽象的な丸と線）────────────────────────────
+  drawHandset(ringing);
+
+  // ── 保留中の時刻表示 ─────────────────────────────────────────────────
+  drawHoldTime();
+}
+
+function drawHandset(ringing) {
+  // マウスが近いと少し反応
+  const d = dist(mouseX, mouseY, cx, cy);
+  const proximity = constrain(map(d, 0, 200, 1.0, 0.0), 0, 1);
+
+  const pulsePeriod = ringing ? 600 : 1800;
+  const pulse = sin(millis() / pulsePeriod * TWO_PI) * 0.5 + 0.5;
+  const s = 1.0 + pulse * (ringing ? 0.04 : 0.015) + proximity * 0.03;
+
+  push();
+  translate(cx, cy);
+  scale(s);
+
+  // 外円（電話ベル）
+  strokeWeight(ringing ? 1.2 : 0.7);
+  stroke(52, 48, 44, ringing ? 160 : 80);
+  circle(0, 0, 56);
+
+  // 内円
+  strokeWeight(ringing ? 0.8 : 0.5);
+  stroke(52, 48, 44, ringing ? 120 : 55);
+  circle(0, 0, 28);
+
+  // 中心点
+  strokeWeight(0);
+  fill(52, 48, 44, ringing ? 170 : 90);
+  circle(0, 0, 4);
+  noFill();
+
+  // 鳴動中：放射状の短線
+  if (ringing) {
+    const numLines = 8;
+    const lineAlpha = pulse * 180;
+    stroke(52, 48, 44, lineAlpha);
+    strokeWeight(0.6);
+    for (let i = 0; i < numLines; i++) {
+      const a = (i / numLines) * TWO_PI + millis() * 0.001;
+      const r1 = 32;
+      const r2 = 40 + pulse * 4;
+      line(cos(a) * r1, sin(a) * r1, cos(a) * r2, sin(a) * r2);
+    }
+  }
+  pop();
+}
+
+function drawHoldTime() {
+  const sec = floor(elapsedMs / 1000);
+  const m = floor(sec / 60);
+  const s = sec % 60;
+  const timeStr = nf(m, 2) + ':' + nf(s, 2);
+
+  // 待機時間テキスト
+  noStroke();
+  fill(52, 48, 44, 70);
+  textFont('monospace');
+  textSize(12);
+  textAlign(CENTER);
+  text(timeStr, cx, cy + 52);
+
+  // 状態テキスト
+  fill(52, 48, 44, ringing ? 90 : 40);
+  textSize(10);
+  text(ringing ? '呼び出し中' : '........', cx, cy + 68);
+  noFill();
+}
+
+let lastTitleRing = false;
+let dotCount = 0;
+let dotTimer  = 0;
+
+function updateTitle(nowRinging, now) {
+  // 鳴動開始で「📞 呼び出し中」、消音で「— 保留中 —」
+  // dotTimer でドット点滅
+  dotTimer += deltaTime;
+  if (dotTimer > 600) {
+    dotTimer = 0;
+    dotCount = (dotCount + 1) % 4;
+  }
+  const dots = '.'.repeat(dotCount);
+
+  if (nowRinging) {
+    document.title = '呼び出し中' + dots;
+  } else {
+    document.title = '保留中' + dots;
+  }
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '301',
+  title:  'Hold',
+  detail: '電話の保留音。音は出ない。日本式の呼び出しリズム（1秒鳴って2秒沈黙）で、リングが広がったり止まったりする。ブラウザのタブタイトルも変化する。マウスを中心に近づけると少し反応する。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
