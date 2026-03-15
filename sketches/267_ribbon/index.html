@@ -117,8 +117,14 @@ document.addEventListener('keydown', (e) => {
     cursorY += LINE_HEIGHT;
     return;
   }
-  // Any printable key or space
-  if (e.key.length === 1 || e.key === 'Space') {
+  // Space: advance cursor only, no ink consumption
+  if (e.key === ' ') {
+    userTyped = true;
+    advanceCursor();
+    return;
+  }
+  // Any other printable key
+  if (e.key.length === 1) {
     userTyped = true;
     pressKey();
   }
