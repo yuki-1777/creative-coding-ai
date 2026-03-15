@@ -212,8 +212,8 @@
     /* save thumb：デバッグモード時のみ */
     #sketch-capture-btn {
       position: fixed;
-      bottom: 66px;
-      right: 32px;
+      bottom: 32px;
+      right: 152px;
       z-index: 9999;
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
       font-weight: 300;
@@ -232,8 +232,8 @@
     /* FB チャットパネル：デバッグモード時のみ */
     #sketch-fb-panel {
       position: fixed;
-      bottom: 106px;
-      right: 32px;
+      bottom: 72px;
+      right: calc(32px + min(360px, calc(100vw - 64px)) + 12px);
       z-index: 9999;
       width: 260px;
       background: rgba(245,243,238,0.95);

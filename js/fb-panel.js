@@ -157,8 +157,8 @@
 
   if (isSketchPage) {
     trigger.style.bottom = '32px';
-    trigger.style.right  = '170px';
-    overlay.style.bottom = '250px';
+    trigger.style.right  = '100px';
+    overlay.style.bottom = '72px';
     overlay.style.right  = '32px';
   } else {
     trigger.style.bottom = '32px';
