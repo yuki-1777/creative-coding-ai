@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>116 — Membrane</title>
+  <meta name="description" content="触ると沈む。離すと戻る。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="116 — Membrane | Creative Coding">
+  <meta property="og:description" content="触ると沈む。離すと戻る。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/116_membrane/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_116.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="116 — Membrane | Creative Coding">
+  <meta name="twitter:description" content="触ると沈む。離すと戻る。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_116.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(1.5, -1.5, 5.5);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // グリッドパラメータ
+    const COLS = 48;
+    const ROWS = 48;
+    const WIDTH = 4.8;
+    const HEIGHT = 4.8;
+
+    // 頂点データ
+    const positions = new Float32Array((COLS + 1) * (ROWS + 1) * 3);
+    const velocities = new Float32Array((COLS + 1) * (ROWS + 1));
+    const restZ = new Float32Array((COLS + 1) * (ROWS + 1));
+
+    // インデックス生成（三角形メッシュ）
+    const indices = [];
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const a = row * (COLS + 1) + col;
+        const b = a + 1;
+        const c = a + (COLS + 1);
+        const d = c + 1;
+        indices.push(a, c, b);
+        indices.push(b, c, d);
+      }
+    }
+
+    // 初期位置の設定（穏やかな波打ち初期状態）
+    function initPositions() {
+      let idx = 0;
+      for (let row = 0; row <= ROWS; row++) {
+        for (let col = 0; col <= COLS; col++) {
+          const x = (col / COLS - 0.5) * WIDTH;
+          const y = (row / ROWS - 0.5) * HEIGHT;
+          // 中央が少し凹んだ初期状態
+          const cx = col / COLS - 0.5;
+          const cy = row / ROWS - 0.5;
+          const dist = Math.sqrt(cx * cx + cy * cy);
+          const isBorder = row === 0 || row === ROWS || col === 0 || col === COLS;
+          const initZ = isBorder ? 0 : -1.6 * Math.exp(-dist * dist * 4);
+          positions[idx * 3]     = x;
+          positions[idx * 3 + 1] = y;
+          positions[idx * 3 + 2] = initZ;
+          restZ[idx] = 0;
+          velocities[idx] = 0;
+          idx++;
+        }
+      }
+    }
+    initPositions();
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+
+    // ライト（シェーディング用）
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(2, 3, 5);
+    scene.add(dirLight);
+
+    // ラインエッジのワイヤーフレーム（膜の格子線）
+    const wireGeo = new THREE.WireframeGeometry(geometry);
+    const wireMat = new THREE.LineBasicMaterial({
+      color: 0x2A2826,
+      transparent: true,
+      opacity: 0.45,
+      linewidth: 1
+    });
+    const wireMesh = new THREE.LineSegments(wireGeo, wireMat);
+    scene.add(wireMesh);
+
+    // 面（ライトを受けてシェーディング）
+    const fillMat = new THREE.MeshLambertMaterial({
+      color: 0xE8E4DC,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide
+    });
+    const fillMesh = new THREE.Mesh(geometry, fillMat);
+    scene.add(fillMesh);
+
+    // ラインの境界（外枠）
+    const borderPoints = [
+      new THREE.Vector3(-WIDTH / 2, -HEIGHT / 2, 0),
+      new THREE.Vector3( WIDTH / 2, -HEIGHT / 2, 0),
+      new THREE.Vector3( WIDTH / 2,  HEIGHT / 2, 0),
+      new THREE.Vector3(-WIDTH / 2,  HEIGHT / 2, 0),
+      new THREE.Vector3(-WIDTH / 2, -HEIGHT / 2, 0),
+    ];
+    const borderGeo = new THREE.BufferGeometry().setFromPoints(borderPoints);
+    const borderMat = new THREE.LineBasicMaterial({ color: 0x2A2826, transparent: true, opacity: 0.5 });
+    const border = new THREE.Line(borderGeo, borderMat);
+    scene.add(border);
+
+    // マウス → 3D投影
+    const raycaster = new THREE.Raycaster();
+    const mouse2D = new THREE.Vector2(-9999, -9999);
+    let isPressed = false;
+    let pressPoint = new THREE.Vector3(0, 0, 0);
+    const PRESS_DEPTH = -1.4;
+    const PRESS_RADIUS = 1.1;
+
+    // プレーン（レイキャスト用、見えない）
+    const planeGeo = new THREE.PlaneGeometry(WIDTH, HEIGHT);
+    const planeMat = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide });
+    const plane = new THREE.Mesh(planeGeo, planeMat);
+    scene.add(plane);
+
+    function updatePressPoint(e) {
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      mouse2D.x =  (clientX / window.innerWidth)  * 2 - 1;
+      mouse2D.y = -(clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse2D, camera);
+      const hits = raycaster.intersectObject(plane);
+      if (hits.length > 0) {
+        pressPoint.copy(hits[0].point);
+      }
+    }
+
+    window.addEventListener('mousedown', e => { isPressed = true;  updatePressPoint(e); });
+    window.addEventListener('mousemove', e => { if (isPressed) updatePressPoint(e); });
+    window.addEventListener('mouseup',   () => { isPressed = false; });
+    window.addEventListener('touchstart', e => { isPressed = true;  updatePressPoint(e); }, { passive: true });
+    window.addEventListener('touchmove',  e => { if (isPressed) updatePressPoint(e); }, { passive: true });
+    window.addEventListener('touchend',   () => { isPressed = false; });
+
+    // スプリング定数
+    const STIFFNESS = 0.04;
+    const DAMPING   = 0.97;
+    const NEIGHBOR_STIFFNESS = 0.04;
+
+    function simulate() {
+      const posAttr = geometry.attributes.position;
+
+      // 近傍スプリング更新
+      for (let row = 0; row <= ROWS; row++) {
+        for (let col = 0; col <= COLS; col++) {
+          const i = row * (COLS + 1) + col;
+          let neighborForce = 0;
+          let count = 0;
+          // 上下左右の隣接頂点のzを集める
+          if (col > 0)    { neighborForce += posAttr.getZ(row * (COLS + 1) + (col - 1)); count++; }
+          if (col < COLS) { neighborForce += posAttr.getZ(row * (COLS + 1) + (col + 1)); count++; }
+          if (row > 0)    { neighborForce += posAttr.getZ((row - 1) * (COLS + 1) + col); count++; }
+          if (row < ROWS) { neighborForce += posAttr.getZ((row + 1) * (COLS + 1) + col); count++; }
+          const avgNeighbor = count > 0 ? neighborForce / count : 0;
+
+          // 境界は固定（z=0）
+          const isBorder = row === 0 || row === ROWS || col === 0 || col === COLS;
+
+          if (!isBorder) {
+            const curZ = posAttr.getZ(i);
+            // 押し込み目標値の計算
+            let targetZ = restZ[i];
+            if (isPressed) {
+              const px = posAttr.getX(i);
+              const py = posAttr.getY(i);
+              const dx = px - pressPoint.x;
+              const dy = py - pressPoint.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < PRESS_RADIUS) {
+                const falloff = Math.cos((dist / PRESS_RADIUS) * Math.PI * 0.5);
+                targetZ = PRESS_DEPTH * falloff * falloff;
+              }
+            }
+
+            // 近傍への引力 + 静止位置への引力
+            const spring = STIFFNESS * (targetZ - curZ) + NEIGHBOR_STIFFNESS * (avgNeighbor - curZ);
+            velocities[i] = (velocities[i] + spring) * DAMPING;
+            posAttr.setZ(i, curZ + velocities[i]);
+          }
+        }
+      }
+
+      posAttr.needsUpdate = true;
+      geometry.computeVertexNormals();
+
+      // ワイヤーフレームを更新
+      wireMesh.geometry.dispose();
+      wireMesh.geometry = new THREE.WireframeGeometry(geometry);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      simulate();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:    '116',
+    title:  'Membrane',
+    desc:   '薄い膜を張った。触ると沈む。離すと戻る。',
+    detail: 'マウスボタンを押し当てると、その場所の膜が凹みます。ドラッグすると凹みが移動します。ボタンを離すと、スプリングの力でゆっくり元の平面に戻ります。格子の各点が隣と引き合いながら動いているので、押した周辺の膜も一緒に引っ張られます。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

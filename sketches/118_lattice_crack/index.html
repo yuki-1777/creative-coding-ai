@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>118 — Lattice Crack</title>
+  <meta name="description" content="整列した格子に、ひびを入れた。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="118 — Lattice Crack | Creative Coding">
+  <meta property="og:description" content="整列した格子に、ひびを入れた。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/118_lattice_crack/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_118.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="118 — Lattice Crack | Creative Coding">
+  <meta name="twitter:description" content="整列した格子に、ひびを入れた。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_118.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; cursor: crosshair; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 10);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    const COLS = 24;
+    const ROWS = 24;
+    const CELL = 0.3;
+    const OFFSET_X = -(COLS / 2) * CELL;
+    const OFFSET_Y = -(ROWS / 2) * CELL;
+
+    // 各格子点の位置（COLS+1 x ROWS+1）
+    // クラックが入ると、その点がわずかに変位する
+    const nodes = [];
+    for (let r = 0; r <= ROWS; r++) {
+      for (let c = 0; c <= COLS; c++) {
+        nodes.push({
+          x: OFFSET_X + c * CELL,
+          y: OFFSET_Y + r * CELL,
+          ox: OFFSET_X + c * CELL,  // 元の位置
+          oy: OFFSET_Y + r * CELL,
+          cracked: false,
+          dispX: 0,
+          dispY: 0,
+          targetDispX: 0,
+          targetDispY: 0,
+        });
+      }
+    }
+
+    function nodeIdx(r, c) { return r * (COLS + 1) + c; }
+
+    // エッジ：水平・垂直の辺を管理
+    // edge.cracked: ひびが入っているか
+    const hEdges = []; // 水平辺: [row][col] → row行目の col〜col+1 間
+    const vEdges = []; // 垂直辺: [row][col] → col列目の row〜row+1 間
+    for (let r = 0; r <= ROWS; r++) {
+      hEdges[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        hEdges[r][c] = { cracked: false, stress: Math.random() * 0.3 };
+      }
+    }
+    for (let c = 0; c <= COLS; c++) {
+      vEdges[c] = [];
+      for (let r = 0; r < ROWS; r++) {
+        vEdges[c][r] = { cracked: false, stress: Math.random() * 0.3 };
+      }
+    }
+
+    // Three.js ライン描画用
+    const lineGroup = new THREE.Group();
+    scene.add(lineGroup);
+
+    // ラインをすべて再構築
+    function rebuildLines() {
+      while (lineGroup.children.length) {
+        const child = lineGroup.children[0];
+        child.geometry.dispose();
+        lineGroup.remove(child);
+      }
+
+      const normalPoints = [];
+      const crackedPoints = [];
+
+      // 水平辺
+      for (let r = 0; r <= ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const n0 = nodes[nodeIdx(r, c)];
+          const n1 = nodes[nodeIdx(r, c + 1)];
+          const edge = hEdges[r][c];
+          const pts = [
+            new THREE.Vector3(n0.x + n0.dispX, n0.y + n0.dispY, 0),
+            new THREE.Vector3(n1.x + n1.dispX, n1.y + n1.dispY, 0),
+          ];
+          if (edge.cracked) {
+            crackedPoints.push(...pts);
+          } else {
+            normalPoints.push(...pts);
+          }
+        }
+      }
+
+      // 垂直辺
+      for (let c = 0; c <= COLS; c++) {
+        for (let r = 0; r < ROWS; r++) {
+          const n0 = nodes[nodeIdx(r, c)];
+          const n1 = nodes[nodeIdx(r + 1, c)];
+          const edge = vEdges[c][r];
+          const pts = [
+            new THREE.Vector3(n0.x + n0.dispX, n0.y + n0.dispY, 0),
+            new THREE.Vector3(n1.x + n1.dispX, n1.y + n1.dispY, 0),
+          ];
+          if (edge.cracked) {
+            crackedPoints.push(...pts);
+          } else {
+            normalPoints.push(...pts);
+          }
+        }
+      }
+
+      if (normalPoints.length >= 2) {
+        const geo = new THREE.BufferGeometry().setFromPoints(normalPoints);
+        const mat = new THREE.LineBasicMaterial({
+          color: 0x2A2826,
+          transparent: true,
+          opacity: 0.35,
+        });
+        lineGroup.add(new THREE.LineSegments(geo, mat));
+      }
+
+      if (crackedPoints.length >= 2) {
+        const geo = new THREE.BufferGeometry().setFromPoints(crackedPoints);
+        const mat = new THREE.LineBasicMaterial({
+          color: 0x2A2826,
+          transparent: true,
+          opacity: 0.9,
+        });
+        lineGroup.add(new THREE.LineSegments(geo, mat));
+      }
+    }
+
+    // クリック座標 → 3D
+    const raycaster = new THREE.Raycaster();
+    const mouse2D = new THREE.Vector2();
+    const floorMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(100, 100),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    scene.add(floorMesh);
+
+    // クラック伝播キュー
+    const crackQueue = []; // {r, c, dir: 'h'|'v', dist}
+
+    // クリック時の起点クラック
+    window.addEventListener('click', e => {
+      mouse2D.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+      mouse2D.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse2D, camera);
+      const hits = raycaster.intersectObject(floorMesh);
+      if (!hits.length) return;
+      const pt = hits[0].point;
+
+      // 最も近い格子点を見つける
+      const col = Math.round((pt.x - OFFSET_X) / CELL);
+      const row = Math.round((pt.y - OFFSET_Y) / CELL);
+      const clampedCol = Math.max(0, Math.min(COLS, col));
+      const clampedRow = Math.max(0, Math.min(ROWS, row));
+
+      // クリック点から放射状にクラックを開始
+      const directions = [
+        { dir: 'h', r: clampedRow, c: clampedCol,     dc: 1 },
+        { dir: 'h', r: clampedRow, c: clampedCol - 1, dc: -1 },
+        { dir: 'v', r: clampedRow,     c: clampedCol, dr: 1 },
+        { dir: 'v', r: clampedRow - 1, c: clampedCol, dr: -1 },
+      ];
+
+      for (const d of directions) {
+        crackQueue.push({ ...d, dist: 0, maxDist: Math.floor(Math.random() * 6) + 4 });
+      }
+
+      // クリックした格子点を変位させる
+      const n = nodes[nodeIdx(clampedRow, clampedCol)];
+      n.targetDispX += (Math.random() - 0.5) * 0.04;
+      n.targetDispY += (Math.random() - 0.5) * 0.04;
+    });
+
+    // 自動クラック（ランダムに蓄積）
+    let autoTimer = 0;
+    const AUTO_INTERVAL = 80; // フレーム
+
+    // 伝播ループ（毎フレーム1〜2ステップ進む）
+    let crackTimer = 0;
+    const CRACK_SPEED = 3; // フレームごとに1ステップ
+
+    function propagateCracks() {
+      if (crackQueue.length === 0) return;
+
+      crackTimer++;
+      if (crackTimer < CRACK_SPEED) return;
+      crackTimer = 0;
+
+      const next = [];
+      for (const item of crackQueue) {
+        if (item.dist >= item.maxDist) continue;
+
+        if (item.dir === 'h') {
+          const { r, c, dc } = item;
+          if (c >= 0 && c < COLS && r >= 0 && r <= ROWS) {
+            const edge = hEdges[r][c];
+            if (!edge.cracked) {
+              edge.cracked = true;
+              // 隣接点を変位
+              const n0 = nodes[nodeIdx(r, c)];
+              const n1 = nodes[nodeIdx(r, c + 1)];
+              const disp = (Math.random() - 0.5) * 0.03;
+              n0.targetDispY += disp;
+              n1.targetDispY -= disp;
+            }
+            // 次ステップ（曲がる可能性あり）
+            const bend = Math.random();
+            if (bend < 0.15) {
+              // 垂直方向に分岐
+              next.push({ dir: 'v', r: r,     c: c + Math.max(0, dc), dr: 1,  dist: item.dist + 1, maxDist: item.maxDist - 1 });
+              next.push({ dir: 'v', r: r - 1, c: c + Math.max(0, dc), dr: -1, dist: item.dist + 1, maxDist: item.maxDist - 1 });
+            } else {
+              next.push({ dir: 'h', r, c: c + dc, dc, dist: item.dist + 1, maxDist: item.maxDist });
+            }
+          }
+        } else {
+          const { r, c, dr } = item;
+          if (r >= 0 && r < ROWS && c >= 0 && c <= COLS) {
+            const edge = vEdges[c][r];
+            if (!edge.cracked) {
+              edge.cracked = true;
+              const n0 = nodes[nodeIdx(r, c)];
+              const n1 = nodes[nodeIdx(r + 1, c)];
+              const disp = (Math.random() - 0.5) * 0.03;
+              n0.targetDispX += disp;
+              n1.targetDispX -= disp;
+            }
+            const bend = Math.random();
+            if (bend < 0.15) {
+              next.push({ dir: 'h', r: r + Math.max(0, dr), c, dc: 1,  dist: item.dist + 1, maxDist: item.maxDist - 1 });
+              next.push({ dir: 'h', r: r + Math.max(0, dr), c: c - 1, dc: -1, dist: item.dist + 1, maxDist: item.maxDist - 1 });
+            } else {
+              next.push({ dir: 'v', r: r + dr, c, dr, dist: item.dist + 1, maxDist: item.maxDist });
+            }
+          }
+        }
+      }
+
+      crackQueue.length = 0;
+      crackQueue.push(...next);
+    }
+
+    rebuildLines();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // 自動クラック
+      autoTimer++;
+      if (autoTimer >= AUTO_INTERVAL) {
+        autoTimer = 0;
+        const r0 = Math.floor(Math.random() * ROWS);
+        const c0 = Math.floor(Math.random() * COLS);
+        crackQueue.push(
+          { dir: 'h', r: r0, c: c0, dc: 1,  dist: 0, maxDist: Math.floor(Math.random() * 5) + 2 },
+          { dir: 'v', r: r0, c: c0, dr: 1,  dist: 0, maxDist: Math.floor(Math.random() * 5) + 2 },
+        );
+      }
+
+      propagateCracks();
+
+      // 変位アニメーション（毎フレーム）
+      for (const n of nodes) {
+        n.dispX += (n.targetDispX - n.dispX) * 0.08;
+        n.dispY += (n.targetDispY - n.dispY) * 0.08;
+      }
+
+      // 毎フレーム再構築（変位が毎フレーム変わるため）
+      rebuildLines();
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:    '118',
+    title:  'Lattice Crack',
+    desc:   '整列した格子に、ひびを入れた。ひびは伝わり、少しずつ枝分かれする。',
+    detail: 'クリックした場所からひびが広がります。ひびは直進しながらときどき枝分かれし、ひびの入った辺の両端がわずかにずれます。放っておいても、しばらくすると自然にひびが入ります。格子全体に広がるまでクリックして待ってみてください。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
