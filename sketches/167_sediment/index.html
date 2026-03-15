@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>167 — Sediment</title>
+  <meta name="description" content="粒が落ちて積もる。クリックすると崩れる。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="167 — Sediment | Creative Coding">
+  <meta property="og:description" content="粒が落ちて積もる。クリックすると崩れる。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/167_sediment/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_167.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="167 — Sediment | Creative Coding">
+  <meta name="twitter:description" content="粒が落ちて積もる。クリックすると崩れる。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_167.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Sediment: Particles fall from above, pile up, and form visible strata.
+// Click to disturb the pile (simulate shaking the container).
+// Strata are rendered as alternating dark/light bands of graphite tones.
+
+const CELL = 4;           // pixel size of each grain
+let cols, rows;
+let grid;                  // 2D array: null or brightness value [0..1]
+
+// "Era" = a darkness value that oscillates over time
+// Each era produces one band of a slightly different tone
+let eraShift = 0;
+const ERA_SPEED = 2.5;    // shift units per second
+
+// Spawn parameters
+const SPAWN_RATE = 3;
+
+function eraBrightness() {
+  // Oscillates between 0.36 (darker graphite) and 0.65 (lighter stone)
+  return 0.36 + (sin(eraShift) * 0.5 + 0.5) * 0.29;
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  cols = floor(width / CELL);
+  rows = floor(height / CELL);
+  grid = Array.from({ length: cols }, () => new Array(rows).fill(null));
+}
+
+function draw() {
+  background('#F5F3EE');
+
+  // Drift era
+  eraShift += ERA_SPEED / frameRate();
+
+  const bv = eraBrightness();
+
+  // Spawn new grains from random top positions
+  for (let s = 0; s < SPAWN_RATE; s++) {
+    const cx = floor(random(cols * 0.15, cols * 0.85));
+    if (!grid[cx][0]) {
+      // Grain brightness: current era + small noise
+      grid[cx][0] = constrain(bv + random(-0.06, 0.06), 0.2, 0.8);
+    }
+  }
+
+  // Physics: gravity — grains fall down, settle if blocked
+  // Process bottom-to-top to avoid cascades skipping
+  for (let row = rows - 2; row >= 0; row--) {
+    for (let col = 0; col < cols; col++) {
+      const grain = grid[col][row];
+      if (!grain) continue;
+
+      const below = grid[col][row + 1];
+      if (!below) {
+        // Fall straight down
+        grid[col][row + 1] = grain;
+        grid[col][row] = null;
+      } else {
+        // Try to slide diagonally
+        const leftFree  = col > 0        && !grid[col - 1][row + 1];
+        const rightFree = col < cols - 1 && !grid[col + 1][row + 1];
+        if (leftFree && rightFree) {
+          const dir = random() < 0.5 ? -1 : 1;
+          grid[col + dir][row + 1] = grain;
+          grid[col][row] = null;
+        } else if (leftFree) {
+          grid[col - 1][row + 1] = grain;
+          grid[col][row] = null;
+        } else if (rightFree) {
+          grid[col + 1][row + 1] = grain;
+          grid[col][row] = null;
+        }
+        // else: settled
+      }
+    }
+  }
+
+  // Render
+  noStroke();
+  for (let col = 0; col < cols; col++) {
+    for (let row = 0; row < rows; row++) {
+      const bval = grid[col][row];
+      if (bval !== null) {
+        // Map brightness [0..1] to graphite RGB
+        // 0 = dark graphite (55,52,48), 1 = warm stone (200,195,185)
+        const r = lerp(55, 200, bval);
+        const g = lerp(52, 195, bval);
+        const b = lerp(48, 185, bval);
+        fill(r, g, b, 235);
+        rect(col * CELL, row * CELL, CELL - 0.5, CELL - 0.5);
+      }
+    }
+  }
+
+  // Hint
+  fill(160, 155, 148, 160);
+  textFont('monospace');
+  textSize(10);
+  textAlign(RIGHT, BOTTOM);
+  text('click — disturb', width - 18, height - 18);
+}
+
+// On click: disturb the pile by randomly displacing settled grains near click
+function mousePressed() {
+  const clickCol = floor(mouseX / CELL);
+  const clickRow = floor(mouseY / CELL);
+  const radius = floor(min(cols, rows) * 0.18);
+  let disturbed = 0;
+  for (let col = 0; col < cols; col++) {
+    for (let row = 0; row < rows; row++) {
+      if (grid[col][row] !== null) {
+        const dist = sqrt((col - clickCol) ** 2 + (row - clickRow) ** 2);
+        if (dist < radius && random() < 0.6) {
+          // Launch grain upward
+          const dc = floor(random(-radius * 0.6, radius * 0.6));
+          const dr = -floor(random(1, radius * 0.8));
+          const nc = constrain(col + dc, 0, cols - 1);
+          const nr = constrain(row + dr, 0, rows - 1);
+          if (!grid[nc][nr]) {
+            grid[nc][nr] = grid[col][row];
+            grid[col][row] = null;
+            disturbed++;
+          }
+        }
+      }
+    }
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  cols = floor(width / CELL);
+  rows = floor(height / CELL);
+  grid = Array.from({ length: cols }, () => new Array(rows).fill(null));
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '167',
+  title: 'Sediment',
+  detail: '粒が上から降ってきて積み重なる。時間が経つと地層の色の縞が見えてくる。クリックするとその場所を中心に崩れる。また静かに積み直す。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
