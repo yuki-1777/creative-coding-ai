@@ -715,6 +715,39 @@
       el.style.display = 'block';
     });
 </script>
+<!-- トップに戻るボタン -->
+<style>
+  #back-to-top {
+    position: fixed;
+    bottom: 32px;
+    left: 32px;
+    z-index: 9000;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 300;
+    font-size: 0.62rem;
+    letter-spacing: 0.2em;
+    background: rgba(245,243,238,0.9);
+    border: 1px solid rgba(42,42,42,0.15);
+    color: rgba(42,42,42,0.35);
+    cursor: pointer;
+    padding: 4px 10px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s, color 0.2s, border-color 0.2s;
+  }
+  #back-to-top.visible { opacity: 1; pointer-events: auto; }
+  #back-to-top:hover { color: rgba(42,42,42,0.7); border-color: rgba(42,42,42,0.3); }
+</style>
+<button id="back-to-top">↑ top</button>
+<script>
+  (function () {
+    const btn = document.getElementById('back-to-top');
+    window.addEventListener('scroll', () => {
+      btn.classList.toggle('visible', window.scrollY > 300);
+    }, { passive: true });
+    btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  })();
+</script>
 <script src="js/fs-bridge.js"></script>
 <script src="js/fb-panel.js"></script>
 </body>
