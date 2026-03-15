@@ -68,6 +68,8 @@
 | **glsl** | CDN不要（生のWebGL） | `canvas.getContext('webgl', { preserveDrawingBuffer: true })` 必須 |
 | **canvas** | CDN不要（生のCanvas API） | `canvas.getContext('2d')` で直接描く。p5.jsは使わない |
 
+上記以外のライブラリ（MediaPipe・TensorFlow.js・Tone.jsなど）も、コンセプトに必要であれば自由に選定して使ってよい。
+
 ---
 
 ## サムネイル取得
