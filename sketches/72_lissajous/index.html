@@ -31,6 +31,7 @@ const configs = [
   { a: 3, b: 4, delta: Math.PI / 2 },
   { a: 5, b: 4, delta: Math.PI / 4 },
   { a: 2, b: 3, delta: Math.PI / 6 },
+  { a: 4, b: 3, delta: Math.PI / 3 },
 ];
 
 let currentConfig = 0;
@@ -38,8 +39,9 @@ let t = 0;
 let trailPoints = [];
 let phase = 0; // drawing phase: 0=drawing, 1=holding, 2=fading
 let phaseTimer = 0;
-const drawSpeed = 0.018;
+const drawSpeed = 0.026; // faster draw — less waiting
 const maxT = Math.PI * 2;
+let deltaShift = 0; // slow drift in delta for breathing effect
 
 let mx = canvas.width / 2, my = canvas.height / 2;
 canvas.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
@@ -50,6 +52,7 @@ canvas.addEventListener('click', () => {
   trailPoints = [];
   phase = 0;
   phaseTimer = 0;
+  deltaShift = 0;
 });
 
 function getPoint(cfg, t, cx, cy, r) {
@@ -61,7 +64,9 @@ function getPoint(cfg, t, cx, cy, r) {
 function draw() {
   requestAnimationFrame(draw);
 
-  const cfg = configs[currentConfig];
+  const baseCfg = configs[currentConfig];
+  // deltaShift makes the figure gently breathe while holding
+  const cfg = { ...baseCfg, delta: baseCfg.delta + deltaShift };
   const size = Math.min(W, H) * 0.38;
   const cx = W / 2 + (mx - W / 2) * 0.06;
   const cy = H / 2 + (my - H / 2) * 0.06;
@@ -80,9 +85,10 @@ function draw() {
       phaseTimer = 0;
     }
   } else if (phase === 1) {
-    // Holding
+    // Holding: slowly drift delta so the form breathes
+    deltaShift += 0.003;
     phaseTimer++;
-    if (phaseTimer > 80) {
+    if (phaseTimer > 120) {
       phase = 2;
     }
   } else {
@@ -94,6 +100,7 @@ function draw() {
       trailPoints = [];
       phase = 0;
       phaseTimer = 0;
+      deltaShift = 0;
     }
   }
 
@@ -106,7 +113,7 @@ function draw() {
       const prev = trailPoints[i - 1];
       const cur = trailPoints[i];
       const progress = i / trailPoints.length;
-      let alpha = 0.6 * progress;
+      let alpha = 0.65 * progress;
       if (phase === 2) alpha *= Math.max(0, 1 - phaseTimer / 60);
 
       ctx.beginPath();
@@ -118,7 +125,7 @@ function draw() {
     }
   }
 
-  // Draw cursor dot
+  // Draw cursor dot during drawing
   if (phase === 0 && trailPoints.length > 0) {
     const last = trailPoints[trailPoints.length - 1];
     ctx.beginPath();
@@ -134,7 +141,7 @@ draw();
 window.SKETCH_META = {
   num:   '72',
   title: 'Lissajous',
-  desc:  '2つの正弦波が交差する。周波数の比を変えるたびに、見たことのある形と見たことのない形が交互に出てきた。クリックで次の比へ。'
+  desc:  '2つの正弦波が交差する。描き終わると形がゆっくり揺れ始め、しばらくして次の比へ移る。クリックで飛ばせる。'
 };
 </script>
 <script src="../../js/sketch-ui.js"></script>

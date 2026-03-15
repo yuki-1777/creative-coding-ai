@@ -115,17 +115,20 @@ function generateMarble() {
 }
 
 let t = 0;
+let smoothInflX = 0, smoothInflY = 0;
 
 function draw() {
   requestAnimationFrame(draw);
   t++;
 
+  // Smoothly track mouse influence so veins flow rather than snap
+  const targetInflX = (mx / W - 0.5) * 55;
+  const targetInflY = (my / H - 0.5) * 30;
+  smoothInflX += (targetInflX - smoothInflX) * 0.03;
+  smoothInflY += (targetInflY - smoothInflY) * 0.03;
+
   ctx.fillStyle = '#F5F3EE';
   ctx.fillRect(0, 0, W, H);
-
-  // Subtle mouse influence
-  const inflX = (mx / W - 0.5) * 20;
-  const inflY = (my / H - 0.5) * 10;
 
   // Draw veins
   for (const vein of veins) {
@@ -136,10 +139,10 @@ function draw() {
     const sorted = [...pts].sort((a, b) => a.x - b.x || a.y - b.y);
 
     ctx.beginPath();
-    ctx.moveTo(sorted[0].x + inflX * sorted[0].val, sorted[0].y + inflY * sorted[0].val);
+    ctx.moveTo(sorted[0].x + smoothInflX * sorted[0].val, sorted[0].y + smoothInflY * sorted[0].val);
     for (let i = 1; i < sorted.length; i++) {
       const p = sorted[i];
-      ctx.lineTo(p.x + inflX * p.val, p.y + inflY * p.val);
+      ctx.lineTo(p.x + smoothInflX * p.val, p.y + smoothInflY * p.val);
     }
     ctx.strokeStyle = `rgba(42, 42, 42, ${vein.alpha})`;
     ctx.lineWidth = 0.6;
@@ -154,7 +157,7 @@ draw();
 window.SKETCH_META = {
   num:   '76',
   title: 'Marble',
-  desc:  '正弦関数をねじって等値線を引いたら、大理石みたいな模様になった。クリックで新しい石。マウスで石が少しだけ動く。'
+  desc:  '正弦関数をねじって等値線を引いたら、大理石みたいな模様になった。マウスを動かすと石がゆっくり流れる。クリックで新しい石。'
 };
 </script>
 <script src="../../js/sketch-ui.js"></script>

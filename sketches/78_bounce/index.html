@@ -33,7 +33,7 @@ function init() {
   balls = [];
   trails = [];
 
-  const words = ['code', 'line', 'draw', 'loop', 'time', 'run', 'wait'];
+  const words = ['code', 'line', 'draw', 'loop', 'time', 'run', 'wait', 'void', 'true', 'null', 'move', 'rest', 'fall', 'step'];
   const word = words[Math.floor(Math.random() * words.length)];
   const chars = word.split('');
   const spacing = Math.min(W / (chars.length + 2), 90);
@@ -115,8 +115,9 @@ function draw() {
       }
     }
 
-    // Slight wobble when bouncing
-    const squash = b.onFloor ? 1 : 1 + Math.sin(t * 0.2 + b.phase) * 0.03;
+    // Slight wobble: continues even when on floor (resting sway)
+    const floorSway = b.onFloor ? Math.sin(t * 0.04 + b.phase) * 0.015 : 0;
+    const squash = b.onFloor ? 1 + floorSway : 1 + Math.sin(t * 0.2 + b.phase) * 0.03;
 
     ctx.save();
     ctx.translate(b.x, b.y);

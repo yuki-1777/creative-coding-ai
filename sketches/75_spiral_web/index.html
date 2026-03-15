@@ -36,13 +36,14 @@ canvas.addEventListener('mousemove', e => {
 });
 
 canvas.addEventListener('click', e => {
-  // Ripple effect: disturb threads
+  // Ripple effect: disturb threads more strongly
   for (const t of threads) {
     const dx = t.cx - e.clientX;
     const dy = t.cy - e.clientY;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 200) {
-      t.vibration += (1 - dist / 200) * 3;
+    const range = Math.min(W, H) * 0.55;
+    if (dist < range) {
+      t.vibration += (1 - dist / range) * 6;
     }
   }
 });
@@ -74,7 +75,7 @@ function drawWeb() {
   // Draw radial threads
   for (let i = 0; i < threads.length; i++) {
     const th = threads[i];
-    th.vibration *= 0.92;
+    th.vibration *= 0.96; // slower decay — vibration lingers longer
     const wobble = Math.sin(t * 0.04 + th.phase) * 0.5 + th.vibration;
 
     ctx.beginPath();
@@ -89,7 +90,8 @@ function drawWeb() {
     const ey = cy + Math.sin(th.angle) * size;
 
     ctx.quadraticCurveTo(mx2, my2, ex, ey);
-    ctx.strokeStyle = `rgba(42, 42, 42, 0.18)`;
+    const threadAlpha = 0.15 + Math.min(th.vibration * 0.05, 0.12);
+    ctx.strokeStyle = `rgba(42, 42, 42, ${threadAlpha})`;
     ctx.lineWidth = 0.5;
     ctx.stroke();
   }
@@ -145,7 +147,7 @@ draw();
 window.SKETCH_META = {
   num:   '75',
   title: 'Spiral Web',
-  desc:  '放射状の糸と同心円の糸が交差して、蜘蛛の巣のようになった。マウスで中心が動く。クリックで糸が震える。'
+  desc:  '放射状の糸と同心円の糸が交差して蜘蛛の巣になった。クリックすると全体が震え、しばらく余震が続く。マウスで中心が動く。'
 };
 </script>
 <script src="../../js/sketch-ui.js"></script>

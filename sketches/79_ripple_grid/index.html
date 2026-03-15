@@ -62,7 +62,7 @@ function getDisplacement(gx, gy) {
 
     if (Math.abs(distFromFront) < waveWidth) {
       const wave = Math.sin((distFromFront / waveWidth) * Math.PI) *
-                   Math.exp(-r.t / 80) * 8;
+                   Math.exp(-r.t / 80) * 13;
       const angle = Math.atan2(gy - r.y, gx - r.x);
       dx += Math.cos(angle) * wave;
       dy += Math.sin(angle) * wave;
@@ -119,8 +119,8 @@ function draw() {
     }
   }
 
-  // Draw grid lines (subtle)
-  ctx.globalAlpha = 0.06;
+  // Draw grid lines
+  ctx.globalAlpha = 0.1;
   // Horizontal lines
   for (let y = startY; y < H + CELL; y += CELL) {
     ctx.beginPath();

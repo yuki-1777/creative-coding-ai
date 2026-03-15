@@ -26,6 +26,7 @@ window.addEventListener('resize', resize);
 
 let mx = 0, my = 0;
 canvas.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+canvas.addEventListener('click', () => { init(); });
 
 const NUM_STARS = 80;
 let stars = [];
@@ -153,7 +154,7 @@ resize();
 window.SKETCH_META = {
   num:   '77',
   title: 'Constellation',
-  desc:  '点を置いたら、勝手に線で結ばれていった。どれが星座でどれが偶然の並びなのか、区別がつかない。マウスに近い星は引き寄せられる。'
+  desc:  '点を置いたら、勝手に線で結ばれていった。どれが星座でどれが偶然の並びなのか、区別がつかない。マウスに引き寄せられる。クリックで散らして新しく結び直す。'
 };
 </script>
 <script src="../../js/sketch-ui.js"></script>

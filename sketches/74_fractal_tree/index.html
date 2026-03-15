@@ -107,6 +107,10 @@ function draw() {
   ctx.save();
   ctx.translate(windX * 0.1, 0); // subtle sway
 
+  // How far through the full growth cycle are we (0→1)
+  const maxDelay = branches.reduce((m, b) => Math.max(m, b.delay + b.len / GROWTH_SPEED * 6), 0);
+  const growthDone = Math.min(1, globalTime / maxDelay);
+
   for (const b of branches) {
     if (globalTime < b.delay) continue;
 
@@ -118,7 +122,12 @@ function draw() {
     const swayFactor = b.depth * 0.008;
     const swayX = windX * swayFactor * b.depth;
 
-    const alpha = Math.min(0.55, 0.3 + (1 - b.depth / 10) * 0.25);
+    // After fully grown, fine branches (high depth) gently breathe
+    let breathe = 1;
+    if (growthDone >= 1 && b.depth >= 6) {
+      breathe = 0.7 + Math.sin(globalTime * 0.012 + b.depth * 0.5) * 0.3;
+    }
+    const alpha = Math.min(0.55, 0.3 + (1 - b.depth / 10) * 0.25) * breathe;
 
     ctx.beginPath();
     ctx.moveTo(b.x1 + swayX * 0.5, b.y1);
@@ -143,7 +152,7 @@ draw();
 window.SKETCH_META = {
   num:   '74',
   title: 'Fractal Tree',
-  desc:  '幹から枝が分かれ、また分かれる。育ちきった頃には、自分でも覚えていない枝がどこかに伸びている。マウスで風が吹く。クリックで新しい木。'
+  desc:  '幹から枝が分かれ、また分かれる。育ちきると、細い枝が呼吸するように揺れ始める。マウスで風が吹く。クリックで新しい木。'
 };
 </script>
 <script src="../../js/sketch-ui.js"></script>

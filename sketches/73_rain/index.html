@@ -25,11 +25,19 @@ window.addEventListener('resize', resize);
 resize();
 
 let mx = W / 2, my = H / 2;
-canvas.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+canvas.addEventListener('mousemove', e => {
+  mx = e.clientX;
+  my = e.clientY;
+  targetWindBias = (e.clientX / W - 0.5) * 2; // -1 to +1
+});
 
 // Rain intensity controlled by mouse Y position
 const drops = [];
 const ripples = [];
+
+// Global wind from mouse X: -1(left) to +1(right)
+let windBias = 0;
+let targetWindBias = 0;
 
 class RainDrop {
   constructor() {
@@ -40,11 +48,12 @@ class RainDrop {
     this.y = -10 - Math.random() * 60;
     this.speed = 4 + Math.random() * 5;
     this.len = 6 + Math.random() * 10;
-    this.wind = -0.8 + Math.random() * 0.5; // slight lean
+    this.baseWind = -0.3 + Math.random() * 0.3; // personal variance
     this.alpha = 0.2 + Math.random() * 0.25;
   }
   update() {
-    this.x += this.wind;
+    const wind = this.baseWind + windBias * 2.5;
+    this.x += wind;
     this.y += this.speed;
     if (this.y > H + 20) {
       // spawn ripple at landing
@@ -53,9 +62,10 @@ class RainDrop {
     }
   }
   draw() {
+    const wind = this.baseWind + windBias * 2.5;
     ctx.beginPath();
     ctx.moveTo(this.x, this.y);
-    ctx.lineTo(this.x + this.wind * (this.len / this.speed), this.y + this.len);
+    ctx.lineTo(this.x + wind * (this.len / this.speed), this.y + this.len);
     ctx.strokeStyle = `rgba(42, 42, 42, ${this.alpha})`;
     ctx.lineWidth = 0.5;
     ctx.stroke();
@@ -118,6 +128,9 @@ let frame = 0;
 function draw() {
   requestAnimationFrame(draw);
 
+  // Smoothly track wind direction
+  windBias += (targetWindBias - windBias) * 0.02;
+
   ctx.fillStyle = 'rgba(245, 243, 238, 0.55)';
   ctx.fillRect(0, 0, W, H);
 
@@ -151,7 +164,7 @@ draw();
 window.SKETCH_META = {
   num:   '73',
   title: 'Rain',
-  desc:  '雨を描いた。水面に落ちると楕円の波紋が広がる。マウスを下に動かすほど雨脚が強くなる。雨粒の数は数えていない。'
+  desc:  '雨を描いた。マウスを左右に動かすと風向きが変わる。下に動かすほど雨脚が強くなる。水面に落ちると波紋が残る。'
 };
 </script>
 <script src="../../js/sketch-ui.js"></script>
