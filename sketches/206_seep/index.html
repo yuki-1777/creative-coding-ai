@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>206 – Seep</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f3ef; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// ============================================================
+//  206 – Seep
+//  インクが紙に染みていく様子をGLSLで描く
+//  クリックで染みを落とす（最大8点）
+//  制約：1色のみ（インクの濃淡だけ）
+// ============================================================
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_time;
+
+// 染み点（最大8つ、x,y,落下時刻,seed）
+uniform vec4  u_drops[8];
+uniform int   u_dropCount;
+
+float hash(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7));
+  p += dot(p, p + 17.5);
+  return fract(p.x * p.y);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float amp = 0.5;
+  float freq = 1.0;
+  for (int i = 0; i < 4; i++) {
+    v += amp * noise(p * freq);
+    freq *= 2.1;
+    amp  *= 0.48;
+  }
+  return v;
+}
+
+// 1滴のインクが紙に染みた形状
+// center: 染み中心、age: 経過時間、seed: ランダムシード
+float inkBlot(vec2 uv, vec2 center, float age, float seed) {
+  vec2 diff = uv - center;
+  float baseDist = length(diff);
+
+  // 染みの最大半径（時間とともに広がる、徐々に遅くなる）
+  float maxRadius = 0.08 * (1.0 - exp(-age * 1.2));
+
+  // 方向によって広がり方が違う（紙の繊維の影響）
+  float angle = atan(diff.y, diff.x);
+  float fiberFreq = seed * 3.14159 + 0.5;
+  float fiberVariation = 1.0 + 0.4 * sin(angle * 5.0 + seed * 6.28)
+                             + 0.2 * sin(angle * 11.0 + seed * 12.0)
+                             + 0.1 * cos(angle * 17.0 + seed * 3.5);
+
+  // 縁のフラクタル凸凹（fbmで不規則な境界）
+  vec2 noiseCoord = uv * 12.0 + vec2(seed * 7.3, seed * 4.1);
+  float boundary = fbm(noiseCoord) * 0.4 + fbm(noiseCoord * 2.5 + 1.7) * 0.15;
+
+  float effectiveRadius = maxRadius * fiberVariation * (1.0 + boundary * 0.35);
+
+  // 内部：中心ほど濃い
+  float inside = smoothstep(effectiveRadius, effectiveRadius * 0.3, baseDist);
+
+  // 縁のにじみ：縁付近に少し濃い輪
+  float edgeDist = abs(baseDist - effectiveRadius * 0.85);
+  float edge = smoothstep(effectiveRadius * 0.12, 0.0, edgeDist) * 0.5;
+
+  // 登場のフェードイン
+  float appear = smoothstep(0.0, 0.3, age);
+
+  return (inside + edge) * appear;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+
+  float totalInk = 0.0;
+
+  // 各染みを合成（最大8つ）
+  // GLSLでは配列のループインデックスによるアクセスが必要なため固定展開
+  if (u_dropCount > 0) {
+    vec4 d = u_drops[0];
+    float age = u_time - d.z;
+    if (age > 0.0) totalInk += inkBlot(uv, d.xy, age, d.w);
+  }
+  if (u_dropCount > 1) {
+    vec4 d = u_drops[1];
+    float age = u_time - d.z;
+    if (age > 0.0) totalInk += inkBlot(uv, d.xy, age, d.w);
+  }
+  if (u_dropCount > 2) {
+    vec4 d = u_drops[2];
+    float age = u_time - d.z;
+    if (age > 0.0) totalInk += inkBlot(uv, d.xy, age, d.w);
+  }
+  if (u_dropCount > 3) {
+    vec4 d = u_drops[3];
+    float age = u_time - d.z;
+    if (age > 0.0) totalInk += inkBlot(uv, d.xy, age, d.w);
+  }
+  if (u_dropCount > 4) {
+    vec4 d = u_drops[4];
+    float age = u_time - d.z;
+    if (age > 0.0) totalInk += inkBlot(uv, d.xy, age, d.w);
+  }
+  if (u_dropCount > 5) {
+    vec4 d = u_drops[5];
+    float age = u_time - d.z;
+    if (age > 0.0) totalInk += inkBlot(uv, d.xy, age, d.w);
+  }
+  if (u_dropCount > 6) {
+    vec4 d = u_drops[6];
+    float age = u_time - d.z;
+    if (age > 0.0) totalInk += inkBlot(uv, d.xy, age, d.w);
+  }
+  if (u_dropCount > 7) {
+    vec4 d = u_drops[7];
+    float age = u_time - d.z;
+    if (age > 0.0) totalInk += inkBlot(uv, d.xy, age, d.w);
+  }
+
+  float ink = clamp(totalInk, 0.0, 1.0);
+
+  // カラー：オフホワイト背景、インクは深い青灰色1色のみ
+  vec3 bg      = vec3(0.961, 0.953, 0.941);
+  vec3 inkCol  = vec3(0.28, 0.31, 0.35);  // 少し青みのあるグラファイト
+
+  vec3 col = mix(bg, inkCol, ink);
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+function createProgram(vs, fs) {
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(prog));
+  }
+  return prog;
+}
+
+const prog = createProgram(VS, FS);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes       = gl.getUniformLocation(prog, 'u_res');
+const uTime      = gl.getUniformLocation(prog, 'u_time');
+const uDrops     = gl.getUniformLocation(prog, 'u_drops');
+const uDropCount = gl.getUniformLocation(prog, 'u_dropCount');
+
+const startTime = performance.now();
+
+// 染み点リスト [x, y, time, seed]
+const drops = [];
+const MAX_DROPS = 8;
+
+// 初期の1滴（中央付近）
+drops.push([
+  0.45 + Math.random() * 0.1,
+  0.45 + Math.random() * 0.1,
+  0.5,  // 0.5秒後に出現
+  Math.random()
+]);
+
+function addDrop(x, y) {
+  const t = (performance.now() - startTime) * 0.001;
+  if (drops.length >= MAX_DROPS) {
+    drops.shift();
+  }
+  drops.push([x, y, t, Math.random()]);
+}
+
+canvas.addEventListener('click', (e) => {
+  const x = e.clientX / canvas.width;
+  const y = 1.0 - e.clientY / canvas.height;
+  addDrop(x, y);
+});
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const x = e.touches[0].clientX / canvas.width;
+  const y = 1.0 - e.touches[0].clientY / canvas.height;
+  addDrop(x, y);
+}, { passive: false });
+
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+
+  // uniform配列に送る（最大8個 × 4成分）
+  const flat = new Float32Array(8 * 4);
+  for (let i = 0; i < 8; i++) {
+    if (i < drops.length) {
+      flat[i * 4 + 0] = drops[i][0];
+      flat[i * 4 + 1] = drops[i][1];
+      flat[i * 4 + 2] = drops[i][2];
+      flat[i * 4 + 3] = drops[i][3];
+    }
+  }
+
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform4fv(uDrops, flat);
+  gl.uniform1i(uDropCount, drops.length);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '206',
+  title:  'Seep',
+  detail: 'クリックした場所にインクが落ちて、紙に染みていく。染みは中心から広がりながら、縁が不規則にギザギザになる——紙の繊維の向きによって、インクが吸われやすい方向とそうでない方向があるから。8つまで染みを置ける。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
