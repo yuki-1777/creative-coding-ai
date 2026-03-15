@@ -128,11 +128,11 @@ async function startWithCamera() {
     toneWaveform = new Tone.Waveform(CANVAS_H);
     gainNode.connect(toneWaveform);
 
+    const baseFreqs = [220, 330, 440, 550, 660, 880];
     for (let i = 0; i < NUM_OSC; i++) {
-      const baseFreq = 80 + i * 47;
       const osc = new Tone.Oscillator({
-        frequency: baseFreq,
-        type: 'sine',
+        frequency: baseFreqs[i],
+        type: 'triangle',
         volume: -18
       }).connect(gainNode);
       osc.start();
@@ -232,8 +232,9 @@ function draw() {
     for (let i = 0; i < NUM_OSC; i++) {
       const row = oscScanRows[i];
       const bright = rowBrightness[row];
-      const baseFreq = 80 + i * 47;
-      oscillators[i].frequency.rampTo(baseFreq + bright * 60, 0.1);
+      const baseFreqs2 = [220, 330, 440, 550, 660, 880];
+      const baseFreq = baseFreqs2[i];
+      oscillators[i].frequency.rampTo(baseFreq + bright * baseFreq * 0.15, 0.1);
       const brightness01 = Math.abs(bright - 0.5) * 2;
       oscillators[i].volume.rampTo(-24 + (1 - brightness01) * 18, 0.1);
     }
