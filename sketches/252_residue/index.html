@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Residue</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f2ed; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// マウスを動かすと跡が残る。
+// 消えていくが、完全には消えない。
+// 何度も通った道は、うっすら濃くなる。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+         || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+
+if (!gl) {
+  console.error('WebGL not supported');
+}
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// シンプルアプローチ:
+// マウスの過去N点の位置を uniform として渡し、
+// 各点からの距離で印を描く。
+// 古い点ほど薄い（インデックスで減衰）。
+// 最低限の「残滓」は消えない（最小値を設定）。
+
+const TRAIL_LEN = 80; // 軌跡バッファ長
+
+const vsSource = `
+attribute vec2 a_position;
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}
+`;
+
+const fsSource = `
+precision mediump float;
+uniform vec2  u_resolution;
+uniform float u_time;
+
+// 過去のマウス位置 (80点)
+uniform vec2  u_trail[80];
+uniform float u_trail_age[80];  // 各点の経過時間 (秒)
+uniform int   u_trail_len;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i),              hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), u.x),
+    u.y
+  );
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+
+  // 各軌跡点の影響を加算（uv座標 0〜1 で計算）
+  float totalDark = 0.0;
+
+  for (int i = 0; i < 80; i++) {
+    if (i >= u_trail_len) break;
+
+    vec2 pt = u_trail[i];  // 0〜1 のまま
+    float age = u_trail_age[i];
+
+    // 消えていく速度: age に従って減衰
+    // ただし完全には消えない（最低残留率）
+    float decay = exp(-age * 0.25);
+    float residue = 0.18;  // 完全に消えない最小値（大きめ）
+    float strength = max(decay, residue);
+
+    // ブラシ半径（uv座標系: 0〜1）
+    float r = 0.06;
+    float dist = length(uv - pt);
+    float brush = smoothstep(r, 0.0, dist);
+
+    totalDark += brush * strength * 0.8;
+  }
+
+  // 紙のテクスチャノイズ
+  float grain = noise(uv * 300.0) * 0.007;
+
+  // 暗さのクランプ
+  totalDark = clamp(totalDark, 0.0, 0.85);
+
+  // 背景（オフホワイト）
+  vec3 bg = vec3(0.961, 0.949, 0.929);
+  // 痕跡色（グラファイト）
+  vec3 fg = vec3(0.17, 0.15, 0.13);
+
+  vec3 col = mix(bg, fg, totalDark);
+  col += grain;
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(gl, type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+    gl.deleteShader(shader);
+    return null;
+  }
+  return shader;
+}
+
+const vs = compileShader(gl, gl.VERTEX_SHADER, vsSource);
+const fs = compileShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+const program = gl.createProgram();
+gl.attachShader(program, vs);
+gl.attachShader(program, fs);
+gl.linkProgram(program);
+
+if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+  console.error('Program link error:', gl.getProgramInfoLog(program));
+}
+
+gl.useProgram(program);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1,  -1, 1,
+  -1,  1,  1, -1,   1, 1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(program, 'a_position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uResolution = gl.getUniformLocation(program, 'u_resolution');
+const uTime       = gl.getUniformLocation(program, 'u_time');
+const uTrailLen   = gl.getUniformLocation(program, 'u_trail_len');
+
+// uniform配列のlocation取得
+const uTrailLocs    = [];
+const uTrailAgeLocs = [];
+for (let i = 0; i < TRAIL_LEN; i++) {
+  uTrailLocs.push(gl.getUniformLocation(program, `u_trail[${i}]`));
+  uTrailAgeLocs.push(gl.getUniformLocation(program, `u_trail_age[${i}]`));
+}
+
+// 軌跡バッファ: {x, y, time}
+const trailPoints = [];
+const startTime = Date.now();
+
+// 初期軌跡を事前に焼き込む（起動時から「古い」跡として見せる）
+const initTime = -3.0; // 3秒前に動いたことにする（まだ比較的濃い）
+const initPaths = [
+  // 緩やかなS字カーブ
+  { x: 0.15, y: 0.65 }, { x: 0.20, y: 0.60 }, { x: 0.28, y: 0.55 },
+  { x: 0.35, y: 0.52 }, { x: 0.40, y: 0.50 }, { x: 0.45, y: 0.48 },
+  { x: 0.50, y: 0.50 }, { x: 0.55, y: 0.52 }, { x: 0.60, y: 0.55 },
+  { x: 0.65, y: 0.50 }, { x: 0.70, y: 0.45 }, { x: 0.75, y: 0.42 },
+  { x: 0.80, y: 0.40 },
+  // 小さなループ
+  { x: 0.35, y: 0.30 }, { x: 0.40, y: 0.25 }, { x: 0.50, y: 0.28 },
+  { x: 0.55, y: 0.35 }, { x: 0.48, y: 0.38 }, { x: 0.42, y: 0.32 },
+];
+for (const p of initPaths) {
+  trailPoints.push({ x: p.x, y: p.y, time: initTime });
+}
+
+let mouseX = 0.5;
+let mouseY = 0.5;
+
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX / canvas.width;
+  mouseY = 1.0 - e.clientY / canvas.height;
+  const now = (Date.now() - startTime) / 1000;
+  // 一定間隔でサンプリング（過密防止）
+  if (trailPoints.length === 0 ||
+      Math.hypot(mouseX - trailPoints[trailPoints.length-1].x,
+                 mouseY - trailPoints[trailPoints.length-1].y) > 0.008) {
+    trailPoints.push({ x: mouseX, y: mouseY, time: now });
+  }
+  // 古すぎる点を削除（age > 60秒）
+  const cutoff = now - 60;
+  while (trailPoints.length > 0 && trailPoints[0].time < cutoff) {
+    trailPoints.shift();
+  }
+  // 最大 TRAIL_LEN 点まで
+  while (trailPoints.length > TRAIL_LEN) {
+    trailPoints.shift();
+  }
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  mouseX = t.clientX / canvas.width;
+  mouseY = 1.0 - t.clientY / canvas.height;
+  const now = (Date.now() - startTime) / 1000;
+  trailPoints.push({ x: mouseX, y: mouseY, time: now });
+  while (trailPoints.length > TRAIL_LEN) trailPoints.shift();
+}, { passive: false });
+
+function render() {
+  requestAnimationFrame(render);
+
+  if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+    resize();
+  }
+
+  const elapsed = (Date.now() - startTime) / 1000;
+
+  gl.uniform2f(uResolution, canvas.width, canvas.height);
+  gl.uniform1f(uTime, elapsed);
+
+  const len = Math.min(trailPoints.length, TRAIL_LEN);
+  gl.uniform1i(uTrailLen, len);
+
+  for (let i = 0; i < len; i++) {
+    const pt = trailPoints[trailPoints.length - len + i];
+    const age = elapsed - pt.time;
+    gl.uniform2f(uTrailLocs[i], pt.x, pt.y);
+    gl.uniform1f(uTrailAgeLocs[i], age);
+  }
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '252',
+  title:  'Residue',
+  detail: 'マウスを動かすと跡が残る。時間が経つとゆっくり薄れていくが、完全には消えない。何度も通った場所は少し濃く残る。触れた記録の痕跡が、紙に染みこんでいく。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
