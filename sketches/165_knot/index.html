@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>165 — Knot</title>
+  <meta name="description" content="今日の時刻を紐で結んでいる。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="165 — Knot | Creative Coding">
+  <meta property="og:description" content="今日の時刻を紐で結んでいる。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/165_knot/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_165.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="165 — Knot | Creative Coding">
+  <meta name="twitter:description" content="今日の時刻を紐で結んでいる。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_165.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Knot: A torus knot whose complexity grows with the time of day.
+// At midnight the knot "resets" to its simplest form.
+// p and q winding numbers are derived from current hour and minute.
+
+let t = 0;
+
+// Curated list of valid torus knot (p,q) pairs where gcd(p,q)=1
+// Each gives a genuinely knotted form
+const KNOT_TYPES = [
+  [2, 3],  // trefoil
+  [2, 5],  // cinquefoil
+  [2, 7],
+  [3, 4],
+  [3, 5],
+  [3, 7],
+  [4, 5],
+  [4, 7],
+  [4, 9],
+  [5, 6],
+  [5, 7],
+  [5, 8],
+  [5, 9],
+  [6, 7],
+];
+
+// Torus knot parameters derived from clock
+function getKnotParams() {
+  const now = new Date();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  const second = now.getSeconds();
+
+  // Select knot type based on hour (0–23 → cycles through KNOT_TYPES)
+  const idx = hour % KNOT_TYPES.length;
+  const [p, q] = KNOT_TYPES[idx];
+
+  // Phase driven by minute+second for slow visual rotation offset
+  const phase = ((minute * 60 + second) / 3600) * TWO_PI;
+  return { p, q, phase };
+}
+
+function torusKnotPoint(tt, p, q, R, r) {
+  // Parametric torus knot
+  const phi = tt * p;
+  const theta = tt * q;
+  const x = (R + r * cos(phi)) * cos(theta);
+  const y = (R + r * cos(phi)) * sin(theta);
+  const z = r * sin(phi);
+  return { x, y, z };
+}
+
+function project(x, y, z, camAngle) {
+  // Simple isometric-like projection with slow camera rotation
+  const cosA = cos(camAngle);
+  const sinA = sin(camAngle);
+  const rx = x * cosA - y * sinA;
+  const ry = x * sinA + y * cosA;
+  const perspective = 1.8 / (2.2 + z * 0.003);
+  return {
+    sx: rx * perspective,
+    sy: ry * perspective - z * 0.28 * perspective
+  };
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  strokeCap(ROUND);
+  textFont('monospace');
+}
+
+function draw() {
+  background('#F5F3EE');
+
+  const { p, q, phase } = getKnotParams();
+  const now = new Date();
+
+  // Canvas center
+  const cx = width / 2;
+  const cy = height / 2;
+
+  // Scale based on canvas size
+  const scl = min(width, height) * 0.28;
+  const R = scl * 0.72;   // major radius
+  const r = scl * 0.32;   // minor radius
+
+  // Slow continuous rotation
+  t += 0.003;
+  const camAngle = t + phase;
+
+  // Number of points along the knot curve
+  const steps = 600;
+  const pts = [];
+  for (let i = 0; i <= steps; i++) {
+    const tt = (i / steps) * TWO_PI;
+    const { x, y, z } = torusKnotPoint(tt, p, q, R, r);
+    const { sx, sy } = project(x, y, z, camAngle);
+    pts.push({ sx: cx + sx, sy: cy + sy, z });
+  }
+
+  // Draw with depth-based opacity
+  noFill();
+  const zVals = pts.map(pt => pt.z);
+  const zMin = Math.min(...zVals);
+  const zMax = Math.max(...zVals);
+
+  for (let i = 0; i < pts.length - 1; i++) {
+    const pt = pts[i];
+    const pt2 = pts[i + 1];
+    // Normalize z to [0,1], front = brighter
+    const zn = (pt.z - zMin) / (zMax - zMin + 0.001);
+    const alpha = map(zn, 0, 1, 40, 220);
+    const sw = map(zn, 0, 1, 0.4, 1.8);
+    stroke(60, 58, 54, alpha);
+    strokeWeight(sw);
+    line(pt.sx, pt.sy, pt2.sx, pt2.sy);
+  }
+
+  // Small clock label at bottom-left
+  const timeStr = now.toTimeString().slice(0, 8);
+  const knotLabel = `(${p},${q}) knot`;
+  noStroke();
+  fill(160, 155, 148, 180);
+  textSize(11);
+  textAlign(LEFT, BOTTOM);
+  text(`${timeStr}  —  ${knotLabel}`, 20, height - 20);
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '165',
+  title: 'Knot',
+  detail: '現在時刻を紐で結んでいる。時（p）と分（q）がトーラス結び目の形を決める。毎分かたちが変わり、0時にほどけてまた始まる。操作は不要。ただ待つと変わっていく。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
