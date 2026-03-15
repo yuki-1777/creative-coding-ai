@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>296 — Tone</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #f5f4f0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+  canvas { display: block; cursor: crosshair; }
+  #hint {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    font-family: sans-serif; font-size: 13px; color: #aaa;
+    pointer-events: none; transition: opacity 0.6s;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">クリックして音を鳴らす</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const hint = document.getElementById('hint');
+
+let W, H;
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// --- audio ---
+let audioCtx = null;
+const rings = [];
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playTone(x, y) {
+  const freq = 110 + (1 - y / H) * 880;   // Y: 下=低音 上=高音
+  const gain = 0.15 + (x / W) * 0.35;     // X: 左=小 右=大
+
+  const osc  = audioCtx.createOscillator();
+  const amp  = audioCtx.createGain();
+  osc.connect(amp);
+  amp.connect(audioCtx.destination);
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+  amp.gain.setValueAtTime(0, audioCtx.currentTime);
+  amp.gain.linearRampToValueAtTime(gain, audioCtx.currentTime + 0.01);
+  amp.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+
+  osc.start(audioCtx.currentTime);
+  osc.stop(audioCtx.currentTime + 1.2);
+
+  // ビジュアル: 広がる輪
+  rings.push({ x, y, r: 0, maxR: 160 + gain * 200, freq, born: Date.now() });
+}
+
+// --- interaction ---
+canvas.addEventListener('click', e => {
+  initAudio();
+  hint.style.opacity = '0';
+  playTone(e.clientX, e.clientY);
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  initAudio();
+  hint.style.opacity = '0';
+  const t = e.touches[0];
+  playTone(t.clientX, t.clientY);
+}, { passive: false });
+
+// --- draw ---
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  const now = Date.now();
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const ring = rings[i];
+    const age  = (now - ring.born) / 1200;   // 0→1
+    if (age >= 1) { rings.splice(i, 1); continue; }
+
+    ring.r = ring.maxR * age;
+    const alpha = (1 - age) * 0.6;
+
+    // ピッチを色相に変換（低音=暖色, 高音=寒色）
+    const hue = 200 - ((ring.freq - 110) / 880) * 160;
+    ctx.beginPath();
+    ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2);
+    ctx.strokeStyle = `hsla(${hue}, 40%, 50%, ${alpha})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // 内側に小さな点
+    if (age < 0.1) {
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${hue}, 40%, 40%, ${1 - age * 10})`;
+      ctx.fill();
+    }
+  }
+
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '296',
+  title:  'Tone',
+  detail: 'クリックした位置で音程と音量が変わる。上でクリックするほど高い音、右でクリックするほど大きな音。輪の大きさが音量を、色が音程を表す。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

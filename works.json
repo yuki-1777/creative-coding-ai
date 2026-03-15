@@ -2653,5 +2653,14 @@
     "path": "sketches/295_register/",
     "description": "二枚の版をわずかにずらした。同じ図形が二重に見えて、ずれていることだけがわかった。",
     "thumb": "img/thumb_295.png"
+  },
+  {
+    "num": "296",
+    "title": "Tone",
+    "tech": "canvas",
+    "date": "2026-03-16",
+    "path": "sketches/296_tone/",
+    "description": "クリックした場所で音が鳴った。上ほど高く、右ほど大きく。輪が広がって消えた。",
+    "thumb": "img/thumb_296.png"
   }
 ]
