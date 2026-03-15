@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>108 — Voronoi Drift</title>
+  <meta name="description" content="細胞が漂って、境界線が引き直される。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="108 — Voronoi Drift | Creative Coding">
+  <meta property="og:description" content="細胞が漂って、境界線が引き直される。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/108_voronoi_drift/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_108.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="108 — Voronoi Drift | Creative Coding">
+  <meta name="twitter:description" content="細胞が漂って、境界線が引き直される。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_108.png">
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+// ボロノイ：12個の点を時間でゆっくり動かす
+// GLSL for ループ内は定数インデックスで展開
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+
+vec2 cellPos(int idx, float t) {
+  float fi = float(idx);
+  float ox = sin(fi * 2.39996 + t * (0.12 + fi * 0.011)) * 0.42;
+  float oy = cos(fi * 1.61803 + t * (0.09 + fi * 0.013)) * 0.42;
+  return vec2(ox, oy);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float asp = uResolution.x / uResolution.y;
+  vec2 p = (uv - 0.5) * vec2(asp, 1.0);
+
+  float t = uTime * 0.55;
+
+  // マウスが近い点を引き寄せる
+  vec2 mouse = (uMouse - 0.5) * vec2(asp, 1.0);
+
+  // 各セルの位置を取得 (12点)
+  vec2 pts[12];
+  pts[0]  = cellPos(0,  t);
+  pts[1]  = cellPos(1,  t);
+  pts[2]  = cellPos(2,  t);
+  pts[3]  = cellPos(3,  t);
+  pts[4]  = cellPos(4,  t);
+  pts[5]  = cellPos(5,  t);
+  pts[6]  = cellPos(6,  t);
+  pts[7]  = cellPos(7,  t);
+  pts[8]  = cellPos(8,  t);
+  pts[9]  = cellPos(9,  t);
+  pts[10] = cellPos(10, t);
+  pts[11] = cellPos(11, t);
+
+  // マウスに最も近い点を引き寄せ（0番の点だけ）
+  pts[0] = mix(pts[0], mouse, 0.55);
+
+  // 最近傍と2番目を探す
+  float d1 = 1e9;
+  float d2 = 1e9;
+
+  float tmp;
+
+  tmp = length(p - pts[0]);
+  if (tmp < d1) { d2 = d1; d1 = tmp; }
+  else if (tmp < d2) { d2 = tmp; }
+
+  tmp = length(p - pts[1]);
+  if (tmp < d1) { d2 = d1; d1 = tmp; }
+  else if (tmp < d2) { d2 = tmp; }
+
+  tmp = length(p - pts[2]);
+  if (tmp < d1) { d2 = d1; d1 = tmp; }
+  else if (tmp < d2) { d2 = tmp; }
+
+  tmp = length(p - pts[3]);
+  if (tmp < d1) { d2 = d1; d1 = tmp; }
+  else if (tmp < d2) { d2 = tmp; }
+
+  tmp = length(p - pts[4]);
+  if (tmp < d1) { d2 = d1; d1 = tmp; }
+  else if (tmp < d2) { d2 = tmp; }
+
+  tmp = length(p - pts[5]);
+  if (tmp < d1) { d2 = d1; d1 = tmp; }
+  else if (tmp < d2) { d2 = tmp; }
+
+  tmp = length(p - pts[6]);
+  if (tmp < d1) { d2 = d1; d1 = tmp; }
+  else if (tmp < d2) { d2 = tmp; }
+
+  tmp = length(p - pts[7]);
+  if (tmp < d1) { d2 = d1; d1 = tmp; }
+  else if (tmp < d2) { d2 = tmp; }
+
+  tmp = length(p - pts[8]);
+  if (tmp < d1) { d2 = d1; d1 = tmp; }
+  else if (tmp < d2) { d2 = tmp; }
+
+  tmp = length(p - pts[9]);
+  if (tmp < d1) { d2 = d1; d1 = tmp; }
+  else if (tmp < d2) { d2 = tmp; }
+
+  tmp = length(p - pts[10]);
+  if (tmp < d1) { d2 = d1; d1 = tmp; }
+  else if (tmp < d2) { d2 = tmp; }
+
+  tmp = length(p - pts[11]);
+  if (tmp < d1) { d2 = d1; d1 = tmp; }
+  else if (tmp < d2) { d2 = tmp; }
+
+  // 境界線の距離（d2 - d1）
+  float edge = d2 - d1;
+
+  // 細い境界線
+  float lineWidth = 0.008;
+  float line = 1.0 - smoothstep(0.0, lineWidth, edge);
+
+  // セル中心付近に淡いドット
+  float dot = 1.0 - smoothstep(0.0, 0.025, d1);
+
+  float ink = line * 0.6 + dot * 0.18;
+
+  vec3 paper    = vec3(0.961, 0.953, 0.934);
+  vec3 graphite = vec3(0.22, 0.21, 0.20);
+
+  vec3 color = mix(paper, graphite, clamp(ink, 0.0, 1.0));
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s)); return null;
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = { x: 0.5, y: 0.5 };
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX / window.innerWidth;
+  mouse.y = 1.0 - e.clientY / window.innerHeight;
+});
+
+function resize() {
+  canvas.width  = window.innerWidth  * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const startTime = performance.now();
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '108',
+  title:  'Voronoi Drift',
+  desc:   '12個の点がゆっくり漂い、それぞれが自分に最も近い領域を持つ。点が動くたびに境界線が引き直される。マウスに近い点は引き寄せられ、境界の形が歪む。',
+  detail: 'マウスを動かすと、一番近くの細胞がそちらへ引き寄せられ、周囲の境界線が変化します。ボロノイ図という数学的なパターンで、各点が「最も近い点の領域」を形成します。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
