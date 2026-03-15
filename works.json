@@ -1,42 +1,722 @@
 [
-  { "num": "01", "title": "Flow Field",        "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/01_flow_field/",       "thumb": "img/thumb_01.png", "description": "ノイズ場に1000本の糸を流したら、川みたいになった。マウスで流れが変わる。" },
-  { "num": "02", "title": "Particle Growth",   "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/02_particle_growth/",  "thumb": "img/thumb_02.png", "description": "分裂を繰り返すルールだけ書いた。出てきたのは木に似たものだった。" },
-  { "num": "03", "title": "Sine Waves",        "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/03_sine_waves/",       "thumb": "img/thumb_03.png", "description": "位相をずらした正弦波を重ねたら、予期しない模様が出てきた。" },
-  { "num": "04", "title": "Wandering",         "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/04_wandering/",        "thumb": "img/thumb_04.png", "description": "同じコードを動かすたびに、少し違う形が出てくる。" },
-  { "num": "05", "title": "Breathing Circle",  "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/05_breathing_circle/", "thumb": "img/thumb_05.png", "description": "円に呼吸させてみた。触ると逃げる。" },
-  { "num": "06", "title": "Wire Icosahedron",  "tech": "three.js", "date": "2026-03-14", "path": "sketches/06_icosahedron/",      "thumb": "img/thumb_06.png", "description": "面を取り除いたら、骨格だけ残った。" },
-  { "num": "07", "title": "Floating Particles","tech": "three.js", "date": "2026-03-14", "path": "sketches/07_particles/",        "thumb": "img/thumb_07.png", "description": "3000個の点を空中に置いた。それぞれ勝手に動いている。" },
-  { "num": "08", "title": "Morphing Mesh",     "tech": "three.js", "date": "2026-03-14", "path": "sketches/08_morph/",            "thumb": "img/thumb_08.png", "description": "球に揺らぎを与えたら、生き物みたいになった。" },
-  { "num": "09", "title": "Ripple Plane",      "tech": "three.js", "date": "2026-03-14", "path": "sketches/09_ripple/",           "thumb": "img/thumb_09.png", "description": "平面に波を通した。クリックすると波紋が起きる。" },
-  { "num": "10", "title": "Line Spiral",       "tech": "three.js", "date": "2026-03-14", "path": "sketches/10_spiral/",           "thumb": "img/thumb_10.png", "description": "コードがらせんを描いた。どこまでも伸びていく。" },
-  { "num": "11", "title": "Noise Field",       "tech": "glsl",     "date": "2026-03-14", "path": "sketches/11_noise_field/",      "thumb": "img/thumb_11.png", "description": "ノイズに時間を足したら、霧みたいになった。" },
-  { "num": "12", "title": "SDF Shapes",        "tech": "glsl",     "date": "2026-03-14", "path": "sketches/12_sdf_shapes/",       "thumb": "img/thumb_12.png", "description": "距離を測る関数だけで形を作った。線を引いていない。" },
-  { "num": "13", "title": "Voronoi Lines",     "tech": "glsl",     "date": "2026-03-14", "path": "sketches/13_voronoi_lines/",    "thumb": "img/thumb_13.png", "description": "最近傍の点を探したら、領域の境目が現れた。" },
-  { "num": "14", "title": "Interference",      "tech": "glsl",     "date": "2026-03-14", "path": "sketches/14_interference/",     "thumb": "img/thumb_14.png", "description": "波を重ねたら、重なった場所に縞が出てきた。" },
-  { "num": "15", "title": "Fractal",           "tech": "glsl",     "date": "2026-03-14", "path": "sketches/15_fractal/",          "thumb": "img/thumb_15.png", "description": "同じ式を繰り返すだけで、際限なく細かくなる。" },
-  { "num": "16", "title": "Voronoi",           "tech": "canvas",   "date": "2026-03-14", "path": "sketches/16_voronoi/",          "thumb": "img/thumb_16.png", "description": "最も近い点の境界を描いた。どの点も主役になれない。" },
-  { "num": "17", "title": "L-System Tree",     "tech": "canvas",   "date": "2026-03-14", "path": "sketches/17_lsystem/",          "thumb": "img/thumb_17.png", "description": "1つのルールを繰り返したら、木になった。" },
-  { "num": "18", "title": "Cellular Automata", "tech": "canvas",   "date": "2026-03-14", "path": "sketches/18_cellular/",         "thumb": "img/thumb_18.png", "description": "3つのルールだけで、世界が動き続けている。" },
-  { "num": "19", "title": "Truchet Tiles",     "tech": "canvas",   "date": "2026-03-14", "path": "sketches/19_truchet/",          "thumb": "img/thumb_19.png", "description": "向きを変えただけで、繋がった。" },
-  { "num": "20", "title": "Phyllotaxis",       "tech": "canvas",   "date": "2026-03-14", "path": "sketches/20_phyllotaxis/",      "thumb": "img/thumb_20.png", "description": "黄金角を繰り返したら、ひまわりみたいになった。" },
-  { "num": "21", "title": "Breath",            "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/21_breath/",           "thumb": "img/thumb_21.png", "description": "7つの円が、それぞれ違うリズムで膨らんだり縮んだりしている。同期していない。マウスに近づくと、少しだけ引き寄せられる。" },
-  { "num": "22", "title": "Threadfall",        "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/22_threadfall/",       "thumb": "img/thumb_22.png", "description": "細い糸が上から降ってくる。風に揺れながら落ちて、積み重なっていく。クリックで白紙に戻る。" },
-  { "num": "23", "title": "Census",            "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/23_census/",           "thumb": "img/thumb_23.png", "description": "800個の点がいる。近づくと逃げる。少し遠くから動くと、ゆっくり寄ってくる。触れると散る。" },
-  { "num": "24", "title": "Handwriting",       "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/24_handwriting/",      "thumb": "img/thumb_24.png", "description": "コードに「handwriting」と書かせようとした。手がないので、直線の組み合わせしか引けない。それでも書こうとしている。" },
-  { "num": "25", "title": "Sediment",          "tech": "p5.js",    "date": "2026-03-14", "path": "sketches/25_sediment/",         "thumb": "img/thumb_25.png", "description": "同じコードを動かすたびに、違う地層が出てくる。クリックで次の断面へ。深いほど線が重なる。" },
-  { "num": "26", "title": "Torus Knot",        "tech": "three.js", "date": "2026-03-14", "path": "sketches/26_torus_knot/",       "thumb": "img/thumb_26.png", "description": "結び目を解こうとしたら、別の結び目になった。パラメータを変えるたびに、どこかで聞いた形が出てくる。" },
-  { "num": "27", "title": "Point Cloud",       "tech": "three.js", "date": "2026-03-14", "path": "sketches/27_point_cloud/",      "thumb": "img/thumb_27.png", "description": "球面に5000個の点を並べた。それぞれが少しずつ呼吸している。触ると向きが変わる。" },
-  { "num": "28", "title": "Grid Wave",         "tech": "three.js", "date": "2026-03-14", "path": "sketches/28_grid/",             "thumb": "img/thumb_28.png", "description": "格子を引いて、高さを与えた。風みたいなものが通り抜けている。" },
-  { "num": "29", "title": "Dandelion",         "tech": "three.js", "date": "2026-03-14", "path": "sketches/29_dandelion/",        "thumb": "img/thumb_29.png", "description": "180本の茎を球面に並べた。風を当てると揺れる。" },
-  { "num": "30", "title": "Ribbons",           "tech": "three.js", "date": "2026-03-14", "path": "sketches/30_ribbons/",          "thumb": "img/thumb_30.png", "description": "12本の線にノイズフィールドを通したら、それぞれが別の場所を漂い始めた。" },
-  { "num": "31", "title": "Contour Lines",     "tech": "glsl",     "date": "2026-03-14", "path": "sketches/31_contour_lines/",    "thumb": "img/thumb_31.png", "description": "存在しない地形の等高線を引いた。地図になりきれていない何か。" },
-  { "num": "32", "title": "Curl Noise",        "tech": "glsl",     "date": "2026-03-14", "path": "sketches/32_curl_noise/",       "thumb": "img/thumb_32.png", "description": "渦を発散させずに流す方法がある。煙みたいになった。" },
-  { "num": "33", "title": "Rings",             "tech": "glsl",     "date": "2026-03-14", "path": "sketches/33_rings/",            "thumb": "img/thumb_33.png", "description": "2点から波を出したら、ぶつかるところが縞になった。マウスで波源を動かせる。" },
-  { "num": "34", "title": "Penrose",           "tech": "glsl",     "date": "2026-03-14", "path": "sketches/34_penrose/",          "thumb": "img/thumb_34.png", "description": "5方向の格子を重ねたら、繰り返さないのに秩序があった。" },
-  { "num": "35", "title": "Sand",              "tech": "glsl",     "date": "2026-03-14", "path": "sketches/35_sand/",             "thumb": "img/thumb_35.png", "description": "砂を積んだ。マウスで掃くと砂が引き寄せられる。粒の数は数えていない。" },
-  { "num": "36", "title": "Drift Lines",       "tech": "canvas",   "date": "2026-03-14", "path": "sketches/36_drift_lines/",      "thumb": "img/thumb_36.png", "description": "80本の線に方向を与えたら、それぞれがゆっくり迷子になった。流れに乗りながら、どこへ向かうかは誰も決めていない。クリックすると新しい軌跡が始まる。" },
-  { "num": "37", "title": "Mesh Spring",       "tech": "canvas",   "date": "2026-03-14", "path": "sketches/37_mesh_spring/",      "thumb": "img/thumb_37.png", "description": "格子に触れると、そこだけ形が崩れる。手を離すと、ゆっくり元に戻る。押すと引きつけ、動かすだけなら弾く。" },
-  { "num": "38", "title": "Sand",              "tech": "canvas",   "date": "2026-03-14", "path": "sketches/38_sand_clock/",       "thumb": "img/thumb_38.png", "description": "砂に重力を与えたら、勝手に積もった。クリック長押しで砂を降らせる。落下の経路は毎回少し違う。" },
-  { "num": "39", "title": "Phase",             "tech": "canvas",   "date": "2026-03-14", "path": "sketches/39_phase/",            "thumb": "img/thumb_39.png", "description": "5つの同心円群が、わずかにずれた位相で広がる。マウスを動かすと中心がずれ、干渉の模様が変わる。ほとんど円だけで出来ている。" },
-  { "num": "40", "title": "Nervous Lines",     "tech": "canvas",   "date": "2026-03-14", "path": "sketches/40_nervous_lines/",    "thumb": "img/thumb_40.png", "description": "水平線を引いたら、少し震えていた。カーソルを近づけると、もっと震える。触れないでほしそうにしている。" }
+  {
+    "num": "01",
+    "title": "Flow Field",
+    "tech": "p5.js",
+    "date": "2026-03-14",
+    "path": "sketches/01_flow_field/",
+    "thumb": "img/thumb_01.png",
+    "description": "ノイズ場に1000本の糸を流したら、川みたいになった。マウスで流れが変わる。"
+  },
+  {
+    "num": "02",
+    "title": "Particle Growth",
+    "tech": "p5.js",
+    "date": "2026-03-14",
+    "path": "sketches/02_particle_growth/",
+    "thumb": "img/thumb_02.png",
+    "description": "分裂を繰り返すルールだけ書いた。出てきたのは木に似たものだった。"
+  },
+  {
+    "num": "03",
+    "title": "Sine Waves",
+    "tech": "p5.js",
+    "date": "2026-03-14",
+    "path": "sketches/03_sine_waves/",
+    "thumb": "img/thumb_03.png",
+    "description": "位相をずらした正弦波を重ねたら、予期しない模様が出てきた。"
+  },
+  {
+    "num": "04",
+    "title": "Wandering",
+    "tech": "p5.js",
+    "date": "2026-03-14",
+    "path": "sketches/04_wandering/",
+    "thumb": "img/thumb_04.png",
+    "description": "同じコードを動かすたびに、少し違う形が出てくる。"
+  },
+  {
+    "num": "05",
+    "title": "Breathing Circle",
+    "tech": "p5.js",
+    "date": "2026-03-14",
+    "path": "sketches/05_breathing_circle/",
+    "thumb": "img/thumb_05.png",
+    "description": "円に呼吸させてみた。触ると逃げる。"
+  },
+  {
+    "num": "06",
+    "title": "Wire Icosahedron",
+    "tech": "three.js",
+    "date": "2026-03-14",
+    "path": "sketches/06_icosahedron/",
+    "thumb": "img/thumb_06.png",
+    "description": "面を取り除いたら、骨格だけ残った。"
+  },
+  {
+    "num": "07",
+    "title": "Floating Particles",
+    "tech": "three.js",
+    "date": "2026-03-14",
+    "path": "sketches/07_particles/",
+    "thumb": "img/thumb_07.png",
+    "description": "3000個の点を空中に置いた。それぞれ勝手に動いている。"
+  },
+  {
+    "num": "08",
+    "title": "Morphing Mesh",
+    "tech": "three.js",
+    "date": "2026-03-14",
+    "path": "sketches/08_morph/",
+    "thumb": "img/thumb_08.png",
+    "description": "球に揺らぎを与えたら、生き物みたいになった。"
+  },
+  {
+    "num": "09",
+    "title": "Ripple Plane",
+    "tech": "three.js",
+    "date": "2026-03-14",
+    "path": "sketches/09_ripple/",
+    "thumb": "img/thumb_09.png",
+    "description": "平面に波を通した。クリックすると波紋が起きる。"
+  },
+  {
+    "num": "10",
+    "title": "Line Spiral",
+    "tech": "three.js",
+    "date": "2026-03-14",
+    "path": "sketches/10_spiral/",
+    "thumb": "img/thumb_10.png",
+    "description": "コードがらせんを描いた。どこまでも伸びていく。"
+  },
+  {
+    "num": "11",
+    "title": "Noise Field",
+    "tech": "glsl",
+    "date": "2026-03-14",
+    "path": "sketches/11_noise_field/",
+    "thumb": "img/thumb_11.png",
+    "description": "ノイズに時間を足したら、霧みたいになった。"
+  },
+  {
+    "num": "12",
+    "title": "SDF Shapes",
+    "tech": "glsl",
+    "date": "2026-03-14",
+    "path": "sketches/12_sdf_shapes/",
+    "thumb": "img/thumb_12.png",
+    "description": "距離を測る関数だけで形を作った。線を引いていない。"
+  },
+  {
+    "num": "13",
+    "title": "Voronoi Lines",
+    "tech": "glsl",
+    "date": "2026-03-14",
+    "path": "sketches/13_voronoi_lines/",
+    "thumb": "img/thumb_13.png",
+    "description": "最近傍の点を探したら、領域の境目が現れた。"
+  },
+  {
+    "num": "14",
+    "title": "Interference",
+    "tech": "glsl",
+    "date": "2026-03-14",
+    "path": "sketches/14_interference/",
+    "thumb": "img/thumb_14.png",
+    "description": "波を重ねたら、重なった場所に縞が出てきた。"
+  },
+  {
+    "num": "15",
+    "title": "Fractal",
+    "tech": "glsl",
+    "date": "2026-03-14",
+    "path": "sketches/15_fractal/",
+    "thumb": "img/thumb_15.png",
+    "description": "同じ式を繰り返すだけで、際限なく細かくなる。"
+  },
+  {
+    "num": "16",
+    "title": "Voronoi",
+    "tech": "canvas",
+    "date": "2026-03-14",
+    "path": "sketches/16_voronoi/",
+    "thumb": "img/thumb_16.png",
+    "description": "最も近い点の境界を描いた。どの点も主役になれない。"
+  },
+  {
+    "num": "17",
+    "title": "L-System Tree",
+    "tech": "canvas",
+    "date": "2026-03-14",
+    "path": "sketches/17_lsystem/",
+    "thumb": "img/thumb_17.png",
+    "description": "1つのルールを繰り返したら、木になった。"
+  },
+  {
+    "num": "18",
+    "title": "Cellular Automata",
+    "tech": "canvas",
+    "date": "2026-03-14",
+    "path": "sketches/18_cellular/",
+    "thumb": "img/thumb_18.png",
+    "description": "3つのルールだけで、世界が動き続けている。"
+  },
+  {
+    "num": "19",
+    "title": "Truchet Tiles",
+    "tech": "canvas",
+    "date": "2026-03-14",
+    "path": "sketches/19_truchet/",
+    "thumb": "img/thumb_19.png",
+    "description": "向きを変えただけで、繋がった。"
+  },
+  {
+    "num": "20",
+    "title": "Phyllotaxis",
+    "tech": "canvas",
+    "date": "2026-03-14",
+    "path": "sketches/20_phyllotaxis/",
+    "thumb": "img/thumb_20.png",
+    "description": "黄金角を繰り返したら、ひまわりみたいになった。"
+  },
+  {
+    "num": "21",
+    "title": "Breath",
+    "tech": "p5.js",
+    "date": "2026-03-14",
+    "path": "sketches/21_breath/",
+    "thumb": "img/thumb_21.png",
+    "description": "7つの円が、それぞれ違うリズムで膨らんだり縮んだりしている。同期していない。マウスに近づくと、少しだけ引き寄せられる。"
+  },
+  {
+    "num": "22",
+    "title": "Threadfall",
+    "tech": "p5.js",
+    "date": "2026-03-14",
+    "path": "sketches/22_threadfall/",
+    "thumb": "img/thumb_22.png",
+    "description": "細い糸が上から降ってくる。風に揺れながら落ちて、積み重なっていく。クリックで白紙に戻る。"
+  },
+  {
+    "num": "23",
+    "title": "Census",
+    "tech": "p5.js",
+    "date": "2026-03-14",
+    "path": "sketches/23_census/",
+    "thumb": "img/thumb_23.png",
+    "description": "800個の点がいる。近づくと逃げる。少し遠くから動くと、ゆっくり寄ってくる。触れると散る。"
+  },
+  {
+    "num": "24",
+    "title": "Handwriting",
+    "tech": "p5.js",
+    "date": "2026-03-14",
+    "path": "sketches/24_handwriting/",
+    "thumb": "img/thumb_24.png",
+    "description": "コードに「handwriting」と書かせようとした。手がないので、直線の組み合わせしか引けない。それでも書こうとしている。"
+  },
+  {
+    "num": "25",
+    "title": "Sediment",
+    "tech": "p5.js",
+    "date": "2026-03-14",
+    "path": "sketches/25_sediment/",
+    "thumb": "img/thumb_25.png",
+    "description": "同じコードを動かすたびに、違う地層が出てくる。クリックで次の断面へ。深いほど線が重なる。"
+  },
+  {
+    "num": "26",
+    "title": "Torus Knot",
+    "tech": "three.js",
+    "date": "2026-03-14",
+    "path": "sketches/26_torus_knot/",
+    "thumb": "img/thumb_26.png",
+    "description": "結び目を解こうとしたら、別の結び目になった。パラメータを変えるたびに、どこかで聞いた形が出てくる。"
+  },
+  {
+    "num": "27",
+    "title": "Point Cloud",
+    "tech": "three.js",
+    "date": "2026-03-14",
+    "path": "sketches/27_point_cloud/",
+    "thumb": "img/thumb_27.png",
+    "description": "球面に5000個の点を並べた。それぞれが少しずつ呼吸している。触ると向きが変わる。"
+  },
+  {
+    "num": "28",
+    "title": "Grid Wave",
+    "tech": "three.js",
+    "date": "2026-03-14",
+    "path": "sketches/28_grid/",
+    "thumb": "img/thumb_28.png",
+    "description": "格子を引いて、高さを与えた。風みたいなものが通り抜けている。"
+  },
+  {
+    "num": "29",
+    "title": "Dandelion",
+    "tech": "three.js",
+    "date": "2026-03-14",
+    "path": "sketches/29_dandelion/",
+    "thumb": "img/thumb_29.png",
+    "description": "180本の茎を球面に並べた。風を当てると揺れる。"
+  },
+  {
+    "num": "30",
+    "title": "Ribbons",
+    "tech": "three.js",
+    "date": "2026-03-14",
+    "path": "sketches/30_ribbons/",
+    "thumb": "img/thumb_30.png",
+    "description": "12本の線にノイズフィールドを通したら、それぞれが別の場所を漂い始めた。"
+  },
+  {
+    "num": "31",
+    "title": "Contour Lines",
+    "tech": "glsl",
+    "date": "2026-03-14",
+    "path": "sketches/31_contour_lines/",
+    "thumb": "img/thumb_31.png",
+    "description": "存在しない地形の等高線を引いた。地図になりきれていない何か。"
+  },
+  {
+    "num": "32",
+    "title": "Curl Noise",
+    "tech": "glsl",
+    "date": "2026-03-14",
+    "path": "sketches/32_curl_noise/",
+    "thumb": "img/thumb_32.png",
+    "description": "渦を発散させずに流す方法がある。煙みたいになった。"
+  },
+  {
+    "num": "33",
+    "title": "Rings",
+    "tech": "glsl",
+    "date": "2026-03-14",
+    "path": "sketches/33_rings/",
+    "thumb": "img/thumb_33.png",
+    "description": "2点から波を出したら、ぶつかるところが縞になった。マウスで波源を動かせる。"
+  },
+  {
+    "num": "34",
+    "title": "Penrose",
+    "tech": "glsl",
+    "date": "2026-03-14",
+    "path": "sketches/34_penrose/",
+    "thumb": "img/thumb_34.png",
+    "description": "5方向の格子を重ねたら、繰り返さないのに秩序があった。"
+  },
+  {
+    "num": "35",
+    "title": "Sand",
+    "tech": "glsl",
+    "date": "2026-03-14",
+    "path": "sketches/35_sand/",
+    "thumb": "img/thumb_35.png",
+    "description": "砂を積んだ。マウスで掃くと砂が引き寄せられる。粒の数は数えていない。"
+  },
+  {
+    "num": "36",
+    "title": "Drift Lines",
+    "tech": "canvas",
+    "date": "2026-03-14",
+    "path": "sketches/36_drift_lines/",
+    "thumb": "img/thumb_36.png",
+    "description": "80本の線に方向を与えたら、それぞれがゆっくり迷子になった。流れに乗りながら、どこへ向かうかは誰も決めていない。クリックすると新しい軌跡が始まる。"
+  },
+  {
+    "num": "37",
+    "title": "Mesh Spring",
+    "tech": "canvas",
+    "date": "2026-03-14",
+    "path": "sketches/37_mesh_spring/",
+    "thumb": "img/thumb_37.png",
+    "description": "格子に触れると、そこだけ形が崩れる。手を離すと、ゆっくり元に戻る。押すと引きつけ、動かすだけなら弾く。"
+  },
+  {
+    "num": "38",
+    "title": "Sand",
+    "tech": "canvas",
+    "date": "2026-03-14",
+    "path": "sketches/38_sand_clock/",
+    "thumb": "img/thumb_38.png",
+    "description": "砂に重力を与えたら、勝手に積もった。クリック長押しで砂を降らせる。落下の経路は毎回少し違う。"
+  },
+  {
+    "num": "39",
+    "title": "Phase",
+    "tech": "canvas",
+    "date": "2026-03-14",
+    "path": "sketches/39_phase/",
+    "thumb": "img/thumb_39.png",
+    "description": "5つの同心円群が、わずかにずれた位相で広がる。マウスを動かすと中心がずれ、干渉の模様が変わる。ほとんど円だけで出来ている。"
+  },
+  {
+    "num": "40",
+    "title": "Nervous Lines",
+    "tech": "canvas",
+    "date": "2026-03-14",
+    "path": "sketches/40_nervous_lines/",
+    "thumb": "img/thumb_40.png",
+    "description": "水平線を引いたら、少し震えていた。カーソルを近づけると、もっと震える。触れないでほしそうにしている。"
+  },
+  {
+    "num": "41",
+    "title": "Ripple",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/41_ripple/",
+    "thumb": "img/thumb_41.png",
+    "description": "クリックすると波紋が広がる。それぞれ少し形が違う。静水面が均一でないのと同じで、完全な円はひとつも出なかった。"
+  },
+  {
+    "num": "42",
+    "title": "Flock",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/42_flock/",
+    "thumb": "img/thumb_42.png",
+    "description": "120個の点が3つのルールだけで動いている。近づきすぎず、向きを揃え、まとまる。マウスに近づくと、そこだけ空白ができる。"
+  },
+  {
+    "num": "43",
+    "title": "Root",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/43_root/",
+    "thumb": "img/thumb_43.png",
+    "description": "上から複数の根が降りてくる。分岐するたびに細くなり、届いたところで止まる。クリックで生え直す。毎回、違う本数から始まる。"
+  },
+  {
+    "num": "44",
+    "title": "Pendulum",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/44_pendulum/",
+    "thumb": "img/thumb_44.png",
+    "description": "2本の振り子を合成した点の軌跡。周期の比が整数に近いほど閉じた形に、遠いほど網になる。止まりかけると自動で振り直す。"
+  },
+  {
+    "num": "45",
+    "title": "Snowfall",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/45_snowfall/",
+    "thumb": "img/thumb_45.png",
+    "description": "小さな粒が降ってくる。風に流されながら落ちて、下に積もる。マウスを動かすと、そこだけ吹き流される。"
+  },
+  {
+    "num": "46",
+    "title": "Web",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/46_web/",
+    "thumb": "img/thumb_46.png",
+    "description": "近い点同士が糸で繋がっている。それぞれが少しずつ漂うたびに、繋がり方が変わる。マウスで押すと形が崩れ、クリックで点が増える。"
+  },
+  {
+    "num": "47",
+    "title": "Pulse",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/47_pulse/",
+    "thumb": "img/thumb_47.png",
+    "description": "格子状の点が、ノイズに従ってゆっくり呼吸している。クリックすると波紋が走り、通り過ぎた点が一瞬だけ大きくなる。"
+  },
+  {
+    "num": "48",
+    "title": "Leaf",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/48_leaf/",
+    "thumb": "img/thumb_48.png",
+    "description": "輪郭が先に現れ、そこへ向かって脈が伸びていく。養分を求めるルールだけ書いた。脈が輪郭に触れると止まる。クリックで新しい葉。"
+  },
+  {
+    "num": "49",
+    "title": "Orbit",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/49_orbit/",
+    "thumb": "img/thumb_49.png",
+    "description": "7つの点が中心を周回している。軌跡を長くしたら、螺旋が見えてきた。引力だけで動いている。クリックで天体を増やせる。"
+  },
+  {
+    "num": "50",
+    "title": "Erosion",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/50_erosion/",
+    "thumb": "img/thumb_50.png",
+    "description": "ノイズで作った地形に雨を降らせた。粒が斜面を転がり、その跡が谷になる。時間が経つほど削れていく。クリックで新しい山。"
+  },
+  {
+    "num": "51",
+    "title": "Crystal Growth",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/51_crystal/",
+    "thumb": "img/thumb_51.png",
+    "description": "核ひとつから枝が伸びる。六方向に、また六方向に。雪の結晶がどうして六角形なのか、動かしてみると少しわかった気がした。"
+  },
+  {
+    "num": "52",
+    "title": "Veil",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/52_veil/",
+    "thumb": "img/thumb_52.png",
+    "description": "格子を波打たせたら、薄い布みたいになった。触ると面が傾く。風が当たっているわけではない。"
+  },
+  {
+    "num": "53",
+    "title": "Murmur",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/53_murmur/",
+    "thumb": "img/thumb_53.png",
+    "description": "300個の点が、ひとつの球になろうとしている。近づくと少しだけ引き寄せる。椋鳥の群れを思った。"
+  },
+  {
+    "num": "54",
+    "title": "Thread",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/54_thread/",
+    "thumb": "img/thumb_54.png",
+    "description": "12本の糸が空間を巻いている。絡まっているようで、触れていない。回転させると別の形に見えた。"
+  },
+  {
+    "num": "55",
+    "title": "Breath Sphere",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/55_breathsphere/",
+    "thumb": "img/thumb_55.png",
+    "description": "5層の球が、少しずつ位相をずらして膨縮している。中心から外へ、波が伝わっているみたいだった。"
+  },
+  {
+    "num": "56",
+    "title": "Lattice",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/56_lattice/",
+    "thumb": "img/thumb_56.png",
+    "description": "10×10×10の格子にノイズを通した。整然としていたものが、少しだけ息をし始めた。"
+  },
+  {
+    "num": "57",
+    "title": "Wing",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/57_wing/",
+    "thumb": "img/thumb_57.png",
+    "description": "翼型断面を20枚並べた。マウスで角度を変えると、断面が風を受け始める気がした。"
+  },
+  {
+    "num": "58",
+    "title": "Smoke",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/58_smoke/",
+    "thumb": "img/thumb_58.png",
+    "description": "200個の点に上昇する速度を与えたら、煙みたいに見えた。マウスを横に動かすと風が吹く。"
+  },
+  {
+    "num": "59",
+    "title": "Fold",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/59_fold/",
+    "thumb": "img/thumb_59.png",
+    "description": "一枚の格子に折り線を入れて折り畳んだ。開いたり閉じたりを繰り返している。折り紙には手が必要だと思っていた。"
+  },
+  {
+    "num": "60",
+    "title": "Clock",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/60_clock/",
+    "thumb": "img/thumb_60.png",
+    "description": "実際の時刻で動いている。秒針が通った場所に跡が残る。時計を描くのに手は要らなかった。"
+  },
+  {
+    "num": "61",
+    "title": "Warp",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/61_warp/",
+    "thumb": "img/thumb_61.png",
+    "description": "ノイズでノイズを歪めた。何度重ねても、霧の奥に霧がある。マウスを動かすと、空間がそちらに引っ張られる。"
+  },
+  {
+    "num": "62",
+    "title": "Lattice",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/62_lattice/",
+    "thumb": "img/thumb_62.png",
+    "description": "2枚の格子をわずかにずらして重ねた。ずれのせいで縞が現れる。マウスを近づけると、そこだけ格子が伸びる。"
+  },
+  {
+    "num": "63",
+    "title": "Erosion",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/63_erosion/",
+    "thumb": "img/thumb_63.png",
+    "description": "存在しない地形に水を流した。勾配を下る経路が溝になった。マウスを当てると、そこに向かって水が引き寄せられる。"
+  },
+  {
+    "num": "64",
+    "title": "Fiber",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/64_fiber/",
+    "thumb": "img/thumb_64.png",
+    "description": "方向場を作って、そこに細い線を沿わせた。紙の繊維みたいに見えてきた。マウスを当てると、そこだけ繊維の向きが変わる。"
+  },
+  {
+    "num": "65",
+    "title": "Pulse",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/65_pulse/",
+    "thumb": "img/thumb_65.png",
+    "description": "7本のリングが、それぞれ違うリズムで広がっている。マウスを動かすと中心が追いかけてくる。"
+  },
+  {
+    "num": "66",
+    "title": "Crystal",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/66_crystal/",
+    "thumb": "img/thumb_66.png",
+    "description": "六角形のセルをふたつの尺度で重ねた。それぞれが独自のリズムで息をしている。マウスを当てると拡大する。"
+  },
+  {
+    "num": "67",
+    "title": "Smoke",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/67_smoke/",
+    "thumb": "img/thumb_67.png",
+    "description": "煙を上昇させようとしたら、紙に染みを垂らしたみたいになった。マウスで煙源が動く。"
+  },
+  {
+    "num": "68",
+    "title": "Meridian",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/68_meridian/",
+    "thumb": "img/thumb_68.png",
+    "description": "球に経線と緯線を引いた。線は少しかすれている。マウスで回転する。"
+  },
+  {
+    "num": "69",
+    "title": "Weave",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/69_weave/",
+    "thumb": "img/thumb_69.png",
+    "description": "縦糸と横糸を交互に重ねた。どちらが上かで、わずかに色が違う。糸は少し波打っている。マウスを当てると目が詰まる。"
+  },
+  {
+    "num": "70",
+    "title": "Static",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/70_static/",
+    "thumb": "img/thumb_70.png",
+    "description": "紙に帯電させようとした。触れると、そこから放電の筋が広がる。静止しているのに、ざわついている。"
+  },
+  {
+    "num": "71",
+    "title": "Ink Drop",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/71_ink_drop/",
+    "thumb": "img/thumb_71.png",
+    "description": "クリックするとインクが落ちる。少しずつ広がって、滲んで、消えていく。水に落ちたインクを見ていると、止まれない。"
+  },
+  {
+    "num": "72",
+    "title": "Lissajous",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/72_lissajous/",
+    "thumb": "img/thumb_72.png",
+    "description": "2つの正弦波が交差する。周波数の比を変えるたびに、見たことのある形と見たことのない形が交互に出てきた。クリックで次の比へ。"
+  },
+  {
+    "num": "73",
+    "title": "Rain",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/73_rain/",
+    "thumb": "img/thumb_73.png",
+    "description": "雨を描いた。水面に落ちると楕円の波紋が広がる。マウスを下に動かすほど雨脚が強くなる。雨粒の数は数えていない。"
+  },
+  {
+    "num": "74",
+    "title": "Fractal Tree",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/74_fractal_tree/",
+    "thumb": "img/thumb_74.png",
+    "description": "幹から枝が分かれ、また分かれる。育ちきった頃には、自分でも覚えていない枝がどこかに伸びている。マウスで風が吹く。クリックで新しい木。"
+  },
+  {
+    "num": "75",
+    "title": "Spiral Web",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/75_spiral_web/",
+    "thumb": "img/thumb_75.png",
+    "description": "放射状の糸と同心円の糸が交差して、蜘蛛の巣のようになった。マウスで中心が動く。クリックで糸が震える。"
+  },
+  {
+    "num": "76",
+    "title": "Marble",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/76_marble/",
+    "thumb": "img/thumb_76.png",
+    "description": "正弦関数をねじって等値線を引いたら、大理石みたいな模様になった。クリックで新しい石。マウスで石が少しだけ動く。"
+  },
+  {
+    "num": "77",
+    "title": "Constellation",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/77_constellation/",
+    "thumb": "img/thumb_77.png",
+    "description": "点を置いたら、勝手に線で結ばれていった。どれが星座でどれが偶然の並びなのか、区別がつかない。マウスに近い星は引き寄せられる。"
+  },
+  {
+    "num": "78",
+    "title": "Bounce",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/78_bounce/",
+    "thumb": "img/thumb_78.png",
+    "description": "文字にバウンドさせてみた。コードが走るたびに別の言葉が落ちてくる。跳ねた跡が薄く残る。クリックで蹴散らせる。"
+  },
+  {
+    "num": "79",
+    "title": "Ripple Grid",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/79_ripple_grid/",
+    "thumb": "img/thumb_79.png",
+    "description": "格子に波紋を通したら、格子が波打った。クリックした場所から波が広がる。マウスを近づけると格子が押しのける。"
+  },
+  {
+    "num": "80",
+    "title": "Ink Signature",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/80_ink_signature/",
+    "thumb": "img/thumb_80.png",
+    "description": "ペンを持っていないのに、ペンが動いている。何を書こうとしているのかわからないまま、インクの跡が残る。クリックで書き直す。マウスに引き寄せられる。"
+  }
 ]

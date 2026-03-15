@@ -39,8 +39,8 @@
     }
 
     function mouseMoved() {
-      if (frameCount % 12 === 0) {
-        ripples.push(new Ripple(mouseX, mouseY, 0.4));
+      if (frameCount % 6 === 0) {
+        ripples.push(new Ripple(mouseX, mouseY, 0.35));
       }
     }
 
@@ -51,11 +51,15 @@
         this.strength = strength;
         this.rings = [];
         let count = strength > 0.5 ? 4 : 2;
+        // わずかに歪んだ楕円で水面の揺らぎを表現
+        this.tiltX = random(0.85, 1.0);
+        this.tiltY = random(0.55, 0.75);
+        this.rotate = random(-0.15, 0.15);
         for (let i = 0; i < count; i++) {
           this.rings.push({
-            r: i * 18,
-            speed: 1.8 + i * 0.3,
-            alpha: (1.0 - i * 0.2) * strength
+            r: i * 16,
+            speed: 2.0 + i * 0.25,
+            alpha: (1.0 - i * 0.22) * strength
           });
         }
       }
@@ -63,18 +67,23 @@
       update() {
         for (let ring of this.rings) {
           ring.r += ring.speed;
-          ring.alpha -= 0.008 * this.strength;
+          ring.alpha -= 0.007 * this.strength;
         }
       }
 
       draw() {
+        push();
+        translate(this.x, this.y);
+        rotate(this.rotate);
         for (let ring of this.rings) {
           if (ring.alpha <= 0) continue;
           let a = constrain(ring.alpha, 0, 1);
-          stroke(42, 42, 42, a * 180);
-          strokeWeight(0.8);
-          ellipse(this.x, this.y, ring.r * 2, ring.r * 1.6);
+          stroke(42, 42, 42, a * 170);
+          strokeWeight(0.7);
+          noFill();
+          ellipse(0, 0, ring.r * 2 * this.tiltX, ring.r * 2 * this.tiltY);
         }
+        pop();
       }
 
       isDead() {
@@ -90,7 +99,7 @@
   window.SKETCH_META = {
     num:   '41',
     title: 'Ripple',
-    desc:  'クリックすると波紋が広がる。マウスを動かすだけでも、小さな波が起きる。静水面は、少しだけ不安定だった。'
+    desc:  'クリックすると波紋が広がる。それぞれ少し形が違う。静水面が均一でないのと同じで、完全な円はひとつも出なかった。'
   };
   </script>
   <script src="../../js/sketch-ui.js"></script>

@@ -62,6 +62,10 @@
     function draw() {
       background('#F5F3EE');
 
+      // 雨粒の可視化（地形の上を流れる点）
+      let baseY = height * 0.82;
+      let scale = height * 0.55;
+
       // 侵食の処理
       for (let d of drops) {
         let xi = floor(d.x);
@@ -87,10 +91,17 @@
         }
       }
 
-      // 地形を描画
-      let baseY = height * 0.82;
-      let scale = height * 0.55;
+      // 雨粒を描画
+      noStroke();
+      fill(80, 90, 120, 100);
+      for (let d of drops) {
+        let xi = constrain(floor(d.x), 0, COLS - 1);
+        let px = d.x * cellW;
+        let py = baseY - terrain[xi] * scale / 100 - 4;
+        circle(px, py, 3);
+      }
 
+      // 地形を描画
       // 地形の塗り（薄く）
       noStroke();
       fill(42, 42, 42, 14);
@@ -143,7 +154,7 @@
   window.SKETCH_META = {
     num:   '50',
     title: 'Erosion',
-    desc:  'ノイズで作った地形に雨を降らせた。水が流れた跡が谷になる。時間が経つほど地形が削れていく。クリックで新しい山が現れる。'
+    desc:  'ノイズで作った地形に雨を降らせた。粒が斜面を転がり、その跡が谷になる。時間が経つほど削れていく。クリックで新しい山。'
   };
   </script>
   <script src="../../js/sketch-ui.js"></script>

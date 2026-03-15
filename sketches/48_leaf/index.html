@@ -26,6 +26,8 @@
       initLeaf();
     }
 
+    let leafCx, leafCy, leafW, leafH;
+
     function initLeaf() {
       attractors = [];
       segments = [];
@@ -33,10 +35,37 @@
       growing = true;
       background('#F5F3EE');
 
-      let cx = width / 2;
-      let cy = height / 2;
-      let leafW = min(width, height) * 0.32;
-      let leafH = min(width, height) * 0.45;
+      leafCx = width / 2;
+      leafCy = height / 2;
+      leafW = min(width, height) * 0.32;
+      leafH = min(width, height) * 0.45;
+
+      // 葉の輪郭を薄く描く
+      stroke(42, 42, 42, 45);
+      strokeWeight(0.8);
+      noFill();
+      beginShape();
+      // 下（葉柄側）から上（先端）へ
+      let rootY = leafCy + leafH * 0.85;
+      let tipY = leafCy - leafH * 0.85;
+      let steps = 80;
+      // 右側
+      for (let i = 0; i <= steps; i++) {
+        let v = i / steps; // 0=根元, 1=先端
+        let u = sqrt(1 - v * v) * (1 - v * 0.3);
+        let px = leafCx + u * leafW;
+        let py = leafCy - v * leafH + leafH * 0.15;
+        vertex(px, py);
+      }
+      // 左側（逆順）
+      for (let i = steps; i >= 0; i--) {
+        let v = i / steps;
+        let u = sqrt(1 - v * v) * (1 - v * 0.3);
+        let px = leafCx - u * leafW;
+        let py = leafCy - v * leafH + leafH * 0.15;
+        vertex(px, py);
+      }
+      endShape(CLOSE);
 
       // 葉の輪郭内にアトラクタを配置
       let attempts = 0;
@@ -48,8 +77,8 @@
         let maxU = sqrt(1 - v * v) * (1 - v * 0.3);
         if (abs(u) < maxU) {
           attractors.push({
-            x: cx + u * leafW,
-            y: cy - v * leafH + leafH * 0.15,
+            x: leafCx + u * leafW,
+            y: leafCy - v * leafH + leafH * 0.15,
             reached: false
           });
         }
@@ -162,7 +191,7 @@
   window.SKETCH_META = {
     num:   '48',
     title: 'Leaf',
-    desc:  '葉の形の中に脈を伸ばした。養分を求めて伸びていくルールだけ書いた。クリックで新しい葉が生える。'
+    desc:  '輪郭が先に現れ、そこへ向かって脈が伸びていく。養分を求めるルールだけ書いた。脈が輪郭に触れると止まる。クリックで新しい葉。'
   };
   </script>
   <script src="../../js/sketch-ui.js"></script>

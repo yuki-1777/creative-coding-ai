@@ -29,11 +29,14 @@
       t = 0;
       background('#F5F3EE');
 
-      let startX = width / 2 + random(-width * 0.1, width * 0.1);
-      let startY = height * 0.18;
-      let initialAngle = HALF_PI + random(-0.15, 0.15);
-
-      branches.push(new Branch(startX, startY, initialAngle, 1, 0));
+      // 上部の複数点から根を下ろす
+      let rootCount = floor(random(2, 5));
+      for (let i = 0; i < rootCount; i++) {
+        let startX = random(width * 0.2, width * 0.8);
+        let startY = random(height * 0.05, height * 0.15);
+        let initialAngle = HALF_PI + random(-0.3, 0.3);
+        branches.push(new Branch(startX, startY, initialAngle, 1, 0));
+      }
     }
 
     function draw() {
@@ -128,7 +131,7 @@
   window.SKETCH_META = {
     num:   '43',
     title: 'Root',
-    desc:  '上から根が伸びていく。分岐するたびに細くなり、最終的には止まる。クリックで新しい根が生える。毎回、少し違う形になる。'
+    desc:  '上から複数の根が降りてくる。分岐するたびに細くなり、届いたところで止まる。クリックで生え直す。毎回、違う本数から始まる。'
   };
   </script>
   <script src="../../js/sketch-ui.js"></script>

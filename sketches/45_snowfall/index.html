@@ -32,8 +32,10 @@
       rect(0, 0, width, height);
 
       // 積もった雪を再描画
+      noStroke();
+      fill(42, 42, 42, 55);
       for (let s of settled) {
-        s.display();
+        circle(s.x, s.y, s.r * 2);
       }
 
       // 雪粒の更新・描画
@@ -88,7 +90,7 @@
 
       display() {
         noStroke();
-        fill(42, 42, 42, this.alpha * 0.7);
+        fill(42, 42, 42, this.alpha * 0.5);
         circle(this.x, this.y, this.r * 2);
       }
 
