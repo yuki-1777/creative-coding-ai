@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>131 — Cocoon</title>
+  <meta name="description" content="糸を巻いた。巻くほど内側が見えなくなる。でも、揺れているのはわかる。">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // 繭の形状：卵形（上が丸く下が尖る）
+    // t: 0〜1（-1〜1の正規化高さ）
+    function cocoonRadius(t) {
+      // 卵形：上(-1側)が丸く、下(+1側)が少し尖る
+      // sin関数で滑らかな輪郭
+      const angle = (t + 1) * Math.PI / 2; // 0〜π
+      return Math.sin(angle);
+    }
+
+    // 繭を構成する高さを -1.4 〜 1.4 の範囲でパラメータ化
+    function cocoonPoint(phi, height) {
+      const t = height / 1.4; // -1〜1 に正規化
+      const r = 0.85 * cocoonRadius(t);
+      return new THREE.Vector3(
+        r * Math.cos(phi),
+        height,
+        r * Math.sin(phi)
+      );
+    }
+
+    // 外側の糸層（らせん状に巻く）
+    const LAYERS = 7;
+    const TURNS = 22;      // 上から下まで巻く回数
+    const PTS_PER_TURN = 48;
+    const group = new THREE.Group();
+    scene.add(group);
+
+    for (let layer = 0; layer < LAYERS; layer++) {
+      const lt = layer / (LAYERS - 1);
+      const opacity = 0.12 + lt * 0.45;
+      const scale = 1.0 - layer * 0.05;
+
+      const mat = new THREE.LineBasicMaterial({
+        color: 0x2A2826,
+        transparent: true,
+        opacity: opacity,
+      });
+
+      const points = [];
+      const total = TURNS * PTS_PER_TURN;
+
+      for (let i = 0; i <= total; i++) {
+        const progress = i / total;
+        const phi = progress * Math.PI * 2 * TURNS;
+        // 高さは上端(+1.4)から下端(-1.4)へ
+        const height = (1.0 - progress * 2) * 1.4;
+
+        const p = cocoonPoint(phi, height);
+        p.x *= scale;
+        p.z *= scale;
+        const noise = (Math.random() - 0.5) * 0.015;
+        p.x += noise;
+        p.z += noise;
+        points.push(p);
+      }
+
+      const geo = new THREE.BufferGeometry().setFromPoints(points);
+      const line = new THREE.Line(geo, mat);
+      group.add(line);
+    }
+
+    // 横糸（環状）
+    const HOOP_COUNT = 20;
+    const hoopMat = new THREE.LineBasicMaterial({
+      color: 0x7A6A55,
+      transparent: true,
+      opacity: 0.15,
+    });
+
+    for (let h = 1; h < HOOP_COUNT; h++) {
+      const height = (1.0 - (h / HOOP_COUNT) * 2) * 1.4;
+      const pts = [];
+      for (let i = 0; i <= 64; i++) {
+        const phi = (i / 64) * Math.PI * 2;
+        pts.push(cocoonPoint(phi, height));
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const line = new THREE.Line(geo, hoopMat);
+      group.add(line);
+    }
+
+    // マウス操作
+    const mouse = { x: 0, y: 0 };
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.005;
+
+      // ゆっくり呼吸する
+      const breathe = 1.0 + 0.03 * Math.sin(time * 0.7);
+      group.scale.set(breathe, 1.0 + 0.015 * Math.sin(time * 0.5), breathe);
+
+      // マウスで回転
+      group.rotation.y += (mouse.x * 0.8 - group.rotation.y) * 0.05;
+      group.rotation.x += (mouse.y * 0.3 - group.rotation.x) * 0.05;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '131',
+    title: 'Cocoon',
+    desc:  '糸を巻いた。巻くほど内側が見えなくなる。でも、揺れているのはわかる。マウスで向きを変えられる。',
+    detail: '7層のらせん糸と24本の横糸で繭の形を作った。外側の層ほど不透明になるため、内側は透けて見える。ゆっくりと呼吸するように膨張・収縮する。マウスで向きを変えると、糸の重なり方が変わる。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
