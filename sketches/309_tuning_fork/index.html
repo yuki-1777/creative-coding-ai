@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>309 – Tuning Fork</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: #f0ede8; overflow: hidden; cursor: none; }
+  canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<script>
+'use strict';
+
+// ── WebGL setup ──────────────────────────────────────────
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true, alpha: false });
+if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
+
+function resize() {
+  canvas.width  = window.innerWidth  * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Shaders ──────────────────────────────────────────────
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+
+uniform vec2  u_resolution;
+uniform float u_time;
+uniform vec2  u_mouse;      // [0,1] normalized
+uniform float u_energy;     // 0=silent 1=loud
+uniform float u_strike;     // accumulated strike events
+uniform float u_decay;      // current decay envelope
+
+// ── Signed distance functions ─────────────────────────────
+float sdLine(vec2 p, vec2 a, vec2 b) {
+  vec2 pa = p - a, ba = b - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h);
+}
+
+// ── Smooth step helpers ───────────────────────────────────
+float linearStep(float lo, float hi, float t) {
+  return clamp((t - lo) / (hi - lo), 0.0, 1.0);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  // aspect-correct coordinate, centre at mouse
+  float aspect = u_resolution.x / u_resolution.y;
+  vec2 st = uv * vec2(aspect, 1.0);
+  vec2 mo = u_mouse * vec2(aspect, 1.0);
+  vec2 p  = st - mo;          // offset from cursor
+
+  float t    = u_time;
+  float decay = u_decay;      // 0..1 amplitude envelope
+
+  // ── Frequency of the fork (A4 ≈ 440 Hz visualised slow) ──
+  float freq  = 3.8;
+  float phase = t * freq * 6.2831853;
+
+  // ── Standing wave pattern centred on cursor ───────────────
+  // Distance from cursor
+  float r = length(p);
+
+  // Two "tines" of the fork: offset along x-axis
+  float tineSpread = 0.015 + 0.010 * decay;
+  float tineLen    = 0.06  + 0.04  * decay;
+
+  // Tine positions: two parallel arms above cursor
+  vec2 tineA0 = vec2(-tineSpread, 0.0);
+  vec2 tineA1 = vec2(-tineSpread, tineLen);
+  vec2 tineB0 = vec2( tineSpread, 0.0);
+  vec2 tineB1 = vec2( tineSpread, tineLen);
+
+  // Vibrating tine tips (symmetric, opposing phase)
+  float vib   = sin(phase) * 0.012 * decay;
+  vec2 tipA   = tineA1 + vec2(-vib, 0.0);
+  vec2 tipB   = tineB1 + vec2( vib, 0.0);
+
+  // Draw tine lines (animated)
+  // Use several intermediate points for each tine to show curvature
+  float tineW = 0.0015;
+  float dA = sdLine(p, tineA0, tipA);
+  float dB = sdLine(p, tineB0, tipB);
+  float tineAlpha = (1.0 - smoothstep(tineW, tineW * 2.5, dA))
+                  + (1.0 - smoothstep(tineW, tineW * 2.5, dB));
+  tineAlpha = clamp(tineAlpha, 0.0, 1.0);
+
+  // Handle (stem) going downward
+  float dH = sdLine(p, vec2(0.0), vec2(0.0, -0.04));
+  float stemAlpha = 1.0 - smoothstep(tineW, tineW * 2.5, dH);
+
+  // ── Radial pressure waves ──────────────────────────────────
+  // Concentric rings emanating from cursor, modulated by vibration
+  // Multiple wave fronts at different phases
+  float wave = 0.0;
+  for (int i = 0; i < 6; i++) {
+    float fi  = float(i);
+    // Each ring spawned at a different time offset
+    float rOff  = fi * 0.055;
+    float rFront = mod(t * 0.18 + rOff, 0.55);  // expanding radius 0..0.55
+    float rWidth = 0.012 + 0.006 * fi;
+    float rAmp   = (1.0 - rFront / 0.55);        // fade as ring expands
+    rAmp *= decay * (1.0 - fi * 0.12);           // outer rings decay faster
+    // Modulate ring thickness by angular position (pressure pattern)
+    float angle  = atan(p.y, p.x);
+    float angMod = 0.5 + 0.5 * cos(angle * 2.0 + phase); // bi-polar like a fork
+    float ring   = exp(-pow((r - rFront) / rWidth, 2.0)) * rAmp * angMod;
+    wave += ring;
+  }
+  wave = clamp(wave * 1.4, 0.0, 1.0);
+
+  // ── Background subtle field ────────────────────────────────
+  // Low-level standing-wave texture across the whole canvas
+  float bg = 0.0;
+  {
+    // Two perpendicular sets of sinusoidal fringes
+    float bfreq = 28.0;
+    float bamp  = decay * 0.06;
+    bg  = bamp * (0.5 + 0.5 * sin(st.x * bfreq + phase));
+    bg += bamp * (0.5 + 0.5 * sin(st.y * bfreq - phase * 0.87));
+    bg *= 0.5;
+    // Fade near canvas edges
+    float edge = min(uv.x, min(1.0-uv.x, min(uv.y, 1.0-uv.y))) * 4.0;
+    bg *= clamp(edge, 0.0, 1.0);
+  }
+
+  // ── Colour mixing ──────────────────────────────────────────
+  // Base: off-white parchment
+  vec3 baseCol   = vec3(0.941, 0.929, 0.910);
+  // Graphite (tines + stem)
+  vec3 graphite  = vec3(0.22, 0.21, 0.20);
+  // Warm amber for rings (resonance colour)
+  vec3 amber     = vec3(0.72, 0.52, 0.22);
+  // Very faint cool grey for background field
+  vec3 fieldCol  = vec3(0.55, 0.53, 0.50);
+
+  vec3 col = baseCol;
+  // Background field
+  col = mix(col, fieldCol, bg);
+  // Pressure waves in amber
+  col = mix(col, amber, wave * 0.55);
+  // Tines + stem in graphite (on top)
+  col = mix(col, graphite, (tineAlpha + stemAlpha) * 0.92);
+
+  // Cursor dot
+  float dotR = 0.004;
+  float dot  = 1.0 - smoothstep(dotR * 0.6, dotR, r);
+  col = mix(col, graphite, dot);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+// ── Compile & link ───────────────────────────────────────
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+    return null;
+  }
+  return s;
+}
+
+const vs = compileShader(gl.VERTEX_SHADER, VS);
+const fs = compileShader(gl.FRAGMENT_SHADER, FS);
+const prog = gl.createProgram();
+gl.attachShader(prog, vs);
+gl.attachShader(prog, fs);
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+  console.error(gl.getProgramInfoLog(prog));
+}
+gl.useProgram(prog);
+
+// ── Full-screen quad ─────────────────────────────────────
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1,  1,-1,  -1,1,
+   1,-1,  1, 1,  -1,1
+]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+// ── Uniform locations ─────────────────────────────────────
+const uRes    = gl.getUniformLocation(prog, 'u_resolution');
+const uTime   = gl.getUniformLocation(prog, 'u_time');
+const uMouse  = gl.getUniformLocation(prog, 'u_mouse');
+const uEnergy = gl.getUniformLocation(prog, 'u_energy');
+const uStrike = gl.getUniformLocation(prog, 'u_strike');
+const uDecay  = gl.getUniformLocation(prog, 'u_decay');
+
+// ── State ────────────────────────────────────────────────
+let mouseX = 0.5, mouseY = 0.5;
+let energy = 0.0;      // current mic energy 0-1
+let decay  = 0.0;      // amplitude envelope
+let strike = 0.0;      // accumulated strike count
+let startTime = performance.now();
+
+window.addEventListener('mousemove', e => {
+  mouseX = e.clientX / window.innerWidth;
+  mouseY = 1.0 - e.clientY / window.innerHeight;
+});
+
+// ── Microphone ───────────────────────────────────────────
+let analyser = null;
+let micData  = null;
+
+async function initMic() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const ctx    = new (window.AudioContext || window.webkitAudioContext)();
+    const src    = ctx.createMediaStreamSource(stream);
+    analyser     = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    micData      = new Uint8Array(analyser.frequencyBinCount);
+    src.connect(analyser);
+  } catch (e) {
+    // mic denied — fallback to autonomous mode
+    analyser = null;
+  }
+}
+initMic();
+
+// ── Autonomous strike when no mic ─────────────────────────
+// Periodic "phantom strike" so the sketch lives without mic
+let lastAutoStrike = 0;
+
+// ── Render loop ──────────────────────────────────────────
+function render(now) {
+  const t = (now - startTime) * 0.001;
+
+  // Energy from mic (or autonomous)
+  if (analyser) {
+    analyser.getByteTimeDomainData(micData);
+    let rms = 0;
+    for (let i = 0; i < micData.length; i++) {
+      const v = (micData[i] - 128) / 128;
+      rms += v * v;
+    }
+    rms = Math.sqrt(rms / micData.length);
+    energy = Math.min(rms * 8.0, 1.0);
+  } else {
+    // Autonomous: gentle 1.2 Hz beat
+    energy = 0.5 + 0.5 * Math.sin(t * 1.2 * Math.PI * 2.0);
+    energy = Math.max(0, energy - 0.3) / 0.7; // gate below 0.3
+  }
+
+  // Auto-strike: detect peak energy crossing threshold
+  if (analyser) {
+    if (energy > 0.6 && (now - lastAutoStrike) > 300) {
+      decay  = 1.0;
+      strike += 1.0;
+      lastAutoStrike = now;
+    }
+  } else {
+    // Autonomous: strike every ~2 s
+    if ((now - lastAutoStrike) > 2000) {
+      decay  = 0.85;
+      strike += 1.0;
+      lastAutoStrike = now;
+    }
+  }
+
+  // Decay envelope
+  decay  = Math.max(0, decay - 0.003);
+  // Blend in energy so rings glow even without hard strike
+  const envDecay = Math.max(decay, energy * 0.4);
+
+  // Set uniforms
+  gl.uniform2f(uRes,    canvas.width, canvas.height);
+  gl.uniform1f(uTime,   t);
+  gl.uniform2f(uMouse,  mouseX, mouseY);
+  gl.uniform1f(uEnergy, energy);
+  gl.uniform1f(uStrike, strike);
+  gl.uniform1f(uDecay,  envDecay);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '309',
+  title:  'Tuning Fork',
+  detail: 'マイクに向かって音を出すと音叉が振動し、波紋が広がります。カーソルを動かすと音叉の位置が変わります。マイクが使えない環境では、自律的にゆっくり振動し続けます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
