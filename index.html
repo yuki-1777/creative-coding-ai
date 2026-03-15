@@ -655,6 +655,8 @@
   });
 
   // ─── Dev toggle & Debug FB overlay ───
+  let pathMap = {};
+
   (function () {
     const isLocalhost = ['localhost', '127.0.0.1', ''].includes(location.hostname);
     const isDebug = localStorage.getItem('debug_mode') === 'true';
@@ -699,6 +701,10 @@
     if (!isDebug) return;
 
     const FB_KEY = 'sketch_fb';
+
+    function getFbData() {
+      try { return JSON.parse(localStorage.getItem(FB_KEY) || '{}'); } catch (e) { return {}; }
+    }
 
     // スタイル
     const style = document.createElement('style');
@@ -839,15 +845,9 @@
     `;
     document.body.appendChild(overlay);
 
-    let pathMap = {};
-    fetch('works.json').then(r => r.json()).then(works => {
-      works.forEach(w => { pathMap[w.num] = w.path; });
-    }).catch(() => {});
-
     function renderFb() {
       const list = document.getElementById('fb-list');
-      let all = {};
-      try { all = JSON.parse(localStorage.getItem(FB_KEY) || '{}'); } catch (e) {}
+      const all = getFbData();
       const entries = Object.entries(all).sort((a, b) => Number(a[0]) - Number(b[0]));
       if (entries.length === 0) {
         list.innerHTML = '<div id="fb-overlay-empty">no feedback yet</div>';
@@ -868,8 +868,7 @@
 
       list.querySelectorAll('.fb-delete').forEach(btn => {
         btn.addEventListener('click', () => {
-          let all = {};
-          try { all = JSON.parse(localStorage.getItem(FB_KEY) || '{}'); } catch (e) {}
+          const all = getFbData();
           delete all[btn.dataset.num];
           localStorage.setItem(FB_KEY, JSON.stringify(all));
           renderFb();
@@ -889,9 +888,7 @@
     document.getElementById('fb-overlay-close').addEventListener('click', closeOverlay);
 
     document.getElementById('fb-copy-json').addEventListener('click', () => {
-      let all = {};
-      try { all = JSON.parse(localStorage.getItem(FB_KEY) || '{}'); } catch (e) {}
-      navigator.clipboard.writeText(JSON.stringify(all, null, 2)).then(() => {
+      navigator.clipboard.writeText(JSON.stringify(getFbData(), null, 2)).then(() => {
         const btn = document.getElementById('fb-copy-json');
         btn.textContent = 'Copied!';
         btn.classList.add('copied');
@@ -904,6 +901,7 @@
   fetch('works.json')
     .then(r => r.json())
     .then(works => {
+      works.forEach(w => { pathMap[w.num] = w.path; });
       document.getElementById('empty-state').textContent = 'no works found';
       renderWorks(works.slice().reverse());
       const s = loadState();
