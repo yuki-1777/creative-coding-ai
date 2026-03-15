@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Strata</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xf5f4f0);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 3.5);
+
+  let W = window.innerWidth, H = window.innerHeight;
+  renderer.setSize(W, H);
+
+  const N_LAYERS = 30;
+  const PTS = 80;
+  const layers = [];
+
+  // Seed random fold data per layer
+  function hash(n) {
+    return ((Math.sin(n * 127.1) * 43758.5453) % 1 + 1) % 1;
+  }
+
+  for (let i = 0; i < N_LAYERS; i++) {
+    const y = (i / (N_LAYERS - 1) - 0.5) * 1.8;
+    const thickness = 0.01 + hash(i * 3.1) * 0.04;
+    const foldAmp = 0.05 + hash(i * 7.7) * 0.2;
+    const foldFreq = 1 + Math.floor(hash(i * 2.3) * 4);
+    const foldPhase = hash(i * 5.5) * Math.PI * 2;
+    const tilt = (hash(i * 11.1) - 0.5) * 0.15;
+    const opacity = 0.3 + hash(i * 4.3) * 0.5;
+
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(PTS * 3);
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+
+    const gray = Math.floor(hash(i * 9.1) * 80 + 80);
+    const col = (gray << 16) | (gray << 8) | gray;
+    const mat = new THREE.LineBasicMaterial({ color: col, transparent: true, opacity });
+    const line = new THREE.Line(geo, mat);
+    scene.add(line);
+
+    layers.push({ line, geo, pos, y, foldAmp, foldFreq, foldPhase, tilt });
+  }
+
+  // Mouse for rotation
+  let mouseX = 0, mouseY = 0;
+  canvas.addEventListener('mousemove', e => {
+    mouseX = (e.clientX / W - 0.5) * 2;
+    mouseY = (e.clientY / H - 0.5) * 2;
+  });
+
+  const group = new THREE.Group();
+  layers.forEach(l => group.add(l.line));
+  scene.remove(...layers.map(l => l.line));
+  scene.add(group);
+  layers.forEach(l => group.add(l.line));
+
+  function update(t) {
+    layers.forEach(l => {
+      for (let p = 0; p < PTS; p++) {
+        const x = (p / (PTS - 1) - 0.5) * 2.5;
+        const fold = Math.sin(x * l.foldFreq * Math.PI + l.foldPhase + t * 0.1) * l.foldAmp;
+        const tiltOffset = x * l.tilt;
+        l.pos[p * 3] = x;
+        l.pos[p * 3 + 1] = l.y + fold + tiltOffset;
+        l.pos[p * 3 + 2] = 0;
+      }
+      l.geo.attributes.position.needsUpdate = true;
+    });
+
+    group.rotation.x = mouseY * 0.4;
+    group.rotation.y = mouseX * 0.4;
+  }
+
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    t += 0.016;
+    update(t);
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    W = window.innerWidth; H = window.innerHeight;
+    renderer.setSize(W, H);
+    camera.aspect = W / H;
+    camera.updateProjectionMatrix();
+  });
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '198',
+  title:  'Strata',
+  detail: 'マウスを動かすと地層の断面を傾けられます。30枚の地層がそれぞれ違う周期で波打ち、傾きも違います。地殻変動でゆっくりと変形し続けています。横線だけで断面図を描きました。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
