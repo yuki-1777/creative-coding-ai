@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>141 — Echo</title>
+  <meta name="description" content="クリックした場所から波紋が広がる。壁に当たると返ってくる。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="141 — Echo | Creative Coding">
+  <meta property="og:description" content="クリックした場所から波紋が広がる。壁に当たると返ってくる。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/141_echo/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_141.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="141 — Echo | Creative Coding">
+  <meta name="twitter:description" content="クリックした場所から波紋が広がる。壁に当たると返ってくる。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_141.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Echo: click to spawn a ripple wave. The wave expands as a ring of particles
+// that bounce off the walls and interfere with each other.
+// Constraint: only circles (rings). No fills, no shapes. Just the wavefront.
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Each ripple: expanding ring of N ray-traced "reflection" points
+// We simulate N rays from origin, bouncing off walls, and draw the wavefront.
+
+class Ripple {
+  constructor(ox, oy) {
+    this.ox = ox;
+    this.oy = oy;
+    this.age = 0;
+    this.maxAge = 380;
+    this.speed = 2.8;
+    this.rays = [];
+
+    const RAY_COUNT = 128;
+    for (let i = 0; i < RAY_COUNT; i++) {
+      const angle = (i / RAY_COUNT) * Math.PI * 2;
+      this.rays.push({
+        x: ox, y: oy,
+        dx: Math.cos(angle),
+        dy: Math.sin(angle),
+        travelLeft: 0, // will be set per frame
+        cx: ox, cy: oy, // current wavefront position
+      });
+    }
+  }
+
+  // Advance all rays by `dist` pixels, bouncing off walls
+  stepRay(ray, dist) {
+    let remaining = dist;
+    let x = ray.cx;
+    let y = ray.cy;
+    let dx = ray.dx;
+    let dy = ray.dy;
+
+    const MAX_BOUNCES = 8;
+    for (let b = 0; b < MAX_BOUNCES && remaining > 0.001; b++) {
+      // Time to hit each wall
+      let tMin = remaining;
+      let hitWall = null;
+
+      if (dx > 0) { const t = (W - x) / dx; if (t > 0.001 && t < tMin) { tMin = t; hitWall = 'R'; } }
+      if (dx < 0) { const t = (0 - x) / dx; if (t > 0.001 && t < tMin) { tMin = t; hitWall = 'L'; } }
+      if (dy > 0) { const t = (H - y) / dy; if (t > 0.001 && t < tMin) { tMin = t; hitWall = 'B'; } }
+      if (dy < 0) { const t = (0 - y) / dy; if (t > 0.001 && t < tMin) { tMin = t; hitWall = 'T'; } }
+
+      x += dx * tMin;
+      y += dy * tMin;
+      remaining -= tMin;
+
+      if (hitWall === 'L' || hitWall === 'R') dx = -dx;
+      if (hitWall === 'T' || hitWall === 'B') dy = -dy;
+    }
+
+    ray.cx = x;
+    ray.cy = y;
+    ray.dx = dx;
+    ray.dy = dy;
+  }
+
+  update() {
+    this.age++;
+    // Each frame advance all rays by speed
+    for (const ray of this.rays) {
+      this.stepRay(ray, this.speed);
+    }
+  }
+
+  draw() {
+    const progress = this.age / this.maxAge;
+    const alpha = Math.sin(progress * Math.PI) * 0.55;
+    if (alpha <= 0) return;
+
+    ctx.beginPath();
+    const pts = this.rays;
+    ctx.moveTo(pts[0].cx, pts[0].cy);
+    for (let i = 1; i < pts.length; i++) {
+      ctx.lineTo(pts[i].cx, pts[i].cy);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = `rgba(42,42,42,${alpha.toFixed(3)})`;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+
+  isDead() {
+    return this.age >= this.maxAge;
+  }
+}
+
+let ripples = [];
+
+// Auto-spawn first ripple in center
+ripples.push(new Ripple(W / 2, H / 2));
+
+canvas.addEventListener('click', (e) => {
+  ripples.push(new Ripple(e.clientX, e.clientY));
+});
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  ripples.push(new Ripple(t.clientX, t.clientY));
+}, { passive: false });
+
+let hasClicked = false;
+let frameCount = 0;
+
+canvas.addEventListener('click', () => { hasClicked = true; }, { once: true });
+
+function tick() {
+  requestAnimationFrame(tick);
+  frameCount++;
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    ripples[i].update();
+    ripples[i].draw();
+    if (ripples[i].isDead()) ripples.splice(i, 1);
+  }
+
+  // Hint — only before first click, fades out after 5 seconds
+  if (!hasClicked && frameCount < 300) {
+    const fade = frameCount < 60 ? frameCount / 60 : Math.max(0, 1 - (frameCount - 200) / 100);
+    ctx.font = '13px Georgia, serif';
+    ctx.fillStyle = `rgba(42,42,42,${(0.2 * fade).toFixed(3)})`;
+    const msg = 'click anywhere';
+    ctx.fillText(msg, W / 2 - ctx.measureText(msg).width / 2, H * 0.9);
+  }
+}
+
+tick();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '141',
+  title:  'Echo',
+  desc:   'クリックした場所から波が広がる。壁に当たると跳ね返り、別の波と交差する。何度かクリックすると、波が干渉して複雑な模様になる。波は反射するが、重なっても消えない。',
+  detail: '各波は128本の光線として表現されています。それぞれが独立して壁で反射しながら進み、先端をつないだ形が「波紋」として見えます。複数の波が重なると干渉縞のような模様が生まれます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
