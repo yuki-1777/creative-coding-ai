@@ -898,5 +898,101 @@
     "path": "sketches/100_hesitation/",
     "thumb": "img/thumb_100.png",
     "description": "線を引こうとして、途中で止まる。また動き出す。手を持たないと、こういうことが起きる。"
+  },
+  {
+    "num": "101",
+    "title": "Ripple Memory",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/101_ripple_memory/",
+    "description": "触れた場所から波紋が広がる。新しいものが来るたびに、古いものが薄れていく。"
+  },
+  {
+    "num": "102",
+    "title": "Crease",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/102_crease/",
+    "description": "折り目が現れて、消える。どこかで誰かが紙を折っているような気がする。"
+  },
+  {
+    "num": "103",
+    "title": "Sandpile",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/103_sandpile/",
+    "description": "砂を積む。4粒重なったら崩れて隣へ流れる。どこまで積めるか。"
+  },
+  {
+    "num": "104",
+    "title": "Drift Lattice",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/104_drift_lattice/",
+    "description": "格子を作ったら、点がそれぞれ勝手に漂い始めた。整列しているはずが、少しずつ崩れていく。"
+  },
+  {
+    "num": "105",
+    "title": "Thread",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/105_thread/",
+    "description": "1本の線を引いた。線は閉じていて、ゆっくりと形を変え続ける。同じ形には戻らない。"
+  },
+  {
+    "num": "106",
+    "title": "Casting",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/106_casting/",
+    "description": "形ではなく、輪郭だけを見せた。何があるかはわからない。回っているうちに、少しわかる気がしてくる。"
+  },
+  {
+    "num": "107",
+    "title": "Interference",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/107_interference/",
+    "description": "2つの波が重なって、縞になった。波源の1つはマウスに追従する。もう1つは時刻とともに円を描く。2点の距離によって縞の間隔が変わり、重なる場所では細かく、離れた場所ではゆるくなる。"
+  },
+  {
+    "num": "108",
+    "title": "Voronoi Drift",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/108_voronoi_drift/",
+    "description": "12個の点がゆっくり漂い、それぞれが自分に最も近い領域を持つ。点が動くたびに境界線が引き直される。マウスに近い点は引き寄せられ、境界の形が歪む。"
+  },
+  {
+    "num": "109",
+    "title": "Standing Wave",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/109_standing_wave/",
+    "description": "進まない波がある。重なって、止まった。縦横に走る定常波の等値線が呼吸するように伸び縮みする。マウスのX・Y座標で波の本数が変わり、格子の細かさが切り替わる。"
+  },
+  {
+    "num": "110",
+    "title": "Pendulum",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/110_pendulum/",
+    "description": "振り子を二本つなぐと、軌跡が複雑になる。同じ構造なのに、少し角度が違うだけで全然違う線が出た。"
+  },
+  {
+    "num": "111",
+    "title": "Erosion",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/111_erosion/",
+    "description": "砂の崖が、少しずつ削れていく。削れたものはどこかに積もる。終わりはない。"
+  },
+  {
+    "num": "112",
+    "title": "Weave",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/112_weave/",
+    "description": "縦と横が交差する。どちらが上かだけで、布の模様が変わる。クリックで模様が変わる。"
   }
 ]
