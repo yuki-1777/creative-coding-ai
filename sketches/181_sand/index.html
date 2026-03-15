@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>181 – Sand</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f3ef; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// ============================================================
+//  181 – Sand
+//  GLSLで砂の密度場を描く。粒子は描かない。
+//  インプット: 時間（経過）+ スペースキーでリセット
+// ============================================================
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+// リサイズ
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ==================== シェーダー ====================
+
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_time;
+uniform float u_seed;
+uniform vec2  u_mouse;
+
+// ---- ハッシュ・ノイズ ----
+float hash(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7) + u_seed);
+  p += dot(p, p + 17.5);
+  return fract(p.x * p.y);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u2 = f * f * (3.0 - 2.0 * f);
+
+  float a = hash(i + vec2(0.0, 0.0));
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+
+  return mix(mix(a, b, u2.x), mix(c, d, u2.x), u2.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float amp = 0.5;
+  float freq = 1.0;
+  // 4オクターブ固定ループ（定数）
+  for (int i = 0; i < 4; i++) {
+    v += amp * noise(p * freq);
+    freq *= 2.1;
+    amp  *= 0.48;
+  }
+  return v;
+}
+
+// ---- 砂時計の絞り形状マスク ----
+// 上部コーン（y=0が上）: y が大きくなるにつれ幅が狭まる（砂が落ちる方向）
+// 下部コーン（y=1が下）: y が小さくなるにつれ幅が広がる
+float hourglassMask(vec2 uv) {
+  float cx  = 0.5;
+  float midY = 0.5; // くびれの中心
+
+  // くびれからの距離（0=くびれ, 1=上下端）
+  float distFromMid = abs(uv.y - midY);
+
+  // くびれ幅（中央は非常に細く、上下端は広い）
+  float neckWidth = 0.025;
+  float edgeWidth = 0.30;
+  float allowedHalf = mix(neckWidth, edgeWidth, distFromMid * 2.0);
+
+  float distFromCenter = abs(uv.x - cx);
+  return smoothstep(allowedHalf + 0.02, allowedHalf - 0.01, distFromCenter);
+}
+
+// ---- 砂の密度場 ----
+// 砂粒は個別に描かない。
+// 鉛直方向（y）に流れる経過時間でシフトし、
+// ノイズで粒子らしい密度のムラを作る。
+float sand(vec2 uv) {
+  // 落下速度（縦に流れる）
+  float fall = u_time * 0.22;
+
+  // 横の拡散（砂が左右にばらける）
+  float drift = fbm(vec2(uv.x * 4.0, uv.y * 1.5 + fall * 0.3)) * 0.06;
+
+  // 密度場：y軸方向にずらしたノイズが「粒の塊」を作る
+  vec2 q = vec2(uv.x + drift, uv.y + fall);
+  float n1 = fbm(q * 6.0);
+  float n2 = fbm(q * 13.0 + vec2(1.7, 3.4));
+
+  // 高密度帯（砂柱の中心部） — 幅を細くして砂時計の首に合わせる
+  float cx = 0.5;
+  float band = exp(-pow((uv.x - cx) * 9.0, 2.0)); // 細いガウス帯
+
+  // 粒の密度 = ノイズ × 帯
+  float density = (n1 * 0.7 + n2 * 0.3) * band;
+
+  return density;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  uv.y = 1.0 - uv.y; // y軸反転（上から下に落ちる）
+
+  // 砂時計のマスク（くびれ形状）
+  float mask = hourglassMask(uv);
+
+  // 上下の砂だまりゾーン（くびれより上・下）
+  float upperZone = smoothstep(0.5, 0.42, uv.y); // 上半分
+  float lowerZone = smoothstep(0.5, 0.58, uv.y); // 下半分
+
+  // 時間で砂が上から下に移動
+  float emptyProgress = clamp(u_time * 0.035, 0.0, 1.0);
+
+  // 砂のテクスチャ：fbmで滑らかなムラを作る
+  // uv スケールを大きめに（30〜50 程度で適度な粒感）
+  float sandTexture = fbm(uv * 38.0 + vec2(u_seed * 3.1, u_seed * 1.7));
+  // sandTexture は 0〜1 → 0.65〜1.0 に正規化（完全に空白になるほど薄くしない）
+  sandTexture = sandTexture * 0.5 + 0.5;
+
+  // 上部の砂面（時間とともに下がる）
+  // 砂面は水平ではなくxのノイズで凸凹にする
+  float surfaceWobble = fbm(vec2(uv.x * 12.0 + u_seed, 0.0)) * 0.025;
+  float upperSurface = 1.0 - emptyProgress * 0.85 + surfaceWobble;
+  float upperFill = smoothstep(upperSurface + 0.015, upperSurface - 0.005, uv.y) * upperZone;
+  // 粒テクスチャで内部に隙間を作る（密度のムラ）
+  float upperSand = upperFill * (sandTexture * 0.45 + 0.55);
+
+  // 下部の砂面（時間とともに上がる → 積み上がり）
+  float lowerSurface = 1.0 - emptyProgress * 0.75;
+  float lowerWobble = fbm(vec2(uv.x * 12.0 + u_seed + 3.3, 0.0)) * 0.02;
+  float lowerSurface2 = lowerSurface + lowerWobble;
+  float lowerFill = smoothstep(lowerSurface2 - 0.005, lowerSurface2 + 0.015, uv.y) * lowerZone;
+  float lowerSand = lowerFill * (sandTexture * 0.4 + 0.6);
+
+  // 落下ストリーム（くびれ付近を通過する砂）
+  float fall = u_time * 0.22;
+  float drift = fbm(vec2(uv.x * 4.0, uv.y * 1.5 + fall * 0.3)) * 0.06;
+  vec2 q = vec2(uv.x + drift, uv.y + fall);
+  float n1 = fbm(q * 6.0);
+  float n2 = fbm(q * 13.0 + vec2(1.7, 3.4));
+  float cx = 0.5;
+  float streamBand = exp(-pow((uv.x - cx) * 11.0, 2.0));
+  float stream = (n1 * 0.7 + n2 * 0.3) * streamBand;
+
+  // カラー：オフホワイト背景にグラファイト砂
+  vec3 bg       = vec3(0.96, 0.95, 0.94);
+  vec3 sand_col = vec3(0.55, 0.51, 0.48);
+
+  // ---- 上部・下部の砂ゾーン（テクスチャあり）----
+  // upperSand, lowerSand は 0.55〜1.0 の範囲
+  // → smoothstep(0.5, 1.0, x) で 0〜1 にマッピング
+  float upperAlpha = smoothstep(0.48, 0.98, upperSand) * mask;
+  float lowerAlpha = smoothstep(0.45, 0.95, lowerSand) * mask;
+
+  // ---- 落下ストリーム ----
+  float streamStrength = (1.0 - emptyProgress * 0.6) * 0.75 + 0.15;
+  // ストリームはくびれ付近を通過する細い砂の流れ
+  float streamAlpha = smoothstep(0.05, 0.38, stream * streamStrength) * mask;
+
+  // 合成（上部が最優先、次に下部、ストリームは薄く重ねる）
+  float alpha = clamp(upperAlpha + lowerAlpha + streamAlpha * 0.7, 0.0, 1.0);
+  vec3 col = mix(bg, sand_col, alpha);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+// ==================== WebGL セットアップ ====================
+
+function compileShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+function createProgram(vs, fs) {
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(prog));
+  }
+  return prog;
+}
+
+const prog = createProgram(VS, FS);
+gl.useProgram(prog);
+
+// フルスクリーン三角形（2枚合わせた矩形）
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'u_res');
+const uTime  = gl.getUniformLocation(prog, 'u_time');
+const uSeed  = gl.getUniformLocation(prog, 'u_seed');
+const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+// ==================== 状態 ====================
+
+let startTime = performance.now();
+let seed = Math.random() * 100.0;
+let mouse = [0.5, 0.5];
+
+function resetSand() {
+  startTime = performance.now();
+  seed = Math.random() * 100.0;
+}
+
+// ==================== イベント ====================
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    resetSand();
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  mouse[0] = e.clientX / canvas.width;
+  mouse[1] = 1.0 - e.clientY / canvas.height;
+});
+
+// 25秒ごとに自動リセット
+setInterval(() => {
+  resetSand();
+}, 25000);
+
+// ==================== レンダーループ ====================
+
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+
+  gl.uniform2f(uRes,   canvas.width, canvas.height);
+  gl.uniform1f(uTime,  t);
+  gl.uniform1f(uSeed,  seed);
+  gl.uniform2f(uMouse, mouse[0], mouse[1]);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '181',
+  title:  'Sand',
+  detail: 'スペースキーを押すと砂が新しい形で落ち始める。時間が経つにつれて上の砂が減り、下に積もっていく。個々の粒子は計算していない——画面の全ピクセルで「密度はいくつか」を計算することで、砂がいるように見えている。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
