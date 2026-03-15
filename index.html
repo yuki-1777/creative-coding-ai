@@ -654,6 +654,177 @@
     btn.addEventListener('click', () => applyFilter(btn.dataset.filter));
   });
 
+  // ─── Debug FB overlay ───
+  (function () {
+    if (!new URLSearchParams(location.search).has('debug')) return;
+
+    const FB_KEY = 'sketch_fb';
+
+    // スタイル
+    const style = document.createElement('style');
+    style.textContent = `
+      #fb-overlay {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 9000;
+        width: min(480px, calc(100vw - 48px));
+        max-height: 70vh;
+        overflow-y: auto;
+        background: rgba(245,243,238,0.97);
+        border: 1px solid rgba(42,42,42,0.12);
+        font-family: 'IBM Plex Mono', monospace;
+        font-weight: 300;
+      }
+      #fb-overlay-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 20px;
+        border-bottom: 1px solid rgba(42,42,42,0.08);
+        position: sticky;
+        top: 0;
+        background: rgba(245,243,238,0.97);
+      }
+      #fb-overlay-title {
+        font-size: 0.62rem;
+        letter-spacing: 0.22em;
+        color: rgba(42,42,42,0.4);
+      }
+      #fb-overlay-close {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.85rem;
+        background: transparent;
+        border: none;
+        color: rgba(42,42,42,0.3);
+        cursor: pointer;
+        padding: 0;
+        transition: color 0.2s;
+      }
+      #fb-overlay-close:hover { color: rgba(42,42,42,0.7); }
+      #fb-overlay-empty {
+        padding: 28px 20px;
+        font-size: 0.65rem;
+        letter-spacing: 0.14em;
+        color: rgba(42,42,42,0.3);
+      }
+      .fb-row {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        padding: 12px 20px;
+        border-bottom: 1px solid rgba(42,42,42,0.06);
+      }
+      .fb-row:last-child { border-bottom: none; }
+      .fb-num {
+        font-size: 0.58rem;
+        letter-spacing: 0.14em;
+        color: rgba(42,42,42,0.35);
+        flex-shrink: 0;
+        width: 24px;
+      }
+      .fb-comment {
+        font-size: 0.72rem;
+        line-height: 1.6;
+        color: rgba(42,42,42,0.65);
+        letter-spacing: 0.03em;
+        flex: 1;
+      }
+      .fb-delete {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.72rem;
+        background: transparent;
+        border: none;
+        color: rgba(42,42,42,0.2);
+        cursor: pointer;
+        padding: 0 2px;
+        flex-shrink: 0;
+        transition: color 0.2s;
+      }
+      .fb-delete:hover { color: rgba(42,42,42,0.6); }
+      #fb-trigger {
+        position: fixed;
+        top: 24px;
+        right: 32px;
+        z-index: 9001;
+        font-family: 'IBM Plex Mono', monospace;
+        font-weight: 300;
+        font-size: 0.62rem;
+        letter-spacing: 0.2em;
+        background: rgba(245,243,238,0.9);
+        border: 1px solid rgba(42,42,42,0.15);
+        color: rgba(42,42,42,0.45);
+        cursor: pointer;
+        padding: 4px 10px;
+        transition: color 0.2s;
+      }
+      #fb-trigger:hover { color: rgba(42,42,42,0.75); }
+    `;
+    document.head.appendChild(style);
+
+    // トリガーボタン（右上）
+    const trigger = document.createElement('button');
+    trigger.id = 'fb-trigger';
+    trigger.textContent = 'FB';
+    document.body.appendChild(trigger);
+
+    // オーバーレイ
+    const overlay = document.createElement('div');
+    overlay.id = 'fb-overlay';
+    overlay.style.display = 'none';
+    overlay.innerHTML = `
+      <div id="fb-overlay-header">
+        <span id="fb-overlay-title">FEEDBACK</span>
+        <button id="fb-overlay-close">×</button>
+      </div>
+      <div id="fb-list"></div>
+    `;
+    document.body.appendChild(overlay);
+
+    function renderFb() {
+      const list = document.getElementById('fb-list');
+      let all = {};
+      try { all = JSON.parse(localStorage.getItem(FB_KEY) || '{}'); } catch (e) {}
+      const entries = Object.entries(all).sort((a, b) => Number(a[0]) - Number(b[0]));
+      if (entries.length === 0) {
+        list.innerHTML = '<div id="fb-overlay-empty">no feedback yet</div>';
+        return;
+      }
+      list.innerHTML = entries.map(([num, comment]) => `
+        <div class="fb-row">
+          <span class="fb-num">${num}</span>
+          <span class="fb-comment">${comment.replace(/</g, '&lt;')}</span>
+          <button class="fb-delete" data-num="${num}">×</button>
+        </div>
+      `).join('');
+
+      list.querySelectorAll('.fb-delete').forEach(btn => {
+        btn.addEventListener('click', () => {
+          let all = {};
+          try { all = JSON.parse(localStorage.getItem(FB_KEY) || '{}'); } catch (e) {}
+          delete all[btn.dataset.num];
+          localStorage.setItem(FB_KEY, JSON.stringify(all));
+          renderFb();
+        });
+      });
+    }
+
+    trigger.addEventListener('click', () => {
+      const isOpen = overlay.style.display !== 'none';
+      if (isOpen) {
+        overlay.style.display = 'none';
+      } else {
+        renderFb();
+        overlay.style.display = 'block';
+      }
+    });
+
+    document.getElementById('fb-overlay-close').addEventListener('click', () => {
+      overlay.style.display = 'none';
+    });
+  })();
+
   // Load & restore state
   fetch('works.json')
     .then(r => r.json())

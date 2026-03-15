@@ -207,6 +207,42 @@
     }
     #sketch-capture-btn:hover { color: rgba(42,42,42,0.75); }
     #sketch-capture-btn.done { color: rgba(42,42,42,0.5); }
+
+    /* FB パネル：デバッグモード時のみ */
+    #sketch-fb-panel {
+      position: fixed;
+      bottom: 70px;
+      right: 32px;
+      z-index: 9999;
+      width: 260px;
+      background: rgba(245,243,238,0.95);
+      border: 1px solid rgba(42,42,42,0.15);
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    }
+    #sketch-fb-label {
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      color: rgba(42,42,42,0.4);
+      padding: 8px 12px 6px;
+      border-bottom: 1px solid rgba(42,42,42,0.08);
+    }
+    #sketch-fb-textarea {
+      display: block;
+      width: 100%;
+      min-height: 72px;
+      background: transparent;
+      border: none;
+      outline: none;
+      resize: none;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-weight: 300;
+      font-size: 0.72rem;
+      line-height: 1.6;
+      color: rgba(42,42,42,0.7);
+      padding: 8px 12px;
+      letter-spacing: 0.04em;
+    }
+    #sketch-fb-textarea::placeholder { color: rgba(42,42,42,0.25); }
   `;
   document.head.appendChild(style);
 
@@ -274,6 +310,45 @@
         detailBtn.classList.remove('active');
         setTimeout(() => { if (!panel.classList.contains('visible')) panel.style.display = 'none'; }, 350);
       }
+    });
+  }
+
+  // FB パネル（デバッグモード時のみ）
+  if (isDebug) {
+    const FB_KEY = 'sketch_fb';
+
+    const fbPanel = document.createElement('div');
+    fbPanel.id = 'sketch-fb-panel';
+    fbPanel.innerHTML = `
+      <div id="sketch-fb-label">FB</div>
+      <textarea id="sketch-fb-textarea" placeholder="フィードバックを入力…"></textarea>
+    `;
+    document.body.appendChild(fbPanel);
+
+    const fbTextarea = document.getElementById('sketch-fb-textarea');
+
+    // 既存コメントを読み込む
+    try {
+      const all = JSON.parse(localStorage.getItem(FB_KEY) || '{}');
+      fbTextarea.value = all[meta.num] || '';
+    } catch (e) {}
+
+    // 入力 → localStorage に保存（debounce）
+    let fbTimer;
+    fbTextarea.addEventListener('input', () => {
+      clearTimeout(fbTimer);
+      fbTimer = setTimeout(() => {
+        try {
+          const all = JSON.parse(localStorage.getItem(FB_KEY) || '{}');
+          const val = fbTextarea.value.trim();
+          if (val) {
+            all[meta.num] = val;
+          } else {
+            delete all[meta.num];
+          }
+          localStorage.setItem(FB_KEY, JSON.stringify(all));
+        } catch (e) {}
+      }, 500);
     });
   }
 
