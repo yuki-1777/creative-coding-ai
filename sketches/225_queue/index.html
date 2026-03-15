@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>225 – Queue</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: #f5f2ed; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ---------- queue model ----------
+const PERSON_R = 10;           // person radius
+const SPACING = 38;            // gap between persons (center to center)
+const SERVICE_INTERVAL = 2800; // ms to serve one person
+const FRONT_X_RATIO = 0.55;    // where the "counter" is (ratio of width)
+const LINE_Y_RATIO  = 0.5;     // vertical center of the queue
+
+let queue = [];     // [{id, x, targetX, served, alpha, scaleX}]
+let nextId = 0;
+let lastService = 0;
+let served = 0;     // total served count
+let tick = 0;
+
+function frontX() { return canvas.width * FRONT_X_RATIO; }
+function lineY()  { return canvas.height * LINE_Y_RATIO; }
+
+function addPerson() {
+  const targetX = frontX() - queue.length * SPACING;
+  queue.push({
+    id: nextId++,
+    x: canvas.width + PERSON_R * 4,   // enter from right
+    targetX: targetX,
+    alpha: 1,
+    scaleX: 1,
+    departing: false
+  });
+}
+
+// Populate initial queue
+for (let i = 0; i < 8; i++) {
+  const targetX = frontX() - i * SPACING;
+  queue.push({
+    id: nextId++,
+    x: targetX,
+    targetX: targetX,
+    alpha: 1,
+    scaleX: 1,
+    departing: false
+  });
+}
+
+// ---------- animation ----------
+let lastTime = performance.now();
+
+function update(now) {
+  const dt = now - lastTime;
+  lastTime = now;
+  tick++;
+
+  // Serve front person
+  if (now - lastService > SERVICE_INTERVAL && queue.length > 0) {
+    const front = queue[0];
+    if (!front.departing) {
+      front.departing = true;
+      front.deptStart = now;
+    }
+    lastService = now;
+  }
+
+  // Update positions
+  for (let i = queue.length - 1; i >= 0; i--) {
+    const p = queue[i];
+
+    if (p.departing) {
+      const age = now - p.deptStart;
+      // slide left through the counter and fade
+      p.x -= dt * 0.12;
+      p.alpha = Math.max(0, 1 - age / 600);
+      if (p.alpha <= 0) {
+        queue.splice(i, 1);
+        served++;
+        // recalculate targets
+        updateTargets();
+        continue;
+      }
+    } else {
+      // Ease toward target
+      p.x += (p.targetX - p.x) * 0.07;
+    }
+  }
+}
+
+function updateTargets() {
+  for (let i = 0; i < queue.length; i++) {
+    queue[i].targetX = frontX() - i * SPACING;
+  }
+}
+
+function draw(now) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const W = canvas.width;
+  const H = canvas.height;
+  const Y = lineY();
+  const FX = frontX();
+
+  // Background
+  ctx.fillStyle = '#f5f2ed';
+  ctx.fillRect(0, 0, W, H);
+
+  // Ground line (queue baseline)
+  ctx.beginPath();
+  ctx.moveTo(W * 0.04, Y + PERSON_R + 4);
+  ctx.lineTo(FX + SPACING, Y + PERSON_R + 4);
+  ctx.strokeStyle = 'rgba(80,72,60,0.18)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Counter / window
+  drawCounter(FX, Y);
+
+  // People
+  for (let i = queue.length - 1; i >= 0; i--) {
+    const p = queue[i];
+    drawPerson(p, i, now);
+  }
+
+  // Service progress bar
+  const elapsed = now - lastService;
+  const progress = Math.min(elapsed / SERVICE_INTERVAL, 1);
+  if (queue.length > 0) {
+    ctx.fillStyle = 'rgba(80,72,60,0.12)';
+    ctx.fillRect(FX + 2, Y - 38, SPACING * 0.6, 4);
+    ctx.fillStyle = 'rgba(80,72,60,0.5)';
+    ctx.fillRect(FX + 2, Y - 38, SPACING * 0.6 * progress, 4);
+  }
+
+  // Stats
+  ctx.fillStyle = 'rgba(120,110,95,0.7)';
+  ctx.font = '13px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`waiting: ${queue.length}`, W * 0.06, H * 0.18);
+  ctx.fillText(`served: ${served}`, W * 0.06, H * 0.18 + 22);
+
+  // Hint
+  ctx.fillStyle = 'rgba(160,150,140,0.75)';
+  ctx.font = '13px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('クリックで列に加わる', W / 2, H - 28);
+}
+
+function drawCounter(fx, y) {
+  // Vertical line = window / counter
+  ctx.beginPath();
+  ctx.moveTo(fx + SPACING * 0.5, y - PERSON_R * 4.5);
+  ctx.lineTo(fx + SPACING * 0.5, y + PERSON_R * 2.5);
+  ctx.strokeStyle = 'rgba(80,72,60,0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([]);
+  ctx.stroke();
+
+  // Small shelf
+  ctx.beginPath();
+  ctx.moveTo(fx + SPACING * 0.5, y + PERSON_R + 4);
+  ctx.lineTo(fx + SPACING * 1.2, y + PERSON_R + 4);
+  ctx.strokeStyle = 'rgba(80,72,60,0.2)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function drawPerson(p, index, now) {
+  const x = p.x;
+  const Y = lineY();
+  const alpha = p.alpha;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, Y);
+
+  // Body: simple circle head + short line body
+  const r = PERSON_R;
+
+  // shadow / foot
+  ctx.beginPath();
+  ctx.ellipse(0, r + 2, r * 0.8, 3, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(80,72,60,0.08)';
+  ctx.fill();
+
+  // body line
+  ctx.beginPath();
+  ctx.moveTo(0, r * 0.5);
+  ctx.lineTo(0, r * 2.2);
+  ctx.strokeStyle = 'rgba(60,55,48,0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // arms (horizontal)
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.9, r * 1.2);
+  ctx.lineTo( r * 0.9, r * 1.2);
+  ctx.strokeStyle = 'rgba(60,55,48,0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // head circle
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.7, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(60,55,48,0.75)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = '#f5f2ed';
+  ctx.fill();
+
+  // slight idle sway
+  if (!p.departing) {
+    const swayY = Math.sin(now * 0.0008 + p.id * 1.7) * 1.5;
+    ctx.translate(0, swayY);
+  }
+
+  ctx.restore();
+}
+
+// ---------- interaction ----------
+canvas.addEventListener('click', function() {
+  if (queue.length < 30) {
+    addPerson();
+    updateTargets();
+  }
+});
+
+// ---------- loop ----------
+function loop(now) {
+  update(now);
+  draw(now);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '225',
+  title:  'Queue',
+  detail: 'クリックするたびに列の末尾に一人加わる。最前列の人は一定時間後に窓口を通過して消える。残った人たちは静かに前へ詰める。ただ待つことと、順番が来ることの繰り返し。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
