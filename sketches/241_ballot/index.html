@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ballot</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f2ed; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 投票可視化スケッチ
+// 左右キーで賛否を投じる。積み重なった点が票数を示す
+
+const DOT_SIZE = 7;
+const DOT_GAP = 3;
+const FALL_SPEED = 6;
+const MAX_DOTS = 60;
+const COL_GAP = 80; // 中央からの距離
+
+let fallingDots = [];
+let yesCount = 0;
+let noCount = 0;
+let result = null; // null, 'YES', 'NO', 'tie'
+let resultTimer = 0;
+let autoVoteTimer = 0;
+let autoVoteInterval = 30; // フレーム間隔で自動投票
+let manualMode = false; // キー操作されたら自動を止める
+
+function setup() {
+  const size = min(windowWidth, windowHeight, 600);
+  createCanvas(size, size);
+  noStroke();
+
+  // 初期票をランダムに積む（デモ表示用）
+  const initYes = floor(random(8, 18));
+  const initNo = floor(random(6, 16));
+  yesCount = initYes;
+  noCount = initNo;
+}
+
+function draw() {
+  background(245, 242, 237);
+
+  const cx = width / 2;
+  const cy = height / 2;
+  const baseY = height * 0.72;
+  const dotStep = DOT_SIZE + DOT_GAP;
+
+  // 中央の区切り線
+  stroke(180, 175, 168);
+  strokeWeight(0.5);
+  line(cx, height * 0.15, cx, baseY + DOT_SIZE);
+  noStroke();
+
+  // ラベル
+  fill(100, 95, 88);
+  textSize(11);
+  textAlign(CENTER);
+  textFont('monospace');
+  text('YES', cx - COL_GAP, height * 0.12);
+  text('NO', cx + COL_GAP, height * 0.12);
+
+  // ガイドテキスト（常時表示）
+  fill(180, 175, 168);
+  textSize(10);
+  textAlign(CENTER);
+  textFont('monospace');
+  text('\u2190 YES   NO \u2192', cx, height * 0.82);
+  if (!manualMode) {
+    text('press arrow keys to vote', cx, height * 0.86);
+  }
+
+  // 自動投票デモ（手動操作前）
+  if (!manualMode) {
+    autoVoteTimer++;
+    if (autoVoteTimer >= autoVoteInterval) {
+      autoVoteTimer = 0;
+      // ランダムに賛否を投票
+      const side = random() < 0.5 ? 'yes' : 'no';
+      castVote(side);
+      autoVoteInterval = floor(random(20, 60));
+    }
+  }
+
+  // 積み重なったドットを描画
+  // YES側（左）
+  for (let i = 0; i < yesCount && i < MAX_DOTS; i++) {
+    const row = floor(i / 1);
+    const dotY = baseY - row * dotStep;
+    const dotX = cx - COL_GAP;
+    const shade = map(i, 0, MAX_DOTS, 90, 50);
+    fill(shade, shade - 5, shade - 10, 220);
+    ellipse(dotX, dotY, DOT_SIZE);
+  }
+
+  // NO側（右）
+  for (let i = 0; i < noCount && i < MAX_DOTS; i++) {
+    const row = floor(i / 1);
+    const dotY = baseY - row * dotStep;
+    const dotX = cx + COL_GAP;
+    const shade = map(i, 0, MAX_DOTS, 90, 50);
+    fill(shade, shade - 5, shade - 10, 220);
+    ellipse(dotX, dotY, DOT_SIZE);
+  }
+
+  // 落下中のドットを更新・描画
+  for (let i = fallingDots.length - 1; i >= 0; i--) {
+    const d = fallingDots[i];
+    d.y += d.vy;
+    d.vy += 0.4; // 重力
+
+    // 着地判定
+    const side = d.side;
+    const count = side === 'yes' ? yesCount : noCount;
+    const targetY = baseY - count * dotStep;
+
+    if (d.y >= targetY) {
+      d.y = targetY;
+      // 着地
+      if (side === 'yes') {
+        yesCount++;
+      } else {
+        noCount++;
+      }
+      fallingDots.splice(i, 1);
+
+      // 結果判定（10票ごと）
+      checkResult();
+      continue;
+    }
+
+    const alpha = map(d.y, -50, height * 0.3, 0, 255);
+    fill(60, 55, 50, constrain(alpha, 0, 220));
+    ellipse(d.x, d.y, DOT_SIZE);
+  }
+
+  // 結果表示
+  if (result) {
+    resultTimer--;
+    const alpha = map(resultTimer, 60, 0, 200, 0);
+    fill(60, 55, 50, alpha);
+    textSize(13);
+    textAlign(CENTER);
+    if (result === 'tie') {
+      text('tie.', cx, height * 0.92);
+    } else {
+      text(result + ' wins.', cx, height * 0.92);
+    }
+    if (resultTimer <= 0) {
+      result = null;
+    }
+  }
+
+  // 差分インジケーター（細い横線）
+  if (yesCount > 0 || noCount > 0) {
+    const yesH = min(yesCount, MAX_DOTS) * dotStep;
+    const noH = min(noCount, MAX_DOTS) * dotStep;
+    const diff = abs(yesH - noH);
+    if (diff > 2) {
+      stroke(160, 155, 148, 100);
+      strokeWeight(0.5);
+      const midY = baseY - min(yesH, noH) + DOT_SIZE;
+      line(cx - COL_GAP - 8, midY, cx + COL_GAP + 8, midY);
+      noStroke();
+    }
+  }
+}
+
+function checkResult() {
+  const total = yesCount + noCount;
+  if (total > 0 && total % 20 === 0) {
+    if (yesCount > noCount) {
+      result = 'YES';
+    } else if (noCount > yesCount) {
+      result = 'NO';
+    } else {
+      result = 'tie';
+    }
+    resultTimer = 90;
+  }
+}
+
+function keyPressed() {
+  if (keyCode === LEFT_ARROW) {
+    manualMode = true;
+    castVote('yes');
+  } else if (keyCode === RIGHT_ARROW) {
+    manualMode = true;
+    castVote('no');
+  }
+}
+
+function castVote(side) {
+  const cx = width / 2;
+  const x = side === 'yes' ? cx - COL_GAP : cx + COL_GAP;
+  fallingDots.push({
+    side: side,
+    x: x,
+    y: height * 0.05,
+    vy: 1
+  });
+}
+
+function windowResized() {
+  const size = min(windowWidth, windowHeight, 600);
+  resizeCanvas(size, size);
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '241',
+  title:  'Ballot',
+  detail: '左矢印キーでYES、右矢印キーでNOに投票する。ドットが落下して積み重なる。20票ごとに暫定結果が表示される。数字は出ない——積み上がった高さだけが結果を語る。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
