@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>204 – Discharge</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f3ef; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// ============================================================
+//  204 – Discharge
+//  雷の放電パターンをGLSLで描く
+//  DLAアルゴリズムの代わりに距離場ベースの樹状分岐を使用
+//  インプット: 時間（自律）+ クリックでリセット
+// ============================================================
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_time;
+uniform float u_seed;
+
+// ---- ハッシュ ----
+float hash(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7) + u_seed * 0.1);
+  p += dot(p, p + 17.5);
+  return fract(p.x * p.y);
+}
+
+float hash1(float n) {
+  return fract(sin(n + u_seed) * 43758.5453);
+}
+
+// ---- ノイズ ----
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+// ---- ブランチ距離計算 ----
+// 1本の放電枝（起点pt0 → 終点pt1）への最短距離
+float segDist(vec2 p, vec2 a, vec2 b) {
+  vec2 ab = b - a;
+  vec2 ap = p - a;
+  float t = clamp(dot(ap, ab) / dot(ab, ab), 0.0, 1.0);
+  return length(ap - ab * t);
+}
+
+// ---- 放電ツリー ----
+// 再帰的な分岐を展開（GLSLでは再帰不可なため固定反復で近似）
+float dischargeTree(vec2 uv, float seed_local) {
+  float minDist = 999.0;
+
+  // 発生源（上部中央）
+  vec2 origin = vec2(0.5, 0.95);
+
+  // 主幹（レベル0）
+  vec2 tip0 = origin;
+  vec2 dir0 = vec2(
+    (hash1(seed_local) - 0.5) * 0.3,
+    -0.35 - hash1(seed_local + 1.0) * 0.1
+  );
+  vec2 end0 = tip0 + dir0;
+  float d = segDist(uv, tip0, end0);
+  float width0 = 0.004;
+  minDist = min(minDist, d - width0);
+
+  // 枝（レベル1）: 主幹から2本
+  for (int b = 0; b < 2; b++) {
+    float bf = float(b);
+    float bseed = seed_local + bf * 7.3 + 2.1;
+
+    float sign_b = (bf < 0.5) ? 1.0 : -1.0;
+    vec2 branchStart1 = mix(tip0, end0, 0.35 + hash1(bseed) * 0.3);
+    vec2 bdir1 = vec2(
+      dir0.x + sign_b * (0.12 + hash1(bseed + 1.0) * 0.15),
+      dir0.y * (0.7 + hash1(bseed + 2.0) * 0.3)
+    );
+    bdir1 = normalize(bdir1) * (0.18 + hash1(bseed + 3.0) * 0.08);
+    vec2 branchEnd1 = branchStart1 + bdir1;
+
+    d = segDist(uv, branchStart1, branchEnd1);
+    float width1 = 0.0025;
+    minDist = min(minDist, d - width1);
+
+    // 枝（レベル2）: 各レベル1枝から2本
+    for (int c = 0; c < 2; c++) {
+      float cf = float(c);
+      float cseed = bseed + cf * 5.1 + 4.3;
+
+      float sign_c = (cf < 0.5) ? 1.0 : -1.0;
+      vec2 branchStart2 = mix(branchStart1, branchEnd1, 0.4 + hash1(cseed) * 0.4);
+      vec2 bdir2 = vec2(
+        bdir1.x + sign_c * (0.08 + hash1(cseed + 1.0) * 0.1),
+        bdir1.y * (0.6 + hash1(cseed + 2.0) * 0.4)
+      );
+      bdir2 = normalize(bdir2) * (0.12 + hash1(cseed + 3.0) * 0.06);
+      vec2 branchEnd2 = branchStart2 + bdir2;
+
+      d = segDist(uv, branchStart2, branchEnd2);
+      float width2 = 0.0015;
+      minDist = min(minDist, d - width2);
+
+      // 枝（レベル3）
+      for (int e = 0; e < 2; e++) {
+        float ef = float(e);
+        float eseed = cseed + ef * 3.7 + 6.1;
+
+        float sign_e = (ef < 0.5) ? 1.0 : -1.0;
+        vec2 branchStart3 = mix(branchStart2, branchEnd2, 0.3 + hash1(eseed) * 0.5);
+        vec2 bdir3 = vec2(
+          bdir2.x + sign_e * (0.05 + hash1(eseed + 1.0) * 0.07),
+          bdir2.y * (0.5 + hash1(eseed + 2.0) * 0.4)
+        );
+        bdir3 = normalize(bdir3) * (0.07 + hash1(eseed + 3.0) * 0.04);
+        vec2 branchEnd3 = branchStart3 + bdir3;
+
+        d = segDist(uv, branchStart3, branchEnd3);
+        float width3 = 0.001;
+        minDist = min(minDist, d - width3);
+      }
+    }
+  }
+
+  // 主幹を続ける（延長部）
+  vec2 tip1 = end0;
+  float ext_seed = seed_local + 20.0;
+  vec2 dir1 = vec2(
+    dir0.x * 0.6 + (hash1(ext_seed) - 0.5) * 0.2,
+    -0.28 - hash1(ext_seed + 1.0) * 0.08
+  );
+  dir1 = normalize(dir1) * 0.25;
+  vec2 end1 = tip1 + dir1;
+  d = segDist(uv, tip1, end1);
+  minDist = min(minDist, d - 0.0035);
+
+  // 主幹延長からも分岐
+  for (int b2 = 0; b2 < 2; b2++) {
+    float b2f = float(b2);
+    float b2seed = ext_seed + b2f * 8.1 + 11.0;
+    float sign2 = (b2f < 0.5) ? 1.0 : -1.0;
+    vec2 bs2 = mix(tip1, end1, 0.3 + hash1(b2seed) * 0.5);
+    vec2 bd2 = vec2(
+      dir1.x + sign2 * (0.1 + hash1(b2seed + 1.0) * 0.12),
+      dir1.y * 0.7
+    );
+    bd2 = normalize(bd2) * (0.15 + hash1(b2seed + 2.0) * 0.07);
+    vec2 be2 = bs2 + bd2;
+    d = segDist(uv, bs2, be2);
+    minDist = min(minDist, d - 0.002);
+
+    for (int c2 = 0; c2 < 2; c2++) {
+      float c2f = float(c2);
+      float c2seed = b2seed + c2f * 4.3 + 9.0;
+      float sign_c2 = (c2f < 0.5) ? 1.0 : -1.0;
+      vec2 bs3 = mix(bs2, be2, 0.4 + hash1(c2seed) * 0.4);
+      vec2 bd3 = vec2(
+        bd2.x + sign_c2 * 0.07,
+        bd2.y * 0.6
+      );
+      bd3 = normalize(bd3) * 0.09;
+      vec2 be3 = bs3 + bd3;
+      d = segDist(uv, bs3, be3);
+      minDist = min(minDist, d - 0.0012);
+    }
+  }
+
+  return minDist;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+
+  // アスペクト比補正
+  float aspect = u_res.x / u_res.y;
+  vec2 uvCorrected = vec2((uv.x - 0.5) * aspect + 0.5, uv.y);
+
+  // 複数の放電（異なるシードで2本）
+  float dist1 = dischargeTree(uvCorrected, u_seed);
+  float dist2 = dischargeTree(uvCorrected, u_seed + 31.7);
+
+  float dist = min(dist1, dist2);
+
+  // フリッカー（高速点滅で雷らしさを演出）
+  float flicker1 = 0.7 + 0.3 * sin(u_time * 47.0 + u_seed);
+  float flicker2 = 0.6 + 0.4 * sin(u_time * 83.0 + u_seed * 2.1);
+  float flicker = flicker1 * flicker2;
+
+  // 現れる・消える（時間で繰り返す）
+  float cycle = mod(u_time, 4.0);
+  float appear = smoothstep(0.0, 0.05, cycle) * (1.0 - smoothstep(1.5, 2.0, cycle));
+  // 次の放電が来る前の静寂
+  float presence = appear * flicker;
+
+  // 線の描画
+  float lineAlpha = smoothstep(0.001, -0.001, dist) * presence;
+
+  // グロー（線の周囲に薄い光）
+  float glowAlpha = smoothstep(0.012, 0.0, dist) * 0.15 * presence;
+
+  vec3 bg    = vec3(0.961, 0.953, 0.941);
+  vec3 lineCol = vec3(0.22, 0.20, 0.18);  // グラファイト
+
+  vec3 col = bg;
+  col = mix(col, lineCol, glowAlpha);
+  col = mix(col, lineCol, lineAlpha);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+// ==================== WebGL セットアップ ====================
+
+function compileShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+function createProgram(vs, fs) {
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(prog));
+  }
+  return prog;
+}
+
+const prog = createProgram(VS, FS);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes  = gl.getUniformLocation(prog, 'u_res');
+const uTime = gl.getUniformLocation(prog, 'u_time');
+const uSeed = gl.getUniformLocation(prog, 'u_seed');
+
+let startTime = performance.now();
+let seed = Math.random() * 100.0;
+
+function reset() {
+  startTime = performance.now();
+  seed = Math.random() * 100.0;
+}
+
+canvas.addEventListener('click', reset);
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); reset(); }
+});
+
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform1f(uSeed, seed);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '204',
+  title:  'Discharge',
+  detail: 'クリックまたはスペースキーで新しい放電が走る。雷が落ちるとき、幹から枝が分かれ、さらに細い枝が分かれていく——その構造をコードで書いた。各ピクセルが「一番近い線はどこか」を計算して、自分が光るべきかを決めている。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
