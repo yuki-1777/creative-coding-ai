@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>107 — Interference</title>
+  <meta name="description" content="2つの波が重なって、縞になった。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="107 — Interference | Creative Coding">
+  <meta property="og:description" content="2つの波が重なって、縞になった。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/107_interference/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_107.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="107 — Interference | Creative Coding">
+  <meta name="twitter:description" content="2つの波が重なって、縞になった。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_107.png">
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float asp = uResolution.x / uResolution.y;
+  vec2 p = (uv - 0.5) * vec2(asp, 1.0);
+
+  // 2つの波源：1つはマウスに追従、もう1つは時刻で円軌道
+  vec2 src1 = (uMouse - 0.5) * vec2(asp, 1.0);
+  float ang = uTime * 0.4;
+  vec2 src2 = vec2(cos(ang), sin(ang)) * 0.28;
+
+  float freq = 18.0;
+  float speed = 3.5;
+
+  // 各波源からの距離で位相を決める
+  float d1 = length(p - src1);
+  float d2 = length(p - src2);
+
+  float wave1 = sin(d1 * freq - uTime * speed);
+  float wave2 = sin(d2 * freq - uTime * speed);
+
+  // 合成波
+  float combined = (wave1 + wave2) * 0.5;
+
+  // 等値線的に細い縞として描く
+  float line = abs(combined);
+  float stripes = smoothstep(0.82, 0.96, line);
+
+  // 遠くなるほど振幅が減衰
+  float fade1 = exp(-d1 * 1.8);
+  float fade2 = exp(-d2 * 1.8);
+  float fade = clamp(fade1 + fade2, 0.0, 1.0);
+
+  float ink = stripes * fade * 0.55;
+
+  vec3 paper    = vec3(0.961, 0.953, 0.934);
+  vec3 graphite = vec3(0.22, 0.21, 0.20);
+
+  vec3 color = mix(paper, graphite, clamp(ink, 0.0, 1.0));
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s)); return null;
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = { x: 0.3, y: 0.6 };
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX / window.innerWidth;
+  mouse.y = 1.0 - e.clientY / window.innerHeight;
+});
+
+function resize() {
+  canvas.width  = window.innerWidth  * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const startTime = performance.now();
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '107',
+  title:  'Interference',
+  desc:   '2つの波が重なって、縞になった。波源の1つはマウスに追従する。もう1つは時刻とともに円を描く。2点の距離によって縞の間隔が変わり、重なる場所では細かく、離れた場所ではゆるくなる。',
+  detail: 'マウスを動かすと波の縞模様が変化します。2つの波源から広がる同心円状の波が重なり、強め合ったり打ち消し合ったりする「干渉」のパターンが現れます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
