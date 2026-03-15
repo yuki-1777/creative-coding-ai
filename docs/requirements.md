@@ -16,7 +16,7 @@
 - 絞り込み結果が0件のときは空状態を表示する
 
 ### サムネイル
-- 各スケッチが保存したサムネイル（`localStorage['thumb_NN']`）を一覧に表示できる
+- 各スケッチのサムネイル（`img/thumb_NN.png`）を一覧に表示する
 - サムネイルがない作品はデザイン側でフォールバック表示する
 
 ---
@@ -33,18 +33,27 @@
 
 ## データ構造（works.json）
 
+ファイル全体は配列で管理する。
+
 ```json
-{
-  "num":         "02",
-  "title":       "Flow Field",
-  "tech":        "p5.js",
-  "date":        "YYYY-MM-DD",
-  "path":        "sketches/02_flow_field/",
-  "description": "作品の説明（200字程度）"
-}
+[
+  {
+    "num":         "01",
+    "title":       "Flow Field",
+    "tech":        "p5.js",
+    "date":        "YYYY-MM-DD",
+    "path":        "sketches/01_flow_field/",
+    "description": "作品の説明（200字程度）"
+  },
+  {
+    "num":         "02",
+    ...
+  }
+]
 ```
 
 使える `tech` の値: `p5.js` / `three.js` / `glsl` / `canvas`
+複数技術を使う場合は配列: `"tech": ["p5.js", "three.js"]`
 
 ---
 
@@ -64,3 +73,5 @@ window.SKETCH_META = {
 </script>
 <script src="../../js/sketch-ui.js"></script>
 ```
+
+`sketch-ui.js` はページ下部にオーバーレイを追加する。`H` キーで表示/非表示を切り替えられる。ギャラリーへ戻るリンクも自動で表示される。
