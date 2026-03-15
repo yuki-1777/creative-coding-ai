@@ -30,6 +30,7 @@ const html = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;1,300;1,400&family=IBM+Plex+Mono:wght@300&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -78,9 +79,9 @@ const html = `<!DOCTYPE html>
   }
 
   .title {
-    font-family: 'Georgia', 'Times New Roman', serif;
+    font-family: 'Cormorant Garamond', 'Georgia', serif;
     font-size: 72px;
-    font-weight: 400;
+    font-weight: 300;
     font-style: italic;
     color: #1c1a16;
     letter-spacing: 0.04em;
@@ -89,7 +90,7 @@ const html = `<!DOCTYPE html>
 
   .subtitle {
     margin-top: 14px;
-    font-family: 'Courier New', monospace;
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
     font-size: 15px;
     font-weight: 400;
     color: #7a7468;
@@ -117,7 +118,7 @@ const html = `<!DOCTYPE html>
   const page = await browser.newPage();
   await page.setViewportSize({ width: 1200, height: 630 });
   await page.setContent(html, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(1500);
   await page.screenshot({ path: OUT, type: 'png' });
   await browser.close();
   console.log(`生成完了: ${OUT}`);
