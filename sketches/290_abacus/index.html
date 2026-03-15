@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>290 – Abacus</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #f5f3ef;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Abacus: キーボードの数字キーで珠をはじく
+// 数字は表示しない。珠の位置が数を語る。
+// 日本式そろばん（上珠1つ=5、下珠4つ=1〜4）
+
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ─── そろばん定義 ────────────────────────────────
+const COLS  = 9;  // 桁数（1〜9）
+// 各列の状態: upper (0=離, 1=寄), lower[4] (0=離, 1=寄)
+const STATE = [];
+for (let c = 0; c < COLS; c++) {
+  STATE.push({ upper: 0, lower: [0, 0, 0, 0] });
+}
+
+// アニメーション用: 各珠の現在Y座標
+const ANIM = [];
+
+// 珠のアニメーション速度
+const BEAD_SPEED = 0.15;
+
+// ─── 値を設定 ────────────────────────────────────
+function setValue(colIdx, digit) {
+  if (colIdx < 0 || colIdx >= COLS) return;
+  const d = ((digit % 10) + 10) % 10;
+  const s = STATE[colIdx];
+  s.upper    = d >= 5 ? 1 : 0;
+  const low  = d % 5;
+  for (let i = 0; i < 4; i++) {
+    s.lower[i] = i < low ? 1 : 0;
+  }
+}
+
+// 初期値（0）
+for (let c = 0; c < COLS; c++) {
+  const s = STATE[c];
+  ANIM.push({
+    upperY: 0,       // 0=離した位置, 1=寄せた位置 (lerp target)
+    upperYCur: 0,
+    lowerY: [0, 0, 0, 0],
+    lowerYCur: [0, 0, 0, 0]
+  });
+}
+
+// ─── キーボード入力 ──────────────────────────────
+// 数字キー 1〜9 で対応する桁に1を加算（右端=1の位）
+// 0で全リセット
+const keyQueue = []; // アニメーション用エフェクト
+
+window.addEventListener('keydown', (e) => {
+  if (e.key >= '0' && e.key <= '9') {
+    const digit = parseInt(e.key);
+    if (digit === 0) {
+      for (let c = 0; c < COLS; c++) setValue(c, 0);
+      keyQueue.push({ col: -1, time: performance.now() });
+      return;
+    }
+    // 対応する列（1=右端から1番目、9=左端）
+    const colIdx = COLS - digit;
+    const cur    = getColValue(colIdx);
+    setValue(colIdx, cur + 1);
+    keyQueue.push({ col: colIdx, time: performance.now() });
+  }
+  if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+    // 全体を+1（最右列に加算、繰り上げ）
+    incrementAll();
+    keyQueue.push({ col: COLS - 1, time: performance.now() });
+  }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+    for (let c = 0; c < COLS; c++) setValue(c, 0);
+    keyQueue.push({ col: -1, time: performance.now() });
+  }
+});
+
+function getColValue(c) {
+  const s = STATE[c];
+  return (s.upper * 5) + s.lower.filter(v => v === 1).length;
+}
+
+function incrementAll() {
+  // 右端から繰り上げ付き加算
+  let carry = 1;
+  for (let c = COLS - 1; c >= 0 && carry; c--) {
+    const cur  = getColValue(c) + carry;
+    setValue(c, cur % 10);
+    carry = cur >= 10 ? 1 : 0;
+  }
+}
+
+// ─── 描画ループ ──────────────────────────────────
+function draw() {
+  requestAnimationFrame(draw);
+  ctx.clearRect(0, 0, W, H);
+
+  const BEAD_R   = Math.min(W / (COLS * 5), H / 14);
+  const COL_W    = W / (COLS + 1);
+  const FRAME_L  = COL_W * 0.5;
+  const FRAME_R  = W - COL_W * 0.5;
+
+  // 梁（中仕切り）の高さ
+  const BEAM_Y   = H * 0.42;
+  const TOP_Y    = H * 0.15;
+  const BOT_Y    = H * 0.85;
+
+  // アニメーション更新
+  for (let c = 0; c < COLS; c++) {
+    const a  = ANIM[c];
+    const s  = STATE[c];
+    a.upperYCur += (s.upper - a.upperYCur) * BEAD_SPEED;
+    for (let i = 0; i < 4; i++) {
+      a.lowerYCur[i] += (s.lower[i] - a.lowerYCur[i]) * BEAD_SPEED;
+    }
+  }
+
+  // ─── 外枠 ──────────────────────────────────────
+  ctx.strokeStyle = '#2a2620';
+  ctx.lineWidth   = 1.5;
+  ctx.strokeRect(FRAME_L, TOP_Y, FRAME_R - FRAME_L, BOT_Y - TOP_Y);
+
+  // 梁（横仕切り）
+  ctx.beginPath();
+  ctx.moveTo(FRAME_L, BEAM_Y);
+  ctx.lineTo(FRAME_R, BEAM_Y);
+  ctx.stroke();
+
+  // 軸（縦棒）と珠
+  for (let c = 0; c < COLS; c++) {
+    const cx = FRAME_L + (c + 0.5) * ((FRAME_R - FRAME_L) / COLS);
+    const a  = ANIM[c];
+
+    // 軸
+    ctx.strokeStyle = '#2a2620';
+    ctx.lineWidth   = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(cx, TOP_Y + 6);
+    ctx.lineTo(cx, BOT_Y - 6);
+    ctx.stroke();
+
+    // 上珠（5の位）
+    // 離: 梁から上2個分の位置、寄: 梁から1個分上
+    const UPPER_OFF_AWAY  = BEAD_R * 2.2;
+    const UPPER_OFF_CLOSE = BEAD_R * 1.1;
+    const upperY = BEAM_Y - lerp(UPPER_OFF_AWAY, UPPER_OFF_CLOSE, a.upperYCur);
+
+    drawBead(cx, upperY, BEAD_R * 0.9, a.upperYCur > 0.5);
+
+    // 下珠（1の位 × 4）
+    // 寄せた珠は梁に近い方から積む
+    const LOWER_SPACING = BEAD_R * 2.2;
+    for (let i = 0; i < 4; i++) {
+      // i=0が最も梁に近い
+      const awayY  = BEAM_Y + LOWER_SPACING * (4 - i) * 0.6;
+      const closeY = BEAM_Y + LOWER_SPACING * (i + 1) * 0.6;
+      const lowerY = awayY + (closeY - awayY) * a.lowerYCur[i];
+      drawBead(cx, lowerY, BEAD_R * 0.85, a.lowerYCur[i] > 0.5);
+    }
+  }
+
+  // キーエフェクト（列フラッシュ）
+  const now = performance.now();
+  for (let qi = keyQueue.length - 1; qi >= 0; qi--) {
+    const kq  = keyQueue[qi];
+    const age = (now - kq.time) / 400; // 0〜1
+    if (age > 1) { keyQueue.splice(qi, 1); continue; }
+    const alpha = (1 - age) * 0.12;
+    if (kq.col >= 0) {
+      const cx = FRAME_L + (kq.col + 0.5) * ((FRAME_R - FRAME_L) / COLS);
+      ctx.fillStyle = `rgba(42, 38, 32, ${alpha})`;
+      ctx.fillRect(cx - BEAD_R * 1.2, TOP_Y, BEAD_R * 2.4, BOT_Y - TOP_Y);
+    }
+  }
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function drawBead(x, y, r, active) {
+  ctx.beginPath();
+  ctx.ellipse(x, y, r, r * 0.62, 0, 0, Math.PI * 2);
+
+  if (active) {
+    ctx.fillStyle   = '#2a2620';
+    ctx.fill();
+  } else {
+    ctx.fillStyle   = '#f5f3ef';
+    ctx.fill();
+    ctx.strokeStyle = '#2a2620';
+    ctx.lineWidth   = 0.8;
+    ctx.stroke();
+  }
+}
+
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '290',
+  title:  'Abacus',
+  detail: 'キーボードの数字キー（1〜9）を押すと、対応する桁の珠が動く。1を押すと一の位が+1される。上の珠は5を、下の4つの珠は1〜4を表す。0を押すとリセット、↑キーで全体に1を加算する。数字は表示しない——珠の位置だけが数を語る。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
