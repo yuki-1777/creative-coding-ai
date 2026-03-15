@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>310 – Switch</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #f0eeeb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// =====================================================
+// 310 – Switch
+// 直線と45°の斜め線だけで描く鉄道の分岐器ダイアグラム
+// =====================================================
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+const SIZE = Math.min(window.innerWidth, window.innerHeight, 800);
+canvas.width  = SIZE;
+canvas.height = SIZE;
+
+const CELL = SIZE / 12;  // 12単位グリッド
+
+const C_BG    = '#f0eeeb';
+const C_RAIL  = '#3a3835';
+const C_HINT  = '#aeaaa8';
+const C_BLADE = '#4a4644';
+
+function easeInOut(t) {
+  return t < 0.5 ? 2*t*t : -1 + (4 - 2*t)*t;
+}
+
+// グリッド → キャンバス変換
+function cx(x) { return x * CELL; }
+function cy(y) { return y * CELL; }
+
+// ─── レイアウト設計 (グリッド12×12) ──────────────
+//
+//  Line A: y=2,  x=0..12
+//  Line B: y=6,  x=0..12
+//  Line C: y=10, x=0..12
+//
+//  Crossover AB:
+//    PA (3,2) exit:  straight=(3,2)→(4,2), diverge=(3,2)→(4,3)
+//    PB (6,6) entry: straight=(6,6)→(7,6), diverge=(5,5)→(6,6) [arrives from upper-left]
+//    relay: (4,3)→(5,4)→(6,5)→(6,6) ...simplified: (4,3)→(5,5)→(6,6) one step each
+//    relay segments: (4,3)→(5,4) and (5,4)→(6,5)  [then P2 merges at (6,6)]
+//
+//  Crossover BC:
+//    PC (8,6) exit:  straight=(8,6)→(9,6), diverge=(8,6)→(9,7)
+//    PD (11,10) entry: straight=(10,10)→(11,10), diverge=(10,9)→(11,10)
+//    relay: (9,7)→(10,8)→(11,9)→... simplified: (9,7)→(10,8) and (10,8)→(11,9)
+//    but (11,9)→(11,10) is vertical, which is fine
+//
+// ──────────────────────────────────────────────────
+
+const ANIM_MS = 400;
+
+// 4 switches: PA, PB, PC, PD
+const switches = [
+  { id: 0, jx:  3, jy:  2, state: 0, animT: 1, animFrom: 0, animStart: -1 }, // PA exit A
+  { id: 1, jx:  6, jy:  6, state: 0, animT: 1, animFrom: 0, animStart: -1 }, // PB entry B
+  { id: 2, jx:  8, jy:  6, state: 0, animT: 1, animFrom: 0, animStart: -1 }, // PC exit B
+  { id: 3, jx: 11, jy: 10, state: 0, animT: 1, animFrom: 0, animStart: -1 }  // PD entry C
+];
+
+let hoveredId = -1;
+let lastTs    = 0;
+
+function getFrac(s) {
+  if (s.animStart < 0) return s.state === 1 ? 1.0 : 0.0;
+  const raw = easeInOut(s.animT);
+  if (s.state === 1) return s.animFrom === 0 ? raw : 1.0 - raw;
+  else               return s.animFrom === 1 ? 1.0 - raw : raw;
+}
+
+// ─── 枕木 ────────────────────────────────────────
+function drawSleepers(x1, y1, x2, y2, gf) {
+  const dx = x2-x1, dy = y2-y1;
+  const len = Math.sqrt(dx*dx + dy*dy);
+  if (len < 1) return;
+  const nx = -dy/len, ny = dx/len;
+  const count = Math.max(2, Math.round(len / (CELL*0.3)));
+  const sl = (gf||1) * CELL * 0.13;
+  ctx.lineWidth = 1.5;
+  for (let i = 1; i < count; i++) {
+    const t = i / count;
+    const px = x1+dx*t, py = y1+dy*t;
+    ctx.beginPath();
+    ctx.moveTo(px + nx*sl, py + ny*sl);
+    ctx.lineTo(px - nx*sl, py - ny*sl);
+    ctx.stroke();
+  }
+}
+
+// ─── 2本レール ───────────────────────────────────
+function drawRails(x1, y1, x2, y2, gf) {
+  const dx = x2-x1, dy = y2-y1;
+  const len = Math.sqrt(dx*dx + dy*dy);
+  if (len < 1) return;
+  const g = (gf||1) * CELL * 0.05;
+  const nx = (-dy/len)*g, ny = (dx/len)*g;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x1+nx, y1+ny); ctx.lineTo(x2+nx, y2+ny); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x1-nx, y1-ny); ctx.lineTo(x2-nx, y2-ny); ctx.stroke();
+}
+
+function drawTrack(x1, y1, x2, y2, alpha, gf) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = C_RAIL;
+  drawSleepers(x1, y1, x2, y2, gf||1);
+  drawRails(x1, y1, x2, y2, gf||1);
+  ctx.restore();
+}
+
+// ─── ブレード ─────────────────────────────────────
+function drawBlade(s, frac) {
+  const jxc = cx(s.jx), jyc = cy(s.jy);
+  let ex, ey;
+
+  // PA(0): exit A, straight→right(4,2), diverge→right-down(4,3)
+  // PB(1): entry B, straight→right(7,6), diverge←upper-left(5,5)
+  // PC(2): exit B,  straight→right(9,6), diverge→right-down(9,7)
+  // PD(3): entry C, straight←left(10,10), diverge←upper-left(10,9)
+  switch(s.id) {
+    case 0:
+      ex = cx(s.jx+1);
+      ey = cy(s.jy) + cy(1)*frac;
+      break;
+    case 1:
+      ex = cx(s.jx+1)*(1-frac) + cx(s.jx-1)*frac;
+      ey = cy(s.jy)             + cy(-1)*frac;
+      break;
+    case 2:
+      ex = cx(s.jx+1);
+      ey = cy(s.jy) + cy(1)*frac;
+      break;
+    case 3:
+      ex = cx(s.jx-1);
+      ey = cy(s.jy) + cy(-1)*frac;
+      break;
+  }
+
+  ctx.save();
+  ctx.strokeStyle = C_BLADE;
+  ctx.lineWidth   = 4;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(jxc, jyc);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+  ctx.fillStyle = C_BLADE;
+  ctx.beginPath();
+  ctx.arc(jxc, jyc, 5, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// ─── ホバー円 ─────────────────────────────────────
+function drawHoverCircle(s) {
+  ctx.save();
+  ctx.globalAlpha = 0.1;
+  ctx.fillStyle   = C_BLADE;
+  ctx.beginPath();
+  ctx.arc(cx(s.jx), cy(s.jy), CELL*0.46, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// ─── 走行ドット ──────────────────────────────────
+const trains = [
+  { pos: 0.08, speed: 0.00075, lineY: 2  },
+  { pos: 0.53, speed: 0.00065, lineY: 6  },
+  { pos: 0.28, speed: 0.00055, lineY: 10 }
+];
+
+function drawTrains() {
+  for (const t of trains) {
+    t.pos = (t.pos + t.speed) % 1.0;
+    const px = t.pos * 12;
+    ctx.save();
+    ctx.fillStyle   = C_BLADE;
+    ctx.globalAlpha = 0.65;
+    ctx.beginPath();
+    ctx.arc(cx(px), cy(t.lineY), 5, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ─── ラベル ──────────────────────────────────────
+function drawLabels(fracs) {
+  ctx.save();
+  ctx.globalAlpha  = 0.38;
+  ctx.fillStyle    = C_HINT;
+  ctx.font         = `${CELL*0.22}px monospace`;
+  ctx.textBaseline = 'middle';
+  ctx.fillText('A', cx(0.2), cy(2));
+  ctx.fillText('B', cx(0.2), cy(6));
+  ctx.fillText('C', cx(0.2), cy(10));
+  ctx.restore();
+
+  const lbl = (f) => f > 0.5 ? 'div' : 'str';
+  ctx.save();
+  ctx.globalAlpha = 0.38;
+  ctx.fillStyle   = C_BLADE;
+  ctx.font        = `${CELL*0.19}px monospace`;
+  ctx.textAlign   = 'center';
+  ctx.fillText(lbl(fracs[0]), cx(3),  cy(2)  - CELL*0.42);
+  ctx.fillText(lbl(fracs[1]), cx(6),  cy(6)  + CELL*0.55);
+  ctx.fillText(lbl(fracs[2]), cx(8),  cy(6)  - CELL*0.42);
+  ctx.fillText(lbl(fracs[3]), cx(11), cy(10) + CELL*0.55);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle   = C_HINT;
+  ctx.font        = `${CELL*0.18}px monospace`;
+  ctx.textAlign   = 'center';
+  ctx.fillText('click to toggle switch', cx(6), cy(11.5));
+  ctx.restore();
+}
+
+// ─── メイン描画 ──────────────────────────────────
+function draw(ts) {
+  lastTs = ts;
+
+  for (const s of switches) {
+    if (s.animStart >= 0) {
+      s.animT = Math.min(1.0, (ts - s.animStart) / ANIM_MS);
+      if (s.animT >= 1.0) s.animStart = -1;
+    }
+  }
+
+  ctx.fillStyle = C_BG;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+
+  const f0 = getFrac(switches[0]);
+  const f1 = getFrac(switches[1]);
+  const f2 = getFrac(switches[2]);
+  const f3 = getFrac(switches[3]);
+
+  // ── 静的本線 ──
+  // Line A (y=2): 0→3 and 4→12
+  drawTrack(cx(0),  cy(2), cx(3),  cy(2), 1.0);
+  drawTrack(cx(4),  cy(2), cx(12), cy(2), 1.0);
+  // Line B (y=6): 0→6 and 7→12
+  drawTrack(cx(0),  cy(6), cx(6),  cy(6), 1.0);
+  drawTrack(cx(7),  cy(6), cx(12), cy(6), 1.0);
+  // Line C (y=10): 0→12 (全部static - 分岐は上から来る合流のみ)
+  drawTrack(cx(0),  cy(10), cx(12), cy(10), 1.0);
+
+  // ── Crossover AB ──
+  // PA straight: (3,2)→(4,2), alpha=1-f0
+  // PA diverge:  (3,2)→(4,3), alpha=f0
+  if (1-f0 > 0.02) drawTrack(cx(3), cy(2), cx(4), cy(2), 1-f0);
+  if (f0   > 0.02) drawTrack(cx(3), cy(2), cx(4), cy(3), f0,  0.72);
+
+  // relay AB: (4,3)→(5,4) and (5,4)→(6,5)
+  const hAB = Math.max(0.07, f0 * 0.55);
+  const rAB = Math.min(f0, f1);
+  if (f0 > 0.02) {
+    drawTrack(cx(4), cy(3), cx(5), cy(4), Math.max(hAB, rAB), 0.72);
+    drawTrack(cx(5), cy(4), cx(6), cy(5), Math.max(hAB*0.7, rAB), 0.72);
+  }
+
+  // PB: Line B gap at (6,6)→(7,6)
+  // straight: (6,6)→(7,6), alpha=1-f1
+  // diverge entry: arrives from (5,5) via relay ... blade shows direction
+  if (1-f1 > 0.02) drawTrack(cx(6), cy(6), cx(7), cy(6), 1-f1);
+  else if (f1 > 0.02) {
+    // Even when diverging, still a faint track
+    drawTrack(cx(6), cy(6), cx(7), cy(6), Math.max(0.08, 1-f1));
+  }
+
+  // ── Crossover BC ──
+  // PC straight: (8,6)→(9,6), alpha=1-f2
+  // PC diverge:  (8,6)→(9,7), alpha=f2
+  if (1-f2 > 0.02) drawTrack(cx(8), cy(6), cx(9),  cy(6), 1-f2);
+  if (f2   > 0.02) drawTrack(cx(8), cy(6), cx(9),  cy(7), f2,  0.72);
+
+  // relay BC: (9,7)→(10,8) and (10,8)→(11,9)
+  const hBC = Math.max(0.07, f2 * 0.55);
+  const rBC = Math.min(f2, f3);
+  if (f2 > 0.02) {
+    drawTrack(cx(9),  cy(7), cx(10), cy(8), Math.max(hBC, rBC), 0.72);
+    drawTrack(cx(10), cy(8), cx(11), cy(9), Math.max(hBC*0.7, rBC), 0.72);
+  }
+
+  // PD: Line C at (11,10): diverge arrival from (10,9) via relay
+  // static line C already drawn, blade shows direction
+  // no gap needed on line C
+
+  // ── ブレード ──
+  for (const s of switches) {
+    drawBlade(s, getFrac(s));
+  }
+
+  // ── ホバー ──
+  for (let i = 0; i < switches.length; i++) {
+    if (i === hoveredId) drawHoverCircle(switches[i]);
+  }
+
+  // ── ラベル ──
+  drawLabels([f0, f1, f2, f3]);
+
+  // ── 走行ドット ──
+  drawTrains();
+
+  requestAnimationFrame(draw);
+}
+
+// ─── インタラクション ─────────────────────────────
+function getPointer(e) {
+  const r = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left) * (canvas.width  / r.width),
+    y: (e.clientY - r.top)  * (canvas.height / r.height)
+  };
+}
+
+function nearestSwitch(mx, my) {
+  for (let i = 0; i < switches.length; i++) {
+    const s = switches[i];
+    if (Math.hypot(mx - cx(s.jx), my - cy(s.jy)) < CELL * 0.48) return i;
+  }
+  return -1;
+}
+
+canvas.addEventListener('click', (e) => {
+  const { x, y } = getPointer(e);
+  const idx = nearestSwitch(x, y);
+  if (idx < 0) return;
+  const s = switches[idx];
+  s.animFrom  = s.state;
+  s.state     = s.state === 0 ? 1 : 0;
+  s.animT     = 0.0;
+  s.animStart = lastTs;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  const { x, y } = getPointer(e);
+  hoveredId = nearestSwitch(x, y);
+  canvas.style.cursor = hoveredId >= 0 ? 'pointer' : 'default';
+});
+
+canvas.addEventListener('mouseleave', () => {
+  hoveredId = -1;
+  canvas.style.cursor = 'default';
+});
+
+requestAnimationFrame(draw);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '310',
+  title:  'Switch',
+  detail: '3本の平行な線路（A・B・C）が並んでいる。4つの分岐器（ポイント）が隣の線路への渡り線をコントロールしている。分岐器をクリックするとブレード（可動部）がゆっくり動き、「str」（直進）と「div」（分岐）が切り替わる。直線と45°の斜め線だけで描いた。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
