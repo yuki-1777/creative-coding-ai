@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>211 – Blot</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f3ef; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// ============================================================
+//  211 – Blot
+//  ロールシャッハのような左右対称のインクの染みをGLSLで描く
+//  マウスで染みの形が変形する
+//  時間とともにゆっくり広がる
+// ============================================================
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_time;
+uniform vec2  u_mouse;
+uniform float u_seed;
+
+float hash(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7) + u_seed * 0.1);
+  p += dot(p, p + 17.5);
+  return fract(p.x * p.y);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float amp = 0.5;
+  float freq = 1.0;
+  for (int i = 0; i < 5; i++) {
+    v += amp * noise(p * freq);
+    freq *= 2.0;
+    amp  *= 0.5;
+  }
+  return v;
+}
+
+// 対称な染みの密度場
+float blotDensity(vec2 uv) {
+  // 中心を (0,0) に
+  vec2 p = uv - vec2(0.5, 0.5);
+
+  // 左右対称にする（右側のUVを反転して左側と同じにする）
+  p.x = abs(p.x);
+
+  // マウス位置の影響（染みを引き伸ばす）
+  vec2 mouseInfluence = (u_mouse - vec2(0.5, 0.5)) * 0.5;
+  float stretchX = 1.0 + mouseInfluence.x * 1.5;
+  float stretchY = 1.0 - mouseInfluence.y * 1.0;
+
+  // 染みの基本形（不均一な楕円）
+  vec2 stretched = vec2(p.x / max(stretchX, 0.3), p.y / max(stretchY, 0.3));
+  float baseDist = length(stretched);
+
+  // 外縁の凸凹（fbmで有機的な境界）
+  float angle = atan(p.y, p.x);
+  float noiseScale = 4.0 + fbm(vec2(angle * 2.0 + u_seed, u_time * 0.2)) * 3.0;
+  vec2 noiseCoord = p * noiseScale + vec2(u_time * 0.1, u_seed * 3.0);
+  float boundary = fbm(noiseCoord) * 0.35 + fbm(noiseCoord * 2.0 + 1.7) * 0.1;
+
+  // 染みの半径（時間とともに広がる、最大値に収束）
+  float maxRadius = 0.28;
+  float growthRate = 1.0 - exp(-u_time * 0.3);
+  float radius = maxRadius * growthRate;
+
+  float effectiveRadius = radius * (1.0 + boundary * 0.4);
+
+  // 内部の濃度
+  // 外側から内側に向かって単調に増加、ただし中心付近でやや薄くなる（インクが縁に集まる）
+  float insideBase = smoothstep(effectiveRadius, 0.0, baseDist);
+  // 縁の濃いリング（毛細管現象で縁に集まるインク）
+  float rimRing = smoothstep(effectiveRadius * 0.15, 0.0, abs(baseDist - effectiveRadius * 0.75));
+  float inside = insideBase * 0.55 + rimRing * 0.3;
+
+  // 細い飛沫（染みから飛び散った微小な滴）
+  // 角度方向にいくつかのランダムな突起
+  float spike = 0.0;
+  for (int i = 0; i < 6; i++) {
+    float fi = float(i);
+    float spikeAngle = (fi / 6.0) * 3.14159 + u_seed * 0.5 + fi * 0.7;  // 片側のみ（対称のため0〜π）
+    float spikeLen = 0.06 + hash(vec2(fi, u_seed)) * 0.08;
+    vec2 spikeDir = vec2(cos(spikeAngle), sin(spikeAngle));
+    vec2 spikeEnd = spikeDir * (radius + spikeLen);
+    vec2 spikeStart = spikeDir * radius * 0.9;
+
+    // 細い線（飛沫）
+    vec2 ab = spikeEnd - spikeStart;
+    vec2 ap = p - spikeStart;
+    float t = clamp(dot(ap, ab) / dot(ab, ab), 0.0, 1.0);
+    float spikeDist = length(ap - ab * t);
+    spike = max(spike, smoothstep(0.006, 0.0, spikeDist) * growthRate);
+  }
+
+  return inside + spike * 0.6;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  float aspect = u_res.x / u_res.y;
+
+  // アスペクト比を等方的に
+  vec2 uvNorm = vec2((uv.x - 0.5) / aspect + 0.5, uv.y);
+
+  float ink = blotDensity(uvNorm);
+  ink = clamp(ink, 0.0, 1.0);
+
+  // インクの端（縁が最も濃い、中心はやや薄い）
+  // これは折りたたんだ紙に転写したロールシャッハ効果
+  float density = ink;
+
+  vec3 bg     = vec3(0.961, 0.953, 0.941);
+  vec3 inkCol = vec3(0.18, 0.17, 0.16);  // 深いグラファイト
+
+  vec3 col = mix(bg, inkCol, density);
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+function createProgram(vs, fs) {
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(prog));
+  }
+  return prog;
+}
+
+const prog = createProgram(VS, FS);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'u_res');
+const uTime  = gl.getUniformLocation(prog, 'u_time');
+const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+const uSeed  = gl.getUniformLocation(prog, 'u_seed');
+
+let startTime = performance.now();
+let mouse = [0.5, 0.5];
+let seed = Math.random() * 100.0;
+
+canvas.addEventListener('mousemove', (e) => {
+  mouse[0] = e.clientX / canvas.width;
+  mouse[1] = 1.0 - e.clientY / canvas.height;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  mouse[0] = e.touches[0].clientX / canvas.width;
+  mouse[1] = 1.0 - e.touches[0].clientY / canvas.height;
+}, { passive: false });
+
+canvas.addEventListener('click', () => {
+  startTime = performance.now();
+  seed = Math.random() * 100.0;
+});
+
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse[0], mouse[1]);
+  gl.uniform1f(uSeed, seed);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '211',
+  title:  'Blot',
+  detail: 'インクを紙に落として二つ折りにすると、左右対称の染みができる。マウスを動かすと染みが引き伸ばされる。クリックで新しい染みが広がり始める。何に見えるかはあなた次第。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
