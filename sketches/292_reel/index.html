@@ -59,52 +59,62 @@ const PAUSE_DUR   = FRAME_INTERVAL - ADVANCE_DUR; // ms to hold still
 let reelAngle = 0;          // accumulates rotation
 const FRAMES_PER_REV = 18;  // how many frames per full reel revolution
 
-// Film content: each frame is a random abstract composition (lines/dots)
-// Pre-generate N frames as drawing functions
+// Film content: continuous animation across 48 frames
 const FRAME_COUNT = 48;
-const frameSeeds = [];
-for (let i = 0; i < FRAME_COUNT; i++) {
-  // Each frame: a set of line/dot descriptors
-  const items = [];
-  const n = 3 + Math.floor(Math.random() * 7);
-  for (let j = 0; j < n; j++) {
-    items.push({
-      type: Math.random() < 0.55 ? 'line' : 'dot',
-      x1: Math.random(), y1: Math.random(),
-      x2: Math.random(), y2: Math.random(),
-      r:  0.03 + Math.random() * 0.12,
-      alpha: 0.3 + Math.random() * 0.55,
-      w: 0.5 + Math.random() * 1.5
-    });
-  }
-  frameSeeds.push(items);
-}
 
 // ── Draw a single film frame content ────────────────────────────────────────
+// Each frame index maps to a deterministic moment in a looping animation.
+// Three elements animate across 48 frames so motion is obvious frame-to-frame.
 function drawFrameContent(fx, fy, fw, fh, frameIndex) {
   const idx = ((frameIndex % FRAME_COUNT) + FRAME_COUNT) % FRAME_COUNT;
-  const items = frameSeeds[idx];
+  const t   = idx / FRAME_COUNT; // 0–1, loops every FRAME_COUNT frames
+
   ctx.save();
+  ctx.beginPath();
   ctx.rect(fx, fy, fw, fh);
   ctx.clip();
-  for (const it of items) {
-    ctx.save();
-    ctx.globalAlpha = it.alpha * 0.8;
-    ctx.strokeStyle = 'rgba(50,45,40,1)';
-    ctx.fillStyle   = 'rgba(50,45,40,1)';
-    if (it.type === 'line') {
-      ctx.lineWidth = it.w;
-      ctx.beginPath();
-      ctx.moveTo(fx + it.x1 * fw, fy + it.y1 * fh);
-      ctx.lineTo(fx + it.x2 * fw, fy + it.y2 * fh);
-      ctx.stroke();
-    } else {
-      ctx.beginPath();
-      ctx.arc(fx + it.x1 * fw, fy + it.y1 * fh, it.r * Math.min(fw, fh), 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
+
+  ctx.strokeStyle = 'rgba(50,45,40,0.85)';
+  ctx.fillStyle   = 'rgba(50,45,40,0.85)';
+
+  const cx = fx + fw * 0.5;
+  const cy = fy + fh * 0.5;
+  const r  = Math.min(fw, fh) * 0.35;
+
+  // Element A: dot orbiting in a circle
+  const angleA = t * Math.PI * 2;
+  const dotX = cx + Math.cos(angleA) * r;
+  const dotY = cy + Math.sin(angleA) * r;
+  ctx.beginPath();
+  ctx.arc(dotX, dotY, fw * 0.055, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Element B: pendulum line swinging left–right
+  const swingAngle = Math.sin(t * Math.PI * 2) * (Math.PI * 0.38);
+  const pendLen = Math.min(fw, fh) * 0.40;
+  const pendEndX = cx + Math.sin(swingAngle) * pendLen;
+  const pendEndY = cy + Math.cos(swingAngle) * pendLen;
+  ctx.lineWidth = 1.2;
+  ctx.globalAlpha = 0.70;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - pendLen * 0.15);
+  ctx.lineTo(pendEndX, pendEndY);
+  ctx.stroke();
+  // bob
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.arc(pendEndX, pendEndY, fw * 0.045, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Element C: pulsing square (scale varies)
+  const scale  = 0.18 + 0.10 * Math.abs(Math.sin(t * Math.PI * 2 * 1.5));
+  const sqHalf = Math.min(fw, fh) * scale;
+  const sqX    = cx - fw * 0.26;
+  const sqY    = fy + fh * 0.14;
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = 1.0;
+  ctx.strokeRect(sqX - sqHalf, sqY - sqHalf, sqHalf * 2, sqHalf * 2);
+
   ctx.restore();
 }
 
