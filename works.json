@@ -2718,6 +2718,15 @@
     "thumb": "img/thumb_302.png"
   },
   {
+    "num": "305",
+    "title": "Tape",
+    "tech": "p5.js",
+    "date": "2026-03-16",
+    "path": "sketches/305_tape/",
+    "description": "テープを引き出そうとした。引くほどリールが薄くなった。何かに貼ろうとしていたのか、ただ引いただけなのか、わからなくなった。",
+    "thumb": "img/thumb_305.png"
+  },
+  {
     "num": "306",
     "title": "Screen",
     "tech": "three.js",
