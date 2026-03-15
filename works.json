@@ -2340,6 +2340,15 @@
     "thumb": "img/thumb_261.png"
   },
   {
+    "num": "266",
+    "title": "Sediograph",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/266_sediograph/",
+    "description": "泥水を静置した。大きい粒から先に沈み、細かい粒は長い時間をかけて底へ届いた。粒子は描かず、密度の変化だけで書いた。",
+    "thumb": "img/thumb_266.png"
+  },
+  {
     "num": "256",
     "title": "Earthworm",
     "tech": "p5.js",
@@ -2365,5 +2374,59 @@
     "path": "sketches/265_stitch/",
     "description": "ミシン針が左から右へ進んで、縫い目を置いていった。表と裏で糸の渡り方が違う。",
     "thumb": "img/thumb_265.png"
+  },
+  {
+    "num": "260",
+    "title": "Compass",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/260_compass/",
+    "description": "磁針を280本並べて、マウスを磁極にしてみた。波が走った。",
+    "thumb": "img/thumb_260.png"
+  },
+  {
+    "num": "264",
+    "title": "Rust",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/264_rust/",
+    "description": "金属の表面に腐食のルールを書いたら、錆がじわじわ広がった。",
+    "thumb": "img/thumb_264.png"
+  },
+  {
+    "num": "268",
+    "title": "Spindle",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/268_spindle/",
+    "description": "スピンドルを回したら、糸が螺旋状に積み重なった。",
+    "thumb": "img/thumb_268.png"
+  },
+  {
+    "num": "272",
+    "title": "Barnacle",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/272_barnacle/",
+    "description": "固着するルールだけ書いたら、フジツボが岩を埋め尽くしていった。",
+    "thumb": "img/thumb_272.png"
+  },
+  {
+    "num": "269",
+    "title": "Silo",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/269_silo/",
+    "description": "円筒の輪と縦線だけで描いた。面は一枚もない。上から覗くと空洞がある。",
+    "thumb": "img/thumb_269.png"
+  },
+  {
+    "num": "267",
+    "title": "Ribbon",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/267_ribbon/",
+    "description": "キーを打ち続けたら、文字の代わりにインクが薄れていった。最後は跡だけが残った。",
+    "thumb": "img/thumb_267.png"
   }
 ]

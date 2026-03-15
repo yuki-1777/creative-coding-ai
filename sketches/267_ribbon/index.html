@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ribbon</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f2efe8; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Typewriter ribbon state
+// Each key press creates a "mark" at the current position on a paper
+// Ink level decreases with each press; position advances left→right, top→bottom
+
+const MARGIN_LEFT = W * 0.12;
+const MARGIN_RIGHT = W * 0.12;
+const LINE_HEIGHT = 38;
+const CHAR_W = 18;
+
+let inkLevel = 1.0;       // 0.0 = depleted, 1.0 = full
+const INK_PER_KEY = 0.008; // each keypress drains this much ink
+
+// Positions of all marks made
+const marks = [];
+
+// Current cursor
+let cursorX = 0;
+let cursorY = 0;
+
+function getPageLeft() { return W * 0.12; }
+function getPageRight() { return W * 0.88; }
+function getPageTop() { return H * 0.08; }
+function getPageBottom() { return H * 0.92; }
+function getPageWidth() { return getPageRight() - getPageLeft(); }
+
+function initCursor() {
+  cursorX = getPageLeft();
+  cursorY = getPageTop() + LINE_HEIGHT;
+}
+
+initCursor();
+
+// A mark is a blotch of ink - no character shape, just a dark smear/press
+function makeMark(x, y, inkLevel) {
+  // Random variation to simulate typewriter key pressure
+  const pressure = 0.5 + Math.random() * 0.5;
+  const size = 8 + Math.random() * 6;
+  const alpha = inkLevel * pressure * 0.85;
+  const offsetX = (Math.random() - 0.5) * 3;
+  const offsetY = (Math.random() - 0.5) * 2;
+  // Type of mark: most are rectangular ink pads, some are elongated
+  const type = Math.random() < 0.7 ? 'rect' : 'oval';
+  return { x: x + offsetX, y: y + offsetY, size, alpha, type, pressure };
+}
+
+function advanceCursor() {
+  cursorX += CHAR_W + (Math.random() - 0.5) * 2;
+  if (cursorX > getPageRight() - CHAR_W) {
+    cursorX = getPageLeft();
+    cursorY += LINE_HEIGHT + (Math.random() - 0.5) * 3;
+    if (cursorY > getPageBottom()) {
+      // Page full — start over
+      marks.length = 0;
+      inkLevel = 1.0;
+      initCursor();
+    }
+  }
+}
+
+// Auto-type animation (idle demo)
+let autoT = 0;
+let autoInterval = null;
+let lastKeytime = 0;
+let userTyped = false;
+
+function pressKey() {
+  if (inkLevel > 0) {
+    marks.push(makeMark(cursorX, cursorY, inkLevel));
+    inkLevel = Math.max(0, inkLevel - INK_PER_KEY);
+    advanceCursor();
+    lastKeytime = Date.now();
+  }
+}
+
+// Keyboard input
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'F5' || e.ctrlKey || e.metaKey) return;
+  if (e.key === 'Backspace') {
+    // Remove last mark and retreat
+    if (marks.length > 0) marks.pop();
+    cursorX -= CHAR_W;
+    if (cursorX < getPageLeft()) {
+      cursorX = getPageRight() - CHAR_W;
+      cursorY -= LINE_HEIGHT;
+    }
+    inkLevel = Math.min(1, inkLevel + INK_PER_KEY * 0.5);
+    return;
+  }
+  if (e.key === 'Enter') {
+    cursorX = getPageLeft();
+    cursorY += LINE_HEIGHT;
+    return;
+  }
+  // Any printable key or space
+  if (e.key.length === 1 || e.key === 'Space') {
+    userTyped = true;
+    pressKey();
+  }
+});
+
+// Draw a single mark
+function drawMark(m) {
+  ctx.save();
+  ctx.globalAlpha = m.alpha;
+  ctx.fillStyle = '#2a2520';
+
+  if (m.type === 'rect') {
+    const hw = m.size * 0.45;
+    const hh = m.size * 0.35;
+    ctx.fillRect(m.x - hw, m.y - hh, hw * 2, hh * 2);
+  } else {
+    ctx.beginPath();
+    ctx.ellipse(m.x, m.y, m.size * 0.5, m.size * 0.32, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Ink spread fringe (lighter halo)
+  ctx.globalAlpha = m.alpha * 0.2;
+  ctx.beginPath();
+  ctx.ellipse(m.x, m.y, m.size * 0.9, m.size * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// Draw paper lines
+function drawPaper() {
+  const pl = getPageLeft() - 20;
+  const pr = getPageRight() + 20;
+  const pt = getPageTop();
+  const pb = getPageBottom();
+
+  // Paper background
+  ctx.fillStyle = '#f8f5ee';
+  ctx.shadowColor = 'rgba(0,0,0,0.10)';
+  ctx.shadowBlur = 16;
+  ctx.shadowOffsetY = 4;
+  ctx.fillRect(pl, pt, pr - pl, pb - pt);
+  ctx.shadowColor = 'transparent';
+
+  // Ruled lines
+  ctx.strokeStyle = 'rgba(0,0,0,0.07)';
+  ctx.lineWidth = 0.8;
+  for (let y = getPageTop() + LINE_HEIGHT; y < getPageBottom(); y += LINE_HEIGHT) {
+    ctx.beginPath();
+    ctx.moveTo(pl + 8, y);
+    ctx.lineTo(pr - 8, y);
+    ctx.stroke();
+  }
+
+  // Left margin line
+  ctx.strokeStyle = 'rgba(180,160,160,0.18)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(getPageLeft() - 4, getPageTop() + 4);
+  ctx.lineTo(getPageLeft() - 4, getPageBottom() - 4);
+  ctx.stroke();
+}
+
+// Ink meter display
+function drawInkMeter() {
+  const mw = 80;
+  const mh = 6;
+  const mx = W / 2 - mw / 2;
+  const my = getPageBottom() + 18;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  ctx.fillRect(mx, my, mw, mh);
+
+  const col = inkLevel < 0.2
+    ? `rgba(140,80,60,${0.5 + inkLevel * 2})`
+    : `rgba(42,37,32,${0.3 + inkLevel * 0.4})`;
+  ctx.fillStyle = col;
+  ctx.fillRect(mx, my, mw * inkLevel, mh);
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(mx, my, mw, mh);
+}
+
+// Cursor blink
+let blinkT = 0;
+function drawCursor() {
+  blinkT++;
+  if ((blinkT >> 4) % 2 === 0) {
+    ctx.fillStyle = `rgba(42,37,32,${inkLevel * 0.6 + 0.1})`;
+    ctx.fillRect(cursorX - 1, cursorY - LINE_HEIGHT * 0.6, 2, LINE_HEIGHT * 0.7);
+  }
+}
+
+// Auto typing when idle
+let autoTyping = false;
+let autoTypeQueue = 0;
+
+function triggerAutoType() {
+  if (inkLevel <= 0) return;
+  autoTypeQueue = Math.floor(3 + Math.random() * 5);
+}
+
+function loop() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#f2efe8';
+  ctx.fillRect(0, 0, W, H);
+
+  drawPaper();
+
+  // Draw all marks
+  for (const m of marks) {
+    drawMark(m);
+  }
+
+  drawCursor();
+  drawInkMeter();
+
+  // Auto type if user hasn't typed recently
+  if (!userTyped && Date.now() - lastKeytime > 1200 && autoTypeQueue > 0) {
+    pressKey();
+    autoTypeQueue--;
+  }
+  if (Date.now() - lastKeytime > 2000 && autoTypeQueue === 0) {
+    triggerAutoType();
+    lastKeytime = Date.now() - 1500;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+// Seed with a few marks to show the concept immediately
+for (let i = 0; i < 18; i++) {
+  pressKey();
+}
+
+loop();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '267',
+  title:  'Ribbon',
+  detail: 'キーを打つたびにインクが薄れていく。文字は出ない——インクの染み跡だけが残る。インクが尽きるとページがリセットされる。自動でゆっくり打ち続けるが、自分で打つこともできる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
