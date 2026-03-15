@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>179 – String</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f4f1ec; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 糸電話：画面の両端に糸が張られている。声が渡っているとき、糸は揺れる。
+
+let t = 0;
+let hintAlpha = 220;
+let hintTimer = 0;
+
+// 糸の設定
+let anchorLeft, anchorRight;
+let segments = 80;     // 糸の分割数
+let baseAmplitude = 0; // 現在の振動幅
+let targetAmplitude = 0;
+let noiseOffX = 0;
+
+// 振動モード（周期的に変化）
+let wavePhase = 0;
+let waveFreq = 0;
+let transmitting = false;
+let transmitTimer = 0;
+let transmitDuration = 0;
+let restTimer = 0;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  resetAnchors();
+  // 最初から振動している状態で始まる
+  startTransmit();
+}
+
+function resetAnchors() {
+  const margin = width * 0.12;
+  const cy = height * 0.5;
+  anchorLeft  = { x: margin, y: cy };
+  anchorRight = { x: width - margin, y: cy };
+}
+
+// 次の「送信」タイミングをランダムに設定
+function scheduleNext() {
+  transmitting = false;
+  baseAmplitude = 0;
+  targetAmplitude = 0;
+  restTimer = random(80, 200); // 休止フレーム数
+}
+
+function startTransmit() {
+  transmitting = true;
+  wavePhase = 0;
+  waveFreq = random(0.04, 0.09);
+  targetAmplitude = random(28, 55);
+  transmitDuration = random(140, 320);
+  transmitTimer = 0;
+  noiseOffX = random(1000);
+}
+
+function draw() {
+  background(244, 241, 236);
+
+  t += 0.016;
+
+  // 振幅のスムージング
+  baseAmplitude = lerp(baseAmplitude, targetAmplitude, 0.06);
+
+  // 送信状態のコントロール
+  if (!transmitting) {
+    restTimer--;
+    if (restTimer <= 0) startTransmit();
+  } else {
+    transmitTimer++;
+    wavePhase += waveFreq;
+
+    // 送信の終盤は振動が収まる
+    const fadeRatio = transmitTimer / transmitDuration;
+    if (fadeRatio > 0.7) {
+      targetAmplitude = lerp(targetAmplitude, 0, 0.04);
+    }
+
+    if (transmitTimer >= transmitDuration) {
+      scheduleNext();
+    }
+  }
+
+  drawString();
+  drawAnchors();
+  drawHint();
+}
+
+function drawString() {
+  const lx = anchorLeft.x;
+  const ly = anchorLeft.y;
+  const rx = anchorRight.x;
+  const ry = anchorRight.y;
+  const stringLen = dist(lx, ly, rx, ry);
+
+  // 糸の自重によるカテナリー的な垂れ下がり量
+  const sag = stringLen * 0.025;
+
+  noFill();
+  strokeWeight(1.2);
+
+  // 影を少しつける（奥行き感）
+  stroke(180, 168, 152, 60);
+  strokeWeight(2.2);
+  beginShape();
+  for (let i = 0; i <= segments; i++) {
+    const frac = i / segments;
+    const bx = lerp(lx, rx, frac);
+    const by = lerp(ly, ry, frac);
+
+    // カテナリー的な垂れ
+    const sagY = sag * sin(PI * frac);
+
+    // ノイズ揺れ（送信時）
+    let vibration = 0;
+    if (baseAmplitude > 0.5) {
+      // 定在波のような見た目：いくつかのモードの重ね合わせ
+      const n1 = sin(PI * frac * 1) * sin(wavePhase);
+      const n2 = sin(PI * frac * 2) * sin(wavePhase * 1.7 + 0.5) * 0.4;
+      const n3 = sin(PI * frac * 3) * sin(wavePhase * 2.3 + 1.1) * 0.2;
+      // ノイズで有機的なゆらぎを加える
+      const no = noise(noiseOffX + frac * 3, t * 0.8) * 2 - 1;
+      vibration = (n1 + n2 + n3 + no * 0.3) * baseAmplitude;
+    }
+
+    vertex(bx + 1, by + sagY + vibration + 2);
+  }
+  endShape();
+
+  // 本線
+  stroke(68, 58, 48, 200);
+  strokeWeight(1.0);
+  beginShape();
+  for (let i = 0; i <= segments; i++) {
+    const frac = i / segments;
+    const bx = lerp(lx, rx, frac);
+    const by = lerp(ly, ry, frac);
+
+    const sagY = sag * sin(PI * frac);
+
+    let vibration = 0;
+    if (baseAmplitude > 0.5) {
+      const n1 = sin(PI * frac * 1) * sin(wavePhase);
+      const n2 = sin(PI * frac * 2) * sin(wavePhase * 1.7 + 0.5) * 0.4;
+      const n3 = sin(PI * frac * 3) * sin(wavePhase * 2.3 + 1.1) * 0.2;
+      const no = noise(noiseOffX + frac * 3, t * 0.8) * 2 - 1;
+      vibration = (n1 + n2 + n3 + no * 0.3) * baseAmplitude;
+    }
+
+    vertex(bx, by + sagY + vibration);
+  }
+  endShape();
+}
+
+function drawAnchors() {
+  // 缶（アンカーポイント）を小さな四角で表現
+  const sz = 10;
+  noStroke();
+  fill(88, 75, 60, 200);
+
+  // 左の缶
+  rectMode(CENTER);
+  rect(anchorLeft.x, anchorLeft.y, sz, sz * 1.3);
+  // 右の缶
+  rect(anchorRight.x, anchorRight.y, sz, sz * 1.3);
+
+  // 缶の上の小さな蓋感
+  fill(110, 95, 78, 150);
+  rect(anchorLeft.x, anchorLeft.y - sz * 0.55, sz * 1.1, 2);
+  rect(anchorRight.x, anchorRight.y - sz * 0.55, sz * 1.1, 2);
+
+  // 缶の底の小さな台
+  fill(70, 58, 46, 180);
+  rect(anchorLeft.x, anchorLeft.y + sz * 0.6, sz * 1.2, 2);
+  rect(anchorRight.x, anchorRight.y + sz * 0.6, sz * 1.2, 2);
+}
+
+function drawHint() {
+  if (hintAlpha <= 0) return;
+  hintTimer++;
+  if (hintTimer > 160) hintAlpha -= 3;
+
+  fill(140, 128, 110, hintAlpha);
+  noStroke();
+  textSize(11);
+  textAlign(CENTER);
+  text('クリックで糸を揺らす', width / 2, height * 0.5 + min(width, height) * 0.18);
+}
+
+function mousePressed() {
+  // クリックで手動トリガー
+  startTransmit();
+  hintAlpha = 0;
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  resetAnchors();
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '179',
+  title: 'String',
+  detail: 'クリックすると糸が振動する。缶と缶の間に張られた糸が、声を渡そうとしているのか、ただ揺れているのかはわからない。定在波の式をいくつか重ねてノイズで揺らしている。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1600,5 +1600,32 @@
     "path": "sketches/172_rings/",
     "description": "ノイズで歪んだ同心円を重ね続けた。一度増えた輪は消えない。",
     "thumb": "img/thumb_172.png"
+  },
+  {
+    "num": "179",
+    "title": "String",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/179_string/",
+    "description": "缶と缶の間に糸を張ったら、何かが渡ろうとしていた。クリックすると糸が揺れる。",
+    "thumb": "img/thumb_179.png"
+  },
+  {
+    "num": "180",
+    "title": "Field Lines",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/180_field_lines/",
+    "description": "N極とS極の間にある、見えない力の経路を追跡した。磁石は描かず、力線だけがある。マウスを動かすと磁石の距離が変わり、線の形が変わった。",
+    "thumb": "img/thumb_180.png"
+  },
+  {
+    "num": "181",
+    "title": "Sand",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/181_sand/",
+    "description": "砂時計の砂を粒子なしで描こうとした。全ピクセルで密度を計算したら、砂に見えてきた。スペースキーで砂が落ち直す。",
+    "thumb": "img/thumb_181.png"
   }
 ]
