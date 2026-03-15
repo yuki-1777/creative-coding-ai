@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>183 – Ripple</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f4f1ec; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 波紋：クリックすると水面に波紋が広がる。重なると模様ができる。
+
+let ripples = [];
+let autoTimer = 0;
+let autoInterval = 180;  // 自動波紋の間隔（フレーム）
+let maxRadius;
+let hintAlpha = 220;
+let hintTimer = 0;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  maxRadius = sqrt(width * width + height * height) * 0.55;
+
+  // 最初から波紋を2〜3個出しておく
+  addRipple(width * 0.38, height * 0.45);
+  addRipple(width * 0.65, height * 0.52);
+}
+
+function addRipple(x, y) {
+  ripples.push({
+    x: x,
+    y: y,
+    r: 0,              // 現在の半径
+    maxR: maxRadius,
+    speed: random(1.2, 2.2),   // 広がる速度
+    rings: floor(random(3, 6)) // 同心円の本数
+  });
+}
+
+function draw() {
+  background(244, 241, 236);
+
+  // 自動波紋
+  autoTimer++;
+  if (autoTimer >= autoInterval) {
+    autoTimer = 0;
+    autoInterval = random(120, 300);
+    // 画面の適当な場所にランダムに波紋
+    addRipple(random(width * 0.15, width * 0.85), random(height * 0.2, height * 0.8));
+  }
+
+  // 波紋の更新と描画
+  noFill();
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    const rp = ripples[i];
+    rp.r += rp.speed;
+
+    if (rp.r > rp.maxR) {
+      ripples.splice(i, 1);
+      continue;
+    }
+
+    drawRipple(rp);
+  }
+
+  drawHint();
+}
+
+function drawRipple(rp) {
+  // 複数の同心円を描く（それぞれ半径をずらす）
+  const ringSpacing = 18; // 同心円間隔（px）
+
+  for (let k = 0; k < rp.rings; k++) {
+    const kr = rp.r - k * ringSpacing;
+    if (kr <= 0) continue;
+
+    // 距離に応じてフェードアウト
+    const progress = kr / rp.maxR;          // 0 → 1 に近づくほど遠い
+    const ringFade = 1 - (k / rp.rings);    // 内側ほど濃い
+
+    // アルファ：広がるほど薄く、内側ほど薄く
+    let alpha = (1 - progress) * ringFade;
+    // 立ち上がりの速さ（小さい半径のときは薄い）
+    const riseUp = min(1, kr / 30);
+    alpha *= riseUp;
+    alpha = alpha * 180; // 最大アルファ180
+
+    if (alpha < 2) continue;
+
+    // 線の太さ：先頭（k=0）は少し太め、奥（k>0）は細い
+    const sw = k === 0 ? 1.3 : 0.7;
+    stroke(68, 58, 48, alpha);
+    strokeWeight(sw);
+
+    // わずかな歪みを加える（完全な円でなく、ほんの少し有機的に）
+    const distortionScale = 0.015;
+    const steps = 120;
+    beginShape();
+    for (let i = 0; i <= steps; i++) {
+      const angle = TWO_PI * i / steps;
+      const nx = noise(
+        rp.x * 0.002 + cos(angle) * 1.5 + rp.r * 0.008,
+        rp.y * 0.002 + sin(angle) * 1.5 + rp.r * 0.008
+      );
+      const distortion = (nx * 2 - 1) * kr * distortionScale;
+      const r = kr + distortion;
+      vertex(rp.x + cos(angle) * r, rp.y + sin(angle) * r);
+    }
+    endShape(CLOSE);
+  }
+}
+
+function drawHint() {
+  if (hintAlpha <= 0) return;
+  hintTimer++;
+  if (hintTimer > 200) hintAlpha -= 2.5;
+
+  fill(140, 128, 110, hintAlpha);
+  noStroke();
+  textSize(11);
+  textAlign(CENTER);
+  text('クリックで波紋を起こす', width / 2, height - 40);
+}
+
+function mousePressed() {
+  addRipple(mouseX, mouseY);
+  hintAlpha = 0;
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  maxRadius = sqrt(width * width + height * height) * 0.55;
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '183',
+  title: 'Ripple',
+  detail: 'クリックすると波紋が広がる。複数の波紋は重なると干渉模様を作る。波紋は同心円の組み合わせで、ノイズで少し歪ませている。自動でも波紋が出続ける。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

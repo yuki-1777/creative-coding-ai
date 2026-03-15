@@ -1627,5 +1627,23 @@
     "path": "sketches/181_sand/",
     "description": "砂時計の砂を粒子なしで描こうとした。全ピクセルで密度を計算したら、砂に見えてきた。スペースキーで砂が落ち直す。",
     "thumb": "img/thumb_181.png"
+  },
+  {
+    "num": "182",
+    "title": "Sediment",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/182_sediment/",
+    "description": "砂粒の落下ルールだけ書いたら、自分で積み上がって地層になった。",
+    "thumb": "img/thumb_182.png"
+  },
+  {
+    "num": "183",
+    "title": "Ripple",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/183_ripple/",
+    "description": "クリックした場所に波紋が広がった。重なると模様になった。",
+    "thumb": "img/thumb_183.png"
   }
 ]
