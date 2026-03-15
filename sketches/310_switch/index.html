@@ -270,12 +270,13 @@ function draw(ts) {
   if (1-f0 > 0.02) drawTrack(cx(3), cy(2), cx(4), cy(2), 1-f0);
   if (f0   > 0.02) drawTrack(cx(3), cy(2), cx(4), cy(3), f0,  0.72);
 
-  // relay AB: (4,3)→(5,4) and (5,4)→(6,5)
-  const hAB = Math.max(0.07, f0 * 0.55);
+  // relay AB: (4,3)→(5,4) and (5,4)→(6,5) and (6,5)→(6,6)
+  const hAB = f0 * 0.55;
   const rAB = Math.min(f0, f1);
   if (f0 > 0.02) {
     drawTrack(cx(4), cy(3), cx(5), cy(4), Math.max(hAB, rAB), 0.72);
     drawTrack(cx(5), cy(4), cx(6), cy(5), Math.max(hAB*0.7, rAB), 0.72);
+    drawTrack(cx(6), cy(5), cx(6), cy(6), Math.min(f0, f1), 0.72);
   }
 
   // PB: Line B gap at (6,6)→(7,6)
@@ -293,12 +294,13 @@ function draw(ts) {
   if (1-f2 > 0.02) drawTrack(cx(8), cy(6), cx(9),  cy(6), 1-f2);
   if (f2   > 0.02) drawTrack(cx(8), cy(6), cx(9),  cy(7), f2,  0.72);
 
-  // relay BC: (9,7)→(10,8) and (10,8)→(11,9)
-  const hBC = Math.max(0.07, f2 * 0.55);
+  // relay BC: (9,7)→(10,8) and (10,8)→(11,9) and (11,9)→(11,10)
+  const hBC = f2 * 0.55;
   const rBC = Math.min(f2, f3);
   if (f2 > 0.02) {
     drawTrack(cx(9),  cy(7), cx(10), cy(8), Math.max(hBC, rBC), 0.72);
     drawTrack(cx(10), cy(8), cx(11), cy(9), Math.max(hBC*0.7, rBC), 0.72);
+    drawTrack(cx(11), cy(9), cx(11), cy(10), Math.min(f2, f3), 0.72);
   }
 
   // PD: Line C at (11,10): diverge arrival from (10,9) via relay
