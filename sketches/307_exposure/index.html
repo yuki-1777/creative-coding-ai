@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>307 – Exposure</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #f2efe8;
+    }
+    canvas { display: block; position: fixed; top: 0; left: 0; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Sketch 307 – Exposure
+// 初期状態：前回の「現像後の残影」として薄い粒子が見えている
+// スペースキー/クリック長押し：露光が進む
+// 離す：現像が始まり、像が浮かび上がる
+// やがて像は消え、次の「前回の残影」として定着する
+
+let exposureLevel = 0;   // 0〜1: 露光の進行度
+let developLevel  = 0;   // 0〜1: 現像の進行度
+let isExposing    = false;
+let wasExposing   = false;
+let developTimer  = 0;
+const DEVELOP_DELAY = 20;
+
+// 粒子
+let grains = [];
+const GRAIN_COUNT = 2200;
+
+// 「前回現像済み」の残影（初期状態でうっすら見えている）
+let residualGrains = [];
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  colorMode(RGB, 255);
+  noStroke();
+  initGrains();
+  initResidual();
+}
+
+function initGrains() {
+  grains = [];
+  for (let i = 0; i < GRAIN_COUNT; i++) {
+    grains.push({
+      x:         random(width),
+      y:         random(height),
+      size:      random(0.8, 3.2),
+      threshold: random(0.05, 0.95),
+      darkValue: random(30, 110),
+    });
+  }
+}
+
+function initResidual() {
+  // 前回現像されたような薄い粒子の残影
+  residualGrains = [];
+  const count = 1200;
+  for (let i = 0; i < count; i++) {
+    residualGrains.push({
+      x:     random(width),
+      y:     random(height),
+      size:  random(0.8, 2.8),
+      alpha: random(25, 65),
+    });
+  }
+}
+
+function draw() {
+  background(242, 239, 232);
+
+  // ---- 状態更新 ----
+  if (isExposing) {
+    wasExposing   = true;
+    exposureLevel = min(exposureLevel + 0.007, 1.0);
+    developTimer  = 0;
+    developLevel  = 0;
+  } else {
+    if (wasExposing && developLevel < 1.0) {
+      developTimer++;
+      if (developTimer > DEVELOP_DELAY) {
+        developLevel = min(developLevel + 0.012, 1.0);
+      }
+    }
+    if (developLevel >= 1.0) {
+      exposureLevel = max(exposureLevel - 0.004, 0);
+      if (exposureLevel <= 0) {
+        // 現像が終わったら残影として記憶し、リセット
+        captureResidual();
+        wasExposing  = false;
+        developLevel = 0;
+        developTimer = 0;
+      }
+    }
+  }
+
+  // ---- 描画 ----
+
+  // 1. 残影（前回現像済み）
+  drawResidual();
+
+  // 2. 露光中：中央からのハレーション
+  if (isExposing && exposureLevel > 0.02) {
+    drawHalation();
+  }
+
+  // 3. 現像中：粒子が浮かび上がる
+  if ((wasExposing || exposureLevel > 0) && !isExposing) {
+    drawDevelopedGrains();
+  }
+
+  // 4. 露光中の光のちらつき
+  if (isExposing && exposureLevel > 0.1) {
+    drawGlint();
+  }
+}
+
+function drawResidual() {
+  for (let r of residualGrains) {
+    fill(60, 55, 50, r.alpha);
+    ellipse(r.x, r.y, r.size, r.size);
+  }
+}
+
+function captureResidual() {
+  // 現像した粒子をランダムにサンプリングして残影に変換
+  residualGrains = [];
+  for (let g of grains) {
+    if (g.threshold > exposureLevel) continue;
+    if (random() > 0.35) continue; // 35%だけ残影に
+    residualGrains.push({
+      x:     g.x,
+      y:     g.y,
+      size:  g.size * 0.7,
+      alpha: random(4, 18),
+    });
+  }
+}
+
+function drawHalation() {
+  // 中央から広がる白っぽい光
+  for (let r = 4; r >= 0; r--) {
+    const alpha = map(r, 0, 4, 90, 4) * exposureLevel;
+    const rad   = map(r, 0, 4, 50, min(width, height) * 0.85);
+    fill(255, 255, 245, alpha);
+    ellipse(width / 2, height / 2, rad, rad);
+  }
+}
+
+function drawDevelopedGrains() {
+  for (let g of grains) {
+    if (g.threshold > exposureLevel) continue;
+
+    // 各粒子ごとに現像タイミングをずらす
+    const localThresh  = g.threshold * 0.8;
+    const localDensity = max(0, min(1, (developLevel - localThresh) / (1.0 - localThresh)));
+    if (localDensity <= 0) continue;
+
+    const alpha = localDensity * g.darkValue;
+    fill(58, 52, 46, alpha);
+    const sz = g.size * (1 + (1 - localDensity) * 0.8);
+    ellipse(g.x, g.y, sz, sz);
+  }
+}
+
+function drawGlint() {
+  stroke(255, 255, 240, 100);
+  strokeWeight(0.5);
+  const count = floor(exposureLevel * 20);
+  for (let i = 0; i < count; i++) {
+    const x   = random(width);
+    const y   = random(height);
+    const len = random(3, 16);
+    const ang = random(TWO_PI);
+    line(x, y, x + cos(ang) * len, y + sin(ang) * len);
+  }
+  noStroke();
+}
+
+function keyPressed() {
+  if (key === ' ' || keyCode === 32) { isExposing = true; return false; }
+}
+function keyReleased() {
+  if (key === ' ' || keyCode === 32) { isExposing = false; return false; }
+}
+function mousePressed()  { isExposing = true; }
+function mouseReleased() { isExposing = false; }
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  initGrains();
+  initResidual();
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '307',
+  title:  'Exposure',
+  detail: 'スペースキーまたはマウスボタンを押し続けると露光が進みます。離すと現像が始まり、光に当たった場所に粒子が浮かび上がります。長く押すほど多くの粒子が感光します。像はやがて消え、薄い残影だけが残ります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

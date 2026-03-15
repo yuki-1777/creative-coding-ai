@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>311 – Tuning</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #f2efe8;
+      overflow: hidden;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Sketch 311 – Tuning
+// ホイールスクロールでピンを回す（弦の張力を調整する）
+// 「合った」瞬間に音叉の振動パターンが美しく収束する
+// タイトルバーに音名が表示される
+
+// 調律対象の音（A4 = 440Hz を基準）
+const NOTES = [
+  { name: 'C3',  freq: 130.81 },
+  { name: 'G3',  freq: 196.00 },
+  { name: 'D4',  freq: 293.66 },
+  { name: 'A4',  freq: 440.00 },
+  { name: 'E4',  freq: 329.63 },
+  { name: 'B4',  freq: 493.88 },
+];
+
+// 状態
+let currentNoteIndex = 0;
+let tuningOffset = 0;       // 半音単位のずれ (-2 〜 +2)
+// 初期値はsetup()でランダムに設定
+const TUNE_STEP = 0.018;   // ホイール1スクロールあたりの変化量
+let tuneTime = 0;          // フレームカウンタ（アニメ用）
+let justTuned = false;     // ちょうど合った瞬間フラグ
+let justTunedTimer = 0;
+
+// 音
+let audioCtx = null;
+let oscillator = null;
+let gainNode = null;
+
+function getTargetFreq() {
+  return NOTES[currentNoteIndex].freq;
+}
+
+function getActualFreq() {
+  // tuningOffsetを周波数倍率に変換（半音 = 2^(1/12)）
+  return getTargetFreq() * Math.pow(2, tuningOffset / 12);
+}
+
+function getCentOffset() {
+  // cent単位のずれ（100cent = 1半音）
+  return tuningOffset * 100;
+}
+
+function inTune() {
+  return Math.abs(getCentOffset()) < 3;
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  colorMode(RGB, 255);
+  // 最初はランダムにずれた状態から始める
+  tuningOffset = (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 1.2);
+  updateTitle();
+}
+
+function updateTitle() {
+  const note = NOTES[currentNoteIndex].name;
+  const cents = round(getCentOffset());
+  if (inTune()) {
+    document.title = `♩ ${note} `;
+  } else {
+    const sign = cents > 0 ? '+' : '';
+    document.title = `${note}  ${sign}${cents}¢`;
+  }
+}
+
+function draw() {
+  background(242, 239, 232);
+  tuneTime++;
+
+  const cx = width / 2;
+  const cy = height / 2;
+  const centOff = getCentOffset();
+
+  // ずれの度合い（0=ぴったり, 1=最大ずれ）
+  const detuneAmt = min(abs(centOff) / 50, 1.0);
+
+  // タイトル更新
+  if (frameCount % 4 === 0) updateTitle();
+
+  // justTuned エフェクトのタイマー
+  if (justTuned) {
+    justTunedTimer++;
+    if (justTunedTimer > 80) {
+      justTuned = false;
+      justTunedTimer = 0;
+    }
+  }
+
+  drawFork(cx, cy, detuneAmt, centOff);
+  drawNoteIndicator(cx, cy, detuneAmt);
+  drawNavigationHint(cx, cy);
+}
+
+function drawFork(cx, cy, detuneAmt, centOff) {
+  // 音叉の振動パターン：Lissajous的な干渉曲線
+  // 合っているとき: きれいな閉曲線
+  // ずれているとき: ぐにゃぐに゙ぐと歪む
+
+  const freq = getTargetFreq();
+  const ratio = 1 + tuningOffset / 12;  // 実周波数比
+
+  const lineCount = 3;
+  const baseRadius = min(width, height) * 0.28;
+
+  for (let lineIdx = 0; lineIdx < lineCount; lineIdx++) {
+    const offset = (lineIdx - 1) * 0.08;
+    const alpha = lineIdx === 1 ? 160 : 60;
+    const weight = lineIdx === 1 ? 1.0 : 0.5;
+
+    stroke(55, 50, 45, alpha);
+    strokeWeight(weight);
+    noFill();
+
+    beginShape();
+    const steps = 600;
+    for (let i = 0; i <= steps; i++) {
+      const t = (i / steps) * TWO_PI * 6; // 6周期分
+      const tAnim = tuneTime * 0.012 + offset;
+
+      // X方向: 基準振動
+      const xAmp = baseRadius;
+      const xFreq = 1.0;
+
+      // Y方向: ずれた振動（detuneAmtで歪む）
+      const yFreq = ratio + offset * 0.3;
+
+      // ずれが大きいほど複雑に
+      const xVal = xAmp * sin(t * xFreq + tAnim);
+      const yVal = xAmp * sin(t * yFreq + tAnim * 0.97 + detuneAmt * PI);
+
+      // 合ったときに収束する形（8の字）
+      const tuneBlend = 1.0 - detuneAmt;
+      const tuneX = baseRadius * sin(t * 1.0 + tAnim);
+      const tuneY = baseRadius * sin(t * 2.0 + tAnim * 0.5);
+
+      const finalX = cx + lerp(xVal, tuneX, tuneBlend * 0.6);
+      const finalY = cy + lerp(yVal, tuneY, tuneBlend * 0.6);
+
+      vertex(finalX, finalY);
+    }
+    endShape();
+  }
+
+  // 合った時のグロー効果
+  if (justTuned || inTune()) {
+    const glowAlpha = justTuned ? map(justTunedTimer, 0, 80, 50, 0) : 20;
+    noStroke();
+    for (let r = 3; r >= 0; r--) {
+      fill(55, 50, 45, glowAlpha * (4 - r) / 4);
+      const gRad = baseRadius * 0.15 * (r + 1);
+      ellipse(cx, cy, gRad, gRad);
+    }
+  }
+}
+
+function drawNoteIndicator(cx, cy, detuneAmt) {
+  // 音名と調律メーター（数字なし）
+  const note = NOTES[currentNoteIndex].name;
+  const centOff = getCentOffset();
+
+  // 音名（中央上部）
+  textAlign(CENTER, CENTER);
+  textSize(14);
+  noStroke();
+  fill(80, 75, 70, 180);
+  text(note, cx, cy - min(width, height) * 0.38);
+
+  // 調律メーター（水平バー）
+  const meterW = min(width * 0.4, 240);
+  const meterH = 2;
+  const meterY = cy + min(width, height) * 0.38;
+
+  stroke(80, 75, 70, 60);
+  strokeWeight(1);
+  line(cx - meterW / 2, meterY, cx + meterW / 2, meterY);
+
+  // 中央マーク
+  stroke(80, 75, 70, 120);
+  strokeWeight(1.5);
+  line(cx, meterY - 5, cx, meterY + 5);
+
+  // 針（ずれの位置）
+  const needleX = cx + map(centOff, -50, 50, -meterW / 2, meterW / 2);
+  const needleAlpha = inTune() ? 220 : 140;
+  const needleColor = inTune() ? [55, 50, 45] : [80, 75, 70];
+
+  stroke(needleColor[0], needleColor[1], needleColor[2], needleAlpha);
+  strokeWeight(inTune() ? 2.0 : 1.5);
+  line(needleX, meterY - 8, needleX, meterY + 8);
+
+  // 合っているときの確認印（小さな点）
+  if (inTune()) {
+    noStroke();
+    fill(55, 50, 45, 180);
+    ellipse(cx, meterY, 5, 5);
+  }
+}
+
+function drawNavigationHint(cx, cy) {
+  // 弦の番号インジケーター（小さな点の列）
+  const dotSpacing = 12;
+  const totalW = (NOTES.length - 1) * dotSpacing;
+  const startX = cx - totalW / 2;
+  const dotY = cy + min(width, height) * 0.44;
+
+  noStroke();
+  for (let i = 0; i < NOTES.length; i++) {
+    const dotX = startX + i * dotSpacing;
+    if (i === currentNoteIndex) {
+      fill(55, 50, 45, 200);
+      ellipse(dotX, dotY, 5, 5);
+    } else {
+      fill(55, 50, 45, 60);
+      ellipse(dotX, dotY, 3, 3);
+    }
+  }
+}
+
+function mouseWheel(event) {
+  // ホイールでチューニングオフセットを変化
+  const prevInTune = inTune();
+  tuningOffset += event.delta > 0 ? TUNE_STEP : -TUNE_STEP;
+  tuningOffset = constrain(tuningOffset, -2, 2);
+
+  // 合った瞬間
+  if (!prevInTune && inTune()) {
+    justTuned = true;
+    justTunedTimer = 0;
+    playChime();
+  }
+
+  return false;
+}
+
+function keyPressed() {
+  // 左右キーで弦を切り替える
+  if (keyCode === LEFT_ARROW) {
+    currentNoteIndex = (currentNoteIndex - 1 + NOTES.length) % NOTES.length;
+    tuningOffset = random(-1.5, 1.5); // 次の弦はずれている
+    return false;
+  }
+  if (keyCode === RIGHT_ARROW) {
+    currentNoteIndex = (currentNoteIndex + 1) % NOTES.length;
+    tuningOffset = random(-1.5, 1.5);
+    return false;
+  }
+}
+
+function playChime() {
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    const freq = getTargetFreq();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.8);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 1.8);
+  } catch (e) {
+    // AudioContext not available
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '311',
+  title:  'Tuning',
+  detail: 'ホイールスクロールでピンを回し、弦の張力を調整します。曲線がぴったり合うと、合わせた音が鳴ります。左右キーで別の弦に移れます。タイトルバーに今の音名とずれ具合が表示されます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
