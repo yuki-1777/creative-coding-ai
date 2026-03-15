@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marginalia</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f2f1ee; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  buildLayout();
+}
+
+// --- ページレイアウト ---
+// 本のページを模した構造
+// 左マージン：傍線を引くエリア
+// 中央：テキスト行のシルエット（実際の文字は描かない）
+
+let lines = [];  // { y, width, indent } の配列
+const LINE_HEIGHT = 22;
+const MARGIN_LEFT = 0.18;   // 左マージンの幅（キャンバス比）
+const TEXT_LEFT   = 0.22;   // テキスト開始X（比）
+const TEXT_RIGHT  = 0.80;   // テキスト終了X（比）
+const MARGIN_TOP  = 0.12;
+const MARGIN_BOT  = 0.10;
+
+// 傍線の状態
+// key: lineIndex, value: { progress: 0〜1, fading: bool, alpha: 0〜1, permanent: bool }
+const underlines = new Map();
+
+// 永続傍線（クリックで固定したもの）
+const permanentLines = new Set();
+
+// 乱数シード付き
+function seededRand(seed) {
+  const x = Math.sin(seed + 1) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function buildLayout() {
+  lines = [];
+  const availH = H * (1 - MARGIN_TOP - MARGIN_BOT);
+  const numLines = Math.floor(availH / LINE_HEIGHT);
+  const textW = (TEXT_RIGHT - TEXT_LEFT) * W;
+
+  for (let i = 0; i < numLines; i++) {
+    const y = H * MARGIN_TOP + i * LINE_HEIGHT + LINE_HEIGHT * 0.7;
+    // 行幅にランダムな揺らぎ（段落末尾・短い行を表現）
+    const r1 = seededRand(i * 3 + 7);
+    const r2 = seededRand(i * 3 + 11);
+    // 段落末尾の短い行（7行ごとに1行短くなる）
+    const isParagraphEnd = (i % 7 === 6);
+    const widthRatio = isParagraphEnd
+      ? 0.3 + r1 * 0.35
+      : 0.82 + r1 * 0.16;
+    const indent = isParagraphEnd ? 0 : seededRand(i * 2) * 0.03 * textW;
+
+    lines.push({ y, width: textW * widthRatio, indent });
+  }
+}
+
+// マウス位置から行インデックスを返す
+let mouseX = -1;
+let mouseY = -1;
+
+function getHoveredLine(my) {
+  for (let i = 0; i < lines.length; i++) {
+    const ly = lines[i].y;
+    if (Math.abs(my - ly) < LINE_HEIGHT * 0.6) return i;
+  }
+  return -1;
+}
+
+// マウスがテキスト領域内かチェック
+function isInTextArea(mx) {
+  return mx > W * TEXT_LEFT * 0.7 && mx < W * TEXT_RIGHT + W * 0.05;
+}
+
+canvas.addEventListener('mousemove', e => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+canvas.addEventListener('mouseleave', () => {
+  mouseX = -1;
+  mouseY = -1;
+});
+
+// クリックで傍線を永続化（または消去）
+canvas.addEventListener('click', e => {
+  const idx = getHoveredLine(e.clientY);
+  if (idx < 0) return;
+  if (permanentLines.has(idx)) {
+    permanentLines.delete(idx);
+  } else {
+    permanentLines.add(idx);
+    // 永続化したら progressを1にする
+    if (underlines.has(idx)) {
+      underlines.get(idx).progress = 1;
+      underlines.get(idx).permanent = true;
+    } else {
+      underlines.set(idx, { progress: 1, alpha: 1, permanent: true });
+    }
+  }
+});
+
+// --- 描画 ---
+function draw() {
+  requestAnimationFrame(draw);
+
+  ctx.clearRect(0, 0, W, H);
+
+  // 紙の背景
+  ctx.fillStyle = '#f2f1ee';
+  ctx.fillRect(0, 0, W, H);
+
+  // 左マージンの縦線（本のノンブル線）
+  const marginLineX = W * MARGIN_LEFT;
+  ctx.beginPath();
+  ctx.moveTo(marginLineX, H * MARGIN_TOP * 0.6);
+  ctx.lineTo(marginLineX, H * (1 - MARGIN_BOT * 0.6));
+  ctx.strokeStyle = 'rgba(100,95,88,0.10)';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  const hovIdx = (mouseX >= 0 && isInTextArea(mouseX))
+    ? getHoveredLine(mouseY)
+    : -1;
+
+  // 傍線の進行更新
+  for (let i = 0; i < lines.length; i++) {
+    if (!underlines.has(i)) {
+      underlines.set(i, { progress: 0, alpha: 0, permanent: false });
+    }
+    const ul = underlines.get(i);
+    if (permanentLines.has(i)) {
+      ul.permanent = true;
+      ul.progress = Math.min(ul.progress + 0.04, 1);
+      ul.alpha = Math.min(ul.alpha + 0.06, 1);
+    } else if (i === hovIdx) {
+      ul.progress = Math.min(ul.progress + 0.025, 1);
+      ul.alpha = Math.min(ul.alpha + 0.08, 1);
+    } else {
+      // フェードアウト
+      ul.progress = Math.max(ul.progress - 0.008, 0);
+      ul.alpha = Math.max(ul.alpha - 0.04, 0);
+    }
+  }
+
+  // テキスト行とアンダーラインを描画
+  const textStartX = W * TEXT_LEFT;
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    const y = ln.y;
+    const lineStartX = textStartX + ln.indent;
+    const lineEndX = lineStartX + ln.width;
+    const ul = underlines.get(i);
+
+    // テキスト行のシルエット（非常に薄い矩形の積み重ねで）
+    const isHovered = (i === hovIdx);
+    const hasMark = ul && ul.alpha > 0.01;
+
+    // ホバー中の行はわずかに明るく
+    if (isHovered) {
+      ctx.fillStyle = 'rgba(200,195,185,0.08)';
+      ctx.fillRect(lineStartX - 4, y - LINE_HEIGHT * 0.55, ln.width + 8, LINE_HEIGHT * 0.85);
+    }
+
+    // テキストシルエット（細い矩形を複数並べる）
+    const numWords = Math.floor(3 + seededRand(i * 5) * 5);
+    let wordX = lineStartX;
+    const wordY = y - 4;
+    const wordH = 5.5;
+    ctx.fillStyle = `rgba(58,55,50,${0.10 + (hasMark ? ul.alpha * 0.05 : 0)})`;
+
+    for (let w = 0; w < numWords && wordX < lineEndX - 10; w++) {
+      const wordLen = (0.06 + seededRand(i * 7 + w) * 0.12) * ln.width;
+      const gap = (0.015 + seededRand(i * 7 + w + 1) * 0.025) * ln.width;
+      const actualLen = Math.min(wordLen, lineEndX - wordX);
+      if (actualLen > 5) {
+        ctx.fillRect(wordX, wordY, actualLen, wordH);
+      }
+      wordX += wordLen + gap;
+    }
+
+    // 傍線
+    if (ul && ul.alpha > 0.005) {
+      const progress = ul.progress;
+      const alpha = ul.alpha;
+      const underY = y + 2;
+      const underStartX = lineStartX;
+      const underEndX = lineStartX + ln.width * progress;
+
+      ctx.beginPath();
+      ctx.moveTo(underStartX, underY);
+      ctx.lineTo(underEndX, underY);
+
+      if (ul.permanent) {
+        // 永続傍線：少し太め・やや濃い
+        ctx.strokeStyle = `rgba(58,55,50,${alpha * 0.65})`;
+        ctx.lineWidth = 1.2;
+      } else {
+        // ホバー傍線：細く・淡い
+        ctx.strokeStyle = `rgba(58,55,50,${alpha * 0.45})`;
+        ctx.lineWidth = 0.9;
+      }
+      ctx.stroke();
+
+      // 傍線の左端（マージン内）にも短い縦線（折り目のような印）
+      if (progress > 0.1 && alpha > 0.2) {
+        const tickX = W * MARGIN_LEFT + 8;
+        ctx.beginPath();
+        ctx.moveTo(tickX, underY - 4);
+        ctx.lineTo(tickX, underY + 1);
+        ctx.strokeStyle = `rgba(58,55,50,${alpha * (ul.permanent ? 0.5 : 0.25)})`;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+resize();
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '234',
+  title:  'Marginalia',
+  detail: 'マウスを行の上に乗せると傍線が育ちます。クリックすると線が定着し、もう一度クリックすると消えます。テキストそのものは描かれていません。線だけが読んだ跡として残ります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
