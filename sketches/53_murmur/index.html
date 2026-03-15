@@ -113,15 +113,21 @@
         velocities[i].y += dy/dist * force;
         velocities[i].z += dz/dist * force;
 
-        // マウスへの弱い引力
+        // マウスへの応答（近すぎると逃げる、少し遠いと引き寄せられる）
         const mx = mouseWorld.x - px;
         const my = mouseWorld.y - py;
         const mz = mouseWorld.z - pz;
         const md = Math.sqrt(mx*mx + my*my + mz*mz) + 0.001;
-        if (md < 2.0) {
-          velocities[i].x += mx/md * 0.0003;
-          velocities[i].y += my/md * 0.0003;
-          velocities[i].z += mz/md * 0.0003;
+        if (md < 0.8) {
+          // 近すぎ→逃げる（群れが散る瞬間）
+          velocities[i].x -= mx/md * 0.004;
+          velocities[i].y -= my/md * 0.004;
+          velocities[i].z -= mz/md * 0.004;
+        } else if (md < 2.5) {
+          // 少し遠い→引き寄せられる
+          velocities[i].x += mx/md * 0.0008;
+          velocities[i].y += my/md * 0.0008;
+          velocities[i].z += mz/md * 0.0008;
         }
 
         // 個別のノイズ（漂い）
@@ -160,7 +166,7 @@
   window.SKETCH_META = {
     num:   '53',
     title: 'Murmur',
-    desc:  '300個の点が、ひとつの球になろうとしている。近づくと少しだけ引き寄せる。椋鳥の群れを思った。'
+    desc:  '300個の点が、ひとつの球になろうとしている。近づきすぎると散らばる。少し遠いと引き寄せられる。群れはそうやって形を保っている。'
   };
   </script>
   <script src="../../js/sketch-ui.js"></script>

@@ -24,7 +24,7 @@
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 0, 5);
+    camera.position.set(0, 0.5, 5);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -104,10 +104,20 @@
         edgePos.needsUpdate = true;
       }
 
-      // ゆるやかな傾き
-      mesh.rotation.x = -0.4 + mouse.y * 0.15;
-      mesh.rotation.y = mouse.x * 0.2;
-      mesh.rotation.z = Math.sin(time * 0.1) * 0.05;
+      // カメラを布の周りをゆるやかに周回させ、側面からの薄さも見せる
+      const camAngle = time * 0.08;
+      const camRadius = 5;
+      const camElevation = 0.3 + mouse.y * 0.5;
+      camera.position.set(
+        Math.sin(camAngle) * camRadius,
+        camElevation,
+        Math.cos(camAngle) * camRadius
+      );
+      camera.lookAt(0, 0, 0);
+
+      // マウスで布の傾きも変わる
+      mesh.rotation.x = -0.3 + mouse.y * 0.1;
+      mesh.rotation.z = Math.sin(time * 0.1) * 0.04;
 
       renderer.render(scene, camera);
     }
@@ -124,7 +134,7 @@
   window.SKETCH_META = {
     num:   '52',
     title: 'Veil',
-    desc:  '格子を波打たせたら、薄い布みたいになった。触ると面が傾く。風が当たっているわけではない。'
+    desc:  '格子を波打たせたら、薄い布みたいになった。カメラが布の周りをゆっくり回る。側面から見ると、ほとんど線だった。'
   };
   </script>
   <script src="../../js/sketch-ui.js"></script>

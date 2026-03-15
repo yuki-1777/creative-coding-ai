@@ -33,27 +33,28 @@
     document.body.appendChild(renderer.domElement);
 
     // 複数の球殻（ワイヤーフレーム）
-    const NUM_SPHERES = 5;
+    const NUM_SPHERES = 6;
     const spheres = [];
 
     for (let i = 0; i < NUM_SPHERES; i++) {
-      const r = 0.5 + i * 0.35;
-      const segments = 8 + i * 2;
+      const r = 0.4 + i * 0.32;
+      const segments = 7 + i * 2;
       const geo = new THREE.SphereGeometry(r, segments, Math.floor(segments * 0.6));
       const edges = new THREE.EdgesGeometry(geo);
-      const isAccent = i === 2; // 中間の球だけアクセント
+      const isAccent = i === 2; // 内から3番目だけアクセント
       const mat = new THREE.LineBasicMaterial({
         color: isAccent ? 0x8A7060 : 0x2A2826,
         transparent: true,
-        opacity: 0.15 + (NUM_SPHERES - i) * 0.07,
+        opacity: 0.35 - i * 0.04, // 内側ほど濃く
       });
       const sphere = new THREE.LineSegments(edges, mat);
       scene.add(sphere);
       spheres.push({
         mesh: sphere,
         baseRadius: r,
+        // 内側ほど位相が進んでいる → 波が内から外へ伝わる
         phaseOffset: (i / NUM_SPHERES) * Math.PI * 2,
-        rotSpeed: 0.003 + i * 0.002,
+        rotSpeed: 0.005 - i * 0.0005, // 内側ほど速く回る
       });
     }
 
@@ -71,14 +72,14 @@
       time += 0.008;
 
       spheres.forEach((s, i) => {
-        // 呼吸（位相をずらして膨縮）
-        const breathe = Math.sin(time * 0.6 + s.phaseOffset) * 0.06;
+        // 呼吸（内側から波が外へ伝わる感じ。振幅も大きく）
+        const breathe = Math.sin(time * 0.8 + s.phaseOffset) * 0.12;
         const scale = 1 + breathe;
         s.mesh.scale.setScalar(scale);
 
-        // ゆっくり自転（各層で速さが違う）
-        s.mesh.rotation.y += s.rotSpeed * (1 + mouse.x * 0.3);
-        s.mesh.rotation.x += s.rotSpeed * 0.5 * (1 + mouse.y * 0.3);
+        // ゆっくり自転（内側ほど速い）
+        s.mesh.rotation.y += s.rotSpeed * (1 + mouse.x * 0.5);
+        s.mesh.rotation.x += s.rotSpeed * 0.6 * (1 + mouse.y * 0.4);
       });
 
       renderer.render(scene, camera);
@@ -96,7 +97,7 @@
   window.SKETCH_META = {
     num:   '55',
     title: 'Breath Sphere',
-    desc:  '5層の球が、少しずつ位相をずらして膨縮している。中心から外へ、波が伝わっているみたいだった。'
+    desc:  '6層の球殻が、内側から順番に膨らむ。波が核から外へ伝わっていく。'
   };
   </script>
   <script src="../../js/sketch-ui.js"></script>

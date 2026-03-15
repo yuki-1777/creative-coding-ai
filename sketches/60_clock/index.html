@@ -67,20 +67,20 @@
       scene.add(new THREE.Line(g, m));
     }
 
-    // 針（時・分・秒）
-    function makeHand(length, width, color, opacity) {
+    // 針（時・分・秒）— z方向に少しオフセットして重なりを明確に
+    function makeHand(length, color, opacity, zOffset) {
       const pts = [
-        new THREE.Vector3(0, -length * 0.15, 0.01),
-        new THREE.Vector3(0, length, 0.01),
+        new THREE.Vector3(0, -length * 0.15, zOffset),
+        new THREE.Vector3(0, length, zOffset),
       ];
       const g = new THREE.BufferGeometry().setFromPoints(pts);
       const m = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
       return new THREE.Line(g, m);
     }
 
-    const hourHand = makeHand(1.1, 0x2A2826, 0.8);
-    const minuteHand = makeHand(1.55, 0x2A2826, 0.7);
-    const secondHand = makeHand(1.8, 0x8A7055, 0.85); // アクセントカラー
+    const hourHand = makeHand(1.1, 0x2A2826, 0.8, 0.01);
+    const minuteHand = makeHand(1.55, 0x2A2826, 0.7, 0.02);
+    const secondHand = makeHand(1.8, 0x8A7055, 0.85, 0.03); // アクセントカラー（最前面）
 
     scene.add(hourHand);
     scene.add(minuteHand);
@@ -145,9 +145,9 @@
       trailGeo.attributes.position.needsUpdate = true;
       trailGeo.setDrawRange(0, trailCount);
 
-      // マウスで傾き
-      scene.rotation.x = mouse.y * 0.15;
-      scene.rotation.y = mouse.x * 0.15;
+      // 常時わずかに傾けて3D感を出す。マウスでさらに傾く
+      scene.rotation.x = -0.12 + mouse.y * 0.25;
+      scene.rotation.y = 0.08 + mouse.x * 0.25;
 
       renderer.render(scene, camera);
     }
@@ -164,7 +164,7 @@
   window.SKETCH_META = {
     num:   '60',
     title: 'Clock',
-    desc:  '実際の時刻で動いている。秒針が通った場所に跡が残る。時計を描くのに手は要らなかった。'
+    desc:  '実際の時刻で動いている。少し傾いている。秒針が通った場所に跡が残る。'
   };
   </script>
   <script src="../../js/sketch-ui.js"></script>

@@ -91,18 +91,20 @@
 
         for (let i = 0; i < POINTS_PER_THREAD; i++) {
           const s = i / (POINTS_PER_THREAD - 1); // 0→1
-          // らせん軌道
-          const angle = phaseOffset + s * Math.PI * 6 + t2;
-          const r = radiusOffset * (0.3 + s * 0.7);
+          // らせん軌道（ピッチを糸ごとに変える）
+          const pitchMult = 4 + speedMult * 3;
+          const angle = phaseOffset + s * Math.PI * pitchMult + t2;
+          const r = radiusOffset * (0.2 + s * 0.8);
           const x = Math.cos(angle) * r;
           const y = Math.sin(angle) * r * Math.cos(tiltAngle);
           const z = Math.sin(angle) * r * Math.sin(tiltAngle)
-                  + s * 0.5 - 0.25
-                  + Math.sin(t2 * 0.5 + phaseOffset) * 0.1;
+                  + (s - 0.5) * 1.2
+                  + Math.sin(t2 * 0.4 + phaseOffset) * 0.2;
 
-          // ノイズで揺れを加える
-          const drift = Math.sin(t2 * 0.3 + s * 4 + phaseOffset) * 0.04;
-          pos.setXYZ(i, x + drift, y + drift * 0.5, z);
+          // 糸ごとに異なる揺れ（より個性的に）
+          const drift = Math.sin(t2 * 0.5 + s * 5 + phaseOffset) * 0.08;
+          const driftZ = Math.cos(t2 * 0.3 + s * 3 + phaseOffset * 1.5) * 0.06;
+          pos.setXYZ(i, x + drift, y + drift * 0.7, z + driftZ);
         }
         pos.needsUpdate = true;
         geo.computeBoundingSphere();

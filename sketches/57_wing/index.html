@@ -120,16 +120,64 @@
       mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
     });
 
+    // 流線（翼の後ろに流れる空気の跡）
+    const NUM_STREAMLINES = 8;
+    const STREAM_LEN = 30;
+    const streamGroup = new THREE.Group();
+    scene.add(streamGroup);
+    const streamLines = [];
+
+    for (let si = 0; si < NUM_STREAMLINES; si++) {
+      const pts = Array.from({ length: STREAM_LEN }, () => new THREE.Vector3());
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = new THREE.LineBasicMaterial({
+        color: 0x2A2826,
+        transparent: true,
+        opacity: 0.12,
+      });
+      const line = new THREE.Line(geo, mat);
+      streamGroup.add(line);
+      streamLines.push({
+        geo, pts,
+        startY: -0.3 + (si / (NUM_STREAMLINES - 1)) * 0.6,
+        phase: (si / NUM_STREAMLINES) * Math.PI * 2,
+      });
+    }
+
     let time = 0;
+    let currentAoA = 0; // 現在の迎角
 
     function animate() {
       requestAnimationFrame(animate);
       time += 0.005;
 
-      // ゆっくりと迎角を変化させる
-      wingGroup.rotation.z = Math.sin(time * 0.4) * 0.12;
-      wingGroup.rotation.y = mouse.x * 0.6;
-      wingGroup.rotation.x = mouse.y * 0.3 + 0.2;
+      // マウスYで迎角をリアルタイム制御（-20〜+20度）
+      const targetAoA = mouse.y * 0.35;
+      currentAoA += (targetAoA - currentAoA) * 0.05;
+
+      wingGroup.rotation.z = currentAoA;
+      wingGroup.rotation.y = mouse.x * 0.5;
+      wingGroup.rotation.x = 0.15;
+
+      // 流線（翼後方に漂う空気の流れ感）
+      streamLines.forEach(sl => {
+        const pos = sl.geo.attributes.position;
+        for (let i = 0; i < STREAM_LEN; i++) {
+          const t = i / STREAM_LEN;
+          const x = 0.5 + t * 2.5; // 翼後方から右へ
+          const deflect = Math.sin(time * 1.2 + sl.phase + t * 3) * 0.04 * (1 - t);
+          // 迎角に応じて流線が曲がる
+          const wakeDeflect = currentAoA * t * 0.3;
+          const y = sl.startY + deflect + wakeDeflect;
+          const z = (Math.random() - 0.5) * 0.001; // ほぼ平坦
+          pos.setXYZ(i, x, y, 0);
+        }
+        pos.needsUpdate = true;
+        sl.geo.computeBoundingSphere();
+      });
+
+      // 流線は翼と同じ回転を共有
+      streamGroup.rotation.copy(wingGroup.rotation);
 
       renderer.render(scene, camera);
     }
@@ -146,7 +194,7 @@
   window.SKETCH_META = {
     num:   '57',
     title: 'Wing',
-    desc:  '翼型断面を20枚並べた。マウスで角度を変えると、断面が風を受け始める気がした。'
+    desc:  '翼型断面を20枚並べた。マウスで迎角を変えると、後ろに流れが現れる。風は見えないはずなのに。'
   };
   </script>
   <script src="../../js/sketch-ui.js"></script>

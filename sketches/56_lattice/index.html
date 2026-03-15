@@ -106,13 +106,15 @@
     function noise3(x, y, z, t) {
       return Math.sin(x * 1.2 + t * 0.7)
            * Math.cos(y * 0.9 + t * 0.5)
-           * Math.sin(z * 1.0 + t * 0.8)
-           * 0.12;
+           * Math.sin(z * 1.0 + t * 0.8);
     }
 
     function animate() {
       requestAnimationFrame(animate);
       time += 0.006;
+
+      // ノイズ振幅がゆっくり呼吸する（秩序↔揺らぎ）
+      const breathAmp = 0.07 + Math.sin(time * 0.25) * 0.07;
 
       const pos = geo.attributes.position;
       const dpos = dotGeo.attributes.position;
@@ -125,9 +127,9 @@
             const by = basePositions[vi * 3 + 1];
             const bz = basePositions[vi * 3 + 2];
 
-            const dx = noise3(bx, by, bz, time);
-            const dy = noise3(by, bz, bx, time + 1.1);
-            const dz = noise3(bz, bx, by, time + 2.2);
+            const dx = noise3(bx, by, bz, time) * breathAmp;
+            const dy = noise3(by, bz, bx, time + 1.1) * breathAmp;
+            const dz = noise3(bz, bx, by, time + 2.2) * breathAmp;
 
             pos.setXYZ(vi, bx + dx, by + dy, bz + dz);
             dpos.setXYZ(vi, bx + dx, by + dy, bz + dz);
@@ -159,7 +161,7 @@
   window.SKETCH_META = {
     num:   '56',
     title: 'Lattice',
-    desc:  '10×10×10の格子にノイズを通した。整然としていたものが、少しだけ息をし始めた。'
+    desc:  '10×10×10の格子にノイズを通した。揺らぎ自体もゆっくり呼吸している。秩序が乱れて、また戻る。'
   };
   </script>
   <script src="../../js/sketch-ui.js"></script>

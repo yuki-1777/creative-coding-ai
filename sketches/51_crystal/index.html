@@ -110,35 +110,78 @@
 
     let time = 0;
     let growStep = 0;
-    const GROW_INTERVAL = 4; // フレームごとに1枝成長
+    const GROW_INTERVAL = 3; // フレームごとに1枝成長
+    let phase = 'growing'; // growing → holding → fading → reset
+    let holdTimer = 0;
+    let fadeTimer = 0;
+
+    function resetCrystal() {
+      // 古い線を全削除
+      lines.forEach(l => {
+        scene.remove(l);
+        l.geometry.dispose();
+        l.material.dispose();
+      });
+      lines.length = 0;
+      branches.length = 0;
+
+      // 初期枝を再設置
+      HEX_DIRS_3D.forEach((dir, i) => {
+        branches.push({
+          pos: new THREE.Vector3(0, 0, 0),
+          dir: dir.clone(),
+          depth: 7,
+          isAccent: i === 0
+        });
+      });
+      branches.push({ pos: new THREE.Vector3(0,0,0), dir: new THREE.Vector3(0,0,1), depth: 5, isAccent: false });
+      branches.push({ pos: new THREE.Vector3(0,0,0), dir: new THREE.Vector3(0,0,-1), depth: 5, isAccent: false });
+
+      phase = 'growing';
+      holdTimer = 0;
+      fadeTimer = 0;
+    }
 
     function animate() {
       requestAnimationFrame(animate);
       time += 0.005;
 
-      // ゆっくり成長
-      growStep++;
-      if (growStep % GROW_INTERVAL === 0 && branches.length > 0) {
-        const idx = Math.floor(Math.random() * branches.length);
-        const b = branches.splice(idx, 1)[0];
-        if (b.depth > 0) {
-          addBranch(b.pos, b.dir, b.depth, b.isAccent);
+      if (phase === 'growing') {
+        growStep++;
+        if (growStep % GROW_INTERVAL === 0 && branches.length > 0) {
+          // 複数枝を一度に成長させて速度感を出す
+          const batchSize = Math.min(3, branches.length);
+          for (let b = 0; b < batchSize; b++) {
+            const idx = Math.floor(Math.random() * branches.length);
+            const br = branches.splice(idx, 1)[0];
+            if (br.depth > 0) {
+              addBranch(br.pos, br.dir, br.depth, br.isAccent);
+            }
+          }
+        }
+        // 成長完了 → 保持フェーズへ
+        if (branches.length === 0) {
+          phase = 'holding';
+          holdTimer = 0;
+        }
+      } else if (phase === 'holding') {
+        holdTimer++;
+        if (holdTimer > 180) { // 3秒保持
+          phase = 'fading';
+          fadeTimer = 0;
+        }
+      } else if (phase === 'fading') {
+        fadeTimer++;
+        const fadeRatio = 1 - fadeTimer / 80;
+        lines.forEach(l => { l.material.opacity = l.material.opacity * 0.97; });
+        if (fadeTimer > 80) {
+          resetCrystal();
         }
       }
 
       // 全体をゆっくり回転（マウスで傾き）
-      scene.rotation.y = time * 0.08 + mouse.x * 0.3;
+      scene.rotation.y = time * 0.06 + mouse.x * 0.3;
       scene.rotation.x = mouse.y * 0.2;
-
-      // ラインが多くなりすぎたら古いものを削除
-      if (lines.length > 600) {
-        const old = lines.splice(0, 10);
-        old.forEach(l => {
-          scene.remove(l);
-          l.geometry.dispose();
-          l.material.dispose();
-        });
-      }
 
       renderer.render(scene, camera);
     }
