@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>210 – Dew</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f3ef; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// ============================================================
+//  210 – Dew
+//  朝露——表面に丸く乗った水滴をGLSLで描く
+//  マウスで揺らす
+//  制約：円のみ（グラデーション禁止、フレネル反射のみで光を表現）
+// ============================================================
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_time;
+uniform vec2  u_mouse;
+uniform float u_seed;
+
+float hash(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7) + u_seed * 0.1);
+  p += dot(p, p + 17.5);
+  return fract(p.x * p.y);
+}
+
+float hash1(float n) {
+  return fract(sin(n * 127.1 + u_seed) * 43758.5453);
+}
+
+// 水滴1個を描く
+// center: 水滴の中心、radius: 半径、phaseOffset: 揺れの位相
+float droplet(vec2 uv, vec2 center, float radius, float phaseOff) {
+  // マウスの動きで揺れる
+  float mouseInfluence = length(u_mouse - center) * 2.0;
+  float shake = sin(u_time * 4.0 + phaseOff) * exp(-mouseInfluence * 1.5) * 0.012;
+  vec2 shakeOffset = vec2(
+    sin(u_time * 3.1 + phaseOff * 1.7) * shake,
+    cos(u_time * 2.7 + phaseOff * 2.3) * shake * 0.5
+  );
+
+  vec2 diff = uv - (center + shakeOffset);
+  float dist = length(diff);
+
+  // 水滴の形（少し縦長の楕円）
+  float ellipseDist = length(diff * vec2(1.0, 0.9));
+
+  // 水滴の本体
+  float body = smoothstep(radius, radius * 0.92, ellipseDist);
+
+  // 縁の輪（表面張力で盛り上がった縁）
+  float rimDist = abs(ellipseDist - radius * 0.96);
+  float rim = smoothstep(radius * 0.04, 0.0, rimDist) * 0.7;
+
+  // ハイライト（左上の白い点——フレネル反射の近似）
+  vec2 hlOffset = vec2(-radius * 0.3, radius * 0.3);
+  float hlDist = length(diff - hlOffset);
+  float highlight = smoothstep(radius * 0.22, radius * 0.08, hlDist) * 0.6;
+
+  // 水滴の影（下部に少し暗い部分）
+  float shadowY = diff.y / radius;  // -1〜1
+  float shadowGrad = shadowY * 0.15;  // 上が明るく、下が暗い
+
+  // 内部の透明感（中心より縁が少し暗い）
+  float innerEdge = smoothstep(0.0, radius, ellipseDist);
+
+  float result = body * (0.12 + innerEdge * 0.08 + shadowGrad * 0.05);
+  result += rim;
+  result -= highlight * body;  // ハイライト部分は背景が透けて明るい
+
+  return result;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  float aspect = u_res.x / u_res.y;
+
+  float totalDarkness = 0.0;
+  float totalHighlight = 0.0;
+
+  // 約50個の水滴（グリッドにランダムに配置）
+  // タイルベースで各セルに1つ
+  float cellCols = 9.0;
+  float cellRows = 7.0;
+
+  for (int row = 0; row < 7; row++) {
+    for (int col = 0; col < 9; col++) {
+      float rf = float(row);
+      float cf = float(col);
+      float cellSeed = rf * cellCols + cf;
+
+      // セル内のランダム位置
+      float cx = (cf + 0.2 + hash1(cellSeed * 3.1) * 0.6) / cellCols;
+      float cy = (rf + 0.2 + hash1(cellSeed * 7.3) * 0.6) / cellRows;
+
+      // 水滴のサイズ（不均一）
+      float r = (0.018 + hash1(cellSeed * 5.7) * 0.025) / aspect;
+      float ry = r * aspect;
+
+      // 水滴を描く
+      vec2 center = vec2(cx, cy);
+      float d = droplet(uv * vec2(1.0, 1.0), center, r * aspect * 0.7, cellSeed);
+
+      totalDarkness = max(totalDarkness, clamp(d, 0.0, 1.0));
+    }
+  }
+
+  // カラー：水滴の縁をはっきり見せる
+  vec3 bg     = vec3(0.961, 0.953, 0.941);
+  vec3 rimCol = vec3(0.40, 0.38, 0.36);
+
+  vec3 col = mix(bg, rimCol, totalDarkness * 1.1);
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+function createProgram(vs, fs) {
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(prog));
+  }
+  return prog;
+}
+
+const prog = createProgram(VS, FS);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'u_res');
+const uTime  = gl.getUniformLocation(prog, 'u_time');
+const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+const uSeed  = gl.getUniformLocation(prog, 'u_seed');
+
+const startTime = performance.now();
+let mouse = [0.5, 0.5];
+let seed = Math.random() * 100.0;
+
+canvas.addEventListener('mousemove', (e) => {
+  mouse[0] = e.clientX / canvas.width;
+  mouse[1] = 1.0 - e.clientY / canvas.height;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  mouse[0] = e.touches[0].clientX / canvas.width;
+  mouse[1] = 1.0 - e.touches[0].clientY / canvas.height;
+}, { passive: false });
+
+canvas.addEventListener('click', () => {
+  seed = Math.random() * 100.0;
+});
+
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse[0], mouse[1]);
+  gl.uniform1f(uSeed, seed);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '210',
+  title:  'Dew',
+  detail: 'マウスを近づけると水滴が揺れる。朝露は葉の上に丸く乗っている——表面張力のせいで丸くなり、光は縁に集まる。円だけで作った。縁の輪と、左上の小さなハイライトが水らしさを出している。クリックで配置が変わる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
