@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>161 — Noise Field</title>
+  <meta name="description" content="ノイズが流れている。マウスで流れが歪む。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="161 — Noise Field | Creative Coding">
+  <meta property="og:description" content="ノイズが流れている。マウスで流れが歪む。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/161_noise_field/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_161.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="161 — Noise Field | Creative Coding">
+  <meta name="twitter:description" content="ノイズが流れている。マウスで流れが歪む。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_161.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Noise Field: GLSL fragment shader with 2D value noise.
+// The noise is used to distort a distance-field, creating flow-like contour lines.
+// Mouse position shifts the origin of the noise, distorting the field.
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+if (!gl) throw new Error('no webgl');
+
+let W = window.innerWidth, H = window.innerHeight;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  gl.viewport(0, 0, W, H);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const vsSource = `
+  attribute vec2 a_pos;
+  void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+`;
+
+const fsSource = `
+  precision highp float;
+
+  uniform vec2  u_resolution;
+  uniform float u_time;
+  uniform vec2  u_mouse; // normalized 0..1
+
+  // 2D hash / value noise
+  float hash(vec2 p) {
+    p = fract(p * vec2(127.1, 311.7));
+    p += dot(p, p + 19.19);
+    return fract(p.x * p.y);
+  }
+
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f); // smoothstep
+    return mix(
+      mix(hash(i),          hash(i + vec2(1,0)), u.x),
+      mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), u.x),
+      u.y
+    );
+  }
+
+  // Fractional Brownian Motion (fBm)
+  float fbm(vec2 p) {
+    float val = 0.0;
+    float amp = 0.5;
+    float freq = 1.0;
+    for (int i = 0; i < 5; i++) {
+      val  += noise(p * freq) * amp;
+      freq *= 2.1;
+      amp  *= 0.48;
+    }
+    return val;
+  }
+
+  void main() {
+    vec2 uv = gl_FragCoord.xy / u_resolution;
+    // Aspect correct
+    uv.x *= u_resolution.x / u_resolution.y;
+
+    // Slow drift
+    vec2 q = uv * 3.0 + vec2(u_time * 0.12);
+
+    // Mouse displacement — warps the field
+    vec2 toMouse = uv - u_mouse * vec2(u_resolution.x / u_resolution.y, 1.0);
+    float mdist  = length(toMouse);
+    vec2  warp   = (toMouse / (mdist + 0.01)) * 0.3 * exp(-mdist * 2.5);
+    q += warp;
+
+    float f = fbm(q + fbm(q + fbm(q)));
+
+    // Map fbm to grayscale — contour-band look
+    // Create thin bands using fract
+    float bands = fract(f * 6.0);
+    float edge  = smoothstep(0.0, 0.08, bands) * smoothstep(1.0, 0.92, bands);
+
+    // Warm off-white base with dark lines
+    float base = 0.961;
+    float v    = base - (1.0 - edge) * 0.22;
+    v = clamp(v, 0.72, 1.0);
+
+    vec3 color = vec3(v, v * 0.993, v * 0.977);
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+    return null;
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vsSource));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fsSource));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+  console.error(gl.getProgramInfoLog(prog));
+  throw new Error('link failed');
+}
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'u_resolution');
+const uTime  = gl.getUniformLocation(prog, 'u_time');
+const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+const start = performance.now();
+let mouseNorm = { x: 0.5, y: 0.5 };
+
+canvas.addEventListener('mousemove', (e) => {
+  mouseNorm.x = e.clientX / W;
+  mouseNorm.y = 1.0 - e.clientY / H;
+});
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  mouseNorm.x = e.touches[0].clientX / W;
+  mouseNorm.y = 1.0 - e.touches[0].clientY / H;
+}, { passive: false });
+
+function render() {
+  requestAnimationFrame(render);
+  const t = (performance.now() - start) / 1000;
+  gl.uniform2f(uRes, W, H);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouseNorm.x, mouseNorm.y);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '161',
+  title:  'Noise Field',
+  detail: 'ランダムな地形のような等高線が、ゆっくり流れている。マウスを動かすと近くの線が歪む。何層もの波を重ねたノイズ関数（fBm）をシェーダーで計算している。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1438,5 +1438,14 @@
     "path": "sketches/160_cloth/",
     "description": "上端だけが固定された格子状の布が、重力でゆっくり垂れる。マウスを近づけると布が押しのけられる。",
     "thumb": "img/thumb_160.png"
+  },
+  {
+    "num": "161",
+    "title": "Noise Field",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/161_noise_field/",
+    "description": "ランダムな等高線がゆっくり流れている。マウスを動かすと近くの線が歪む。何層もの波を重ねたノイズで全ピクセルを計算している。",
+    "thumb": "img/thumb_161.png"
   }
 ]
