@@ -2644,5 +2644,14 @@
     "path": "sketches/294_weld/",
     "description": "トーチを走らせたら、短い線の束が飛び散った。跡だけが残る。",
     "thumb": "img/thumb_294.png"
+  },
+  {
+    "num": "295",
+    "title": "Register",
+    "tech": "canvas",
+    "date": "2026-03-16",
+    "path": "sketches/295_register/",
+    "description": "二枚の版をわずかにずらした。同じ図形が二重に見えて、ずれていることだけがわかった。",
+    "thumb": "img/thumb_295.png"
   }
 ]

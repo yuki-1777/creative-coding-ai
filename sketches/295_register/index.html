@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe3; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; cursor: ns-resize; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Register misalignment state ───────────────────────────────────────────
+// Two "plates" overlay each other. Scroll shifts the misalignment amount.
+// 0 = perfectly registered (prints clean)
+// max = maximum misregistration (ghosted double-image)
+
+let misregister = 14;      // start with some misalignment visible
+let targetMisreg = 14;     // scroll target
+const MAX_MISREG = 28;     // pixels
+
+// Scroll accumulator
+window.addEventListener('wheel', e => {
+  e.preventDefault();
+  targetMisreg += e.deltaY * 0.04;
+  targetMisreg = Math.max(-MAX_MISREG, Math.min(MAX_MISREG, targetMisreg));
+}, { passive: false });
+
+// Touch support
+let lastTouchY = null;
+window.addEventListener('touchstart', e => { lastTouchY = e.touches[0].clientY; }, { passive: true });
+window.addEventListener('touchmove', e => {
+  if (lastTouchY === null) return;
+  const dy = lastTouchY - e.touches[0].clientY;
+  lastTouchY = e.touches[0].clientY;
+  targetMisreg += dy * 0.12;
+  targetMisreg = Math.max(-MAX_MISREG, Math.min(MAX_MISREG, targetMisreg));
+}, { passive: true });
+
+// ── Layout: a grid of geometric "type blocks" ─────────────────────────────
+// Each block is a simple geometric form (rectangle, circle, cross)
+// arranged in a regular grid — like a page of type.
+
+function buildLayout() {
+  const COLS = 7;
+  const ROWS = 5;
+  const cellW = W * 0.72 / COLS;
+  const cellH = H * 0.68 / ROWS;
+  const startX = W * 0.14;
+  const startY = H * 0.16;
+
+  const shapes = [];
+
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const cx = startX + (col + 0.5) * cellW;
+      const cy = startY + (row + 0.5) * cellH;
+      const size = Math.min(cellW, cellH) * 0.42;
+      // Deterministic shape type based on position
+      const code = (row * COLS + col) % 5;
+      shapes.push({ cx, cy, size, code });
+    }
+  }
+  return shapes;
+}
+
+// ── Draw a single shape ───────────────────────────────────────────────────
+function drawShape(cx, cy, size, code, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = 'rgba(48,44,38,1)';
+  ctx.lineWidth   = 1.2;
+  ctx.fillStyle   = 'rgba(48,44,38,1)';
+
+  switch (code) {
+    case 0: // Filled square
+      ctx.fillRect(cx - size * 0.5, cy - size * 0.5, size, size);
+      break;
+    case 1: // Circle outline
+      ctx.beginPath();
+      ctx.arc(cx, cy, size * 0.5, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    case 2: // Cross (+ shape)
+      ctx.lineWidth = size * 0.18;
+      ctx.lineCap = 'square';
+      ctx.beginPath();
+      ctx.moveTo(cx - size * 0.5, cy);
+      ctx.lineTo(cx + size * 0.5, cy);
+      ctx.moveTo(cx, cy - size * 0.5);
+      ctx.lineTo(cx, cy + size * 0.5);
+      ctx.stroke();
+      break;
+    case 3: // Small filled square
+      const s3 = size * 0.65;
+      ctx.fillRect(cx - s3 * 0.5, cy - s3 * 0.5, s3, s3);
+      break;
+    case 4: // Horizontal dash — em rule
+      ctx.lineWidth = size * 0.14;
+      ctx.lineCap = 'square';
+      ctx.beginPath();
+      ctx.moveTo(cx - size * 0.5, cy);
+      ctx.lineTo(cx + size * 0.5, cy);
+      ctx.stroke();
+      break;
+  }
+  ctx.restore();
+}
+
+// ── Draw a full "plate" pass ───────────────────────────────────────────────
+function drawPlate(shapes, offsetX, offsetY, alpha) {
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  for (const s of shapes) {
+    drawShape(s.cx, s.cy, s.size, s.code, alpha);
+  }
+  ctx.restore();
+}
+
+// ── Register marks (crop/trim marks) ─────────────────────────────────────
+// Small crosshairs in corners — used in real printing for alignment
+function drawRegisterMarks(offsetX, offsetY, alpha) {
+  const mx = W * 0.10;
+  const my = H * 0.10;
+  const r  = 10;
+  const corners = [
+    [mx, my], [W - mx, my], [mx, H - my], [W - mx, H - my]
+  ];
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.globalAlpha = alpha * 0.55;
+  ctx.strokeStyle = 'rgba(48,44,38,1)';
+  ctx.lineWidth   = 0.8;
+  for (const [cx, cy] of corners) {
+    // Crosshair lines
+    ctx.beginPath();
+    ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
+    ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
+    ctx.stroke();
+    // Circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.5, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── Scroll hint ───────────────────────────────────────────────────────────
+function drawHint() {
+  ctx.save();
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = 'rgba(48,44,38,1)';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('scroll to misregister', W * 0.5, H - 24);
+  ctx.restore();
+}
+
+// ── Main loop ─────────────────────────────────────────────────────────────
+let shapes = null;
+let lastW = 0, lastH = 0;
+
+function draw() {
+  // Animate misregister toward target
+  misregister += (targetMisreg - misregister) * 0.07;
+
+  // Rebuild layout on resize
+  if (W !== lastW || H !== lastH) {
+    shapes = buildLayout();
+    lastW = W; lastH = H;
+  }
+
+  ctx.fillStyle = '#eeebe3';
+  ctx.fillRect(0, 0, W, H);
+
+  // t: 0 = registered, 1 = max misalignment
+  const t = Math.abs(misregister) / MAX_MISREG;
+
+  // Plate offsets: second plate is shifted by misregister amount
+  // Direction: diagonal — simulates both X and Y plate slip
+  const shift = misregister;
+  const shiftX = shift * 0.70;
+  const shiftY = shift * 0.45;
+
+  // Alpha of ghost plate increases with misregistration
+  const ghostAlpha = t * 0.38;
+
+  // Main plate (always fully opaque)
+  drawPlate(shapes, 0, 0, 0.80);
+  drawRegisterMarks(0, 0, 0.80);
+
+  // Ghost plate (offset, semi-transparent)
+  if (Math.abs(misregister) > 0.3) {
+    drawPlate(shapes, shiftX, shiftY, ghostAlpha);
+    drawRegisterMarks(shiftX, shiftY, ghostAlpha);
+  }
+
+  drawHint();
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '295',
+  title:  'Register',
+  detail: 'スクロールで版のズレを動かせる。活版印刷では複数の版を重ねて刷るが、少しでも位置がずれると同じ図形が二重に見える（見当ズレ）。ゼロに戻すと版がぴたりと合う。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
