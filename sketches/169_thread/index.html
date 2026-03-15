@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>169 – Vibrating String</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Thread — 169
+// 糸を張ろうとした。でも両端が揺れ続けている。
+// マウスX位置で張力（振動の速さ）が変わる。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// マウス追跡
+let mouseX = 0.5;
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX / window.innerWidth;
+});
+
+// -------------------------------------------------------
+// Shader sources
+// -------------------------------------------------------
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+uniform vec2  u_res;
+uniform float u_time;
+uniform float u_tension; // 0-1 マウスXから
+
+// 糸のSDF（振動する弦）
+// x: 0-1 の横位置に対する y 変位
+float stringY(float x, float t, float tension) {
+  // 基本モード + 高調波
+  float freq = 1.0 + tension * 5.0; // 張力で振動数が変わる
+  float amp  = 0.12 * (1.0 - tension * 0.6); // 張力が高いほど振れ幅が小さい
+
+  float y = 0.0;
+  // 第1モード
+  y += sin(3.14159 * x) * sin(freq * t + 0.0) * amp;
+  // 第2モード（少し弱め）
+  y += sin(3.14159 * 2.0 * x) * sin(freq * 2.1 * t + 1.1) * amp * 0.4;
+  // 第3モード
+  y += sin(3.14159 * 3.0 * x) * sin(freq * 3.3 * t + 2.2) * amp * 0.15;
+  return y;
+}
+
+// 端点の揺らぎ
+vec2 endpointWobble(float side, float t, float tension) {
+  float w = 0.03 * (1.0 - tension * 0.8);
+  float spd = 0.7 + tension * 0.5;
+  float ox = sin(t * spd * 1.3 + side * 5.7) * w;
+  float oy = sin(t * spd * 0.9 + side * 3.1) * w;
+  return vec2(ox, oy);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  float aspect = u_res.x / u_res.y;
+
+  vec3 base = vec3(0.941, 0.929, 0.910);
+  vec3 thread_col = vec3(0.32, 0.31, 0.30);
+  vec3 end_col = vec3(0.50, 0.35, 0.30); // 端点：少しテラコッタ
+
+  float t = u_time;
+  float tension = u_tension;
+
+  // 糸の両端（端点ごとに揺れている）
+  float margin = 0.15;
+  vec2 leftAnchor  = vec2(margin, 0.5) + endpointWobble(0.0, t, tension);
+  vec2 rightAnchor = vec2(1.0 - margin, 0.5) + endpointWobble(1.0, t, tension);
+
+  // 糸の描画：横方向に沿って距離を計算
+  float threadDist = 1e9;
+  float segCount = 120.0;
+  for(int i = 0; i < 120; i++) {
+    float x0 = float(i) / segCount;
+    float x1 = float(i + 1) / segCount;
+
+    // 糸のY位置（弦振動 + 端点オフセット補間）
+    float lerp0 = x0;
+    float lerp1 = x1;
+
+    vec2 p0 = mix(leftAnchor, rightAnchor, lerp0);
+    vec2 p1 = mix(leftAnchor, rightAnchor, lerp1);
+
+    // 弦振動を加える
+    p0.y += stringY(lerp0, t, tension);
+    p1.y += stringY(lerp1, t, tension);
+
+    // 現在のUVとセグメントの距離
+    vec2 q = vec2(uv.x, uv.y);
+    vec2 seg = p1 - p0;
+    float h = clamp(dot(q - p0, seg) / dot(seg, seg), 0.0, 1.0);
+    float d = length(q - p0 - h * seg);
+    // アスペクト補正
+    d *= (1.0 + (aspect - 1.0) * abs(seg.x) / (length(seg) + 0.001));
+    threadDist = min(threadDist, d);
+  }
+
+  float w = 0.0018;
+  float thread = smoothstep(w * 2.0, w * 0.5, threadDist);
+
+  // 端点の丸
+  vec2 leftScreen  = leftAnchor;
+  vec2 rightScreen = rightAnchor;
+  float r = 0.012;
+  float leftDot  = smoothstep(r, r * 0.3, length(uv - leftScreen));
+  float rightDot = smoothstep(r, r * 0.3, length(uv - rightScreen));
+
+  vec3 col = base;
+  col = mix(col, thread_col, thread * 0.85);
+  col = mix(col, end_col, (leftDot + rightDot) * 0.9);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+// -------------------------------------------------------
+// WebGL setup
+// -------------------------------------------------------
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const loc = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(loc);
+gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes     = gl.getUniformLocation(prog, 'u_res');
+const uTime    = gl.getUniformLocation(prog, 'u_time');
+const uTension = gl.getUniformLocation(prog, 'u_tension');
+
+// -------------------------------------------------------
+// Animation loop
+// -------------------------------------------------------
+const startTime = performance.now();
+
+function render() {
+  const t = (performance.now() - startTime) / 1000;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform1f(uTension, mouseX);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '169',
+  title:  'Vibrating String',
+  detail: '糸を張ろうとしています。でも両端が落ち着きません。マウスを左右に動かすと糸の張力が変わります。左側では糸が大きく揺れ、右側では小さく速く振動します。弦の振動を三つの倍音で計算しています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
