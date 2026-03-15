@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stamp</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ece4; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; cursor: crosshair; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', () => { resize(); });
+
+// Documents flowing across the screen
+const COLS = 4;
+const DOC_W = Math.min(160, window.innerWidth / 5);
+const DOC_H = DOC_W * 1.414; // A4 ratio
+
+const documents = [];
+const stamps = []; // stamp animations
+
+let stampAngle = 0;   // current stamp pattern variant
+
+// Stamp pattern types (0-5)
+function drawStampMark(ctx, cx, cy, radius, variant, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = '#8B3A3A';
+  ctx.fillStyle = 'rgba(139,58,58,0.15)';
+
+  const lineW = Math.max(1, radius * 0.06);
+  ctx.lineWidth = lineW;
+
+  // Outer ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Inner ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.7, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Fill the ring band
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.arc(cx, cy, radius * 0.7, 0, Math.PI * 2, true);
+  ctx.fill();
+
+  // Radial lines (based on variant)
+  const spokes = 6 + (variant % 4) * 2;
+  const angleOffset = (variant * Math.PI) / spokes;
+  for (let i = 0; i < spokes; i++) {
+    const a = angleOffset + (i / spokes) * Math.PI * 2;
+    const x1 = cx + Math.cos(a) * radius * 0.72;
+    const y1 = cy + Math.sin(a) * radius * 0.72;
+    const x2 = cx + Math.cos(a) * radius * 0.35;
+    const y2 = cy + Math.sin(a) * radius * 0.35;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.08, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(139,58,58,0.6)';
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// Document class
+class Document {
+  constructor(col) {
+    this.col = col;
+    const colW = W / COLS;
+    this.x = colW * col + colW / 2 - DOC_W / 2;
+    this.y = -DOC_H;
+    this.targetY = H * 0.2 + (Math.random() * 0.1) * H;
+    this.speed = 5 + Math.random() * 3;
+    this.arrived = false;
+    this.stamped = false;
+    this.stampAlpha = 0;
+    this.stampVariant = Math.floor(Math.random() * 6);
+    this.stampX = this.x + DOC_W * (0.35 + Math.random() * 0.3);
+    this.stampY = this.targetY + DOC_H * (0.3 + Math.random() * 0.3);
+    this.stampRadius = DOC_W * 0.22;
+    this.exitSpeed = 0;
+    this.exiting = false;
+    this.done = false;
+    // Lines on document (pre-compute positions for stable rendering)
+    const lineCount = Math.floor(8 + Math.random() * 6);
+    const lineSpacing = DOC_H / (lineCount + 2);
+    const lineIndent = DOC_W * 0.1;
+    this.docLines = [];
+    for (let i = 1; i <= lineCount; i++) {
+      const lineW = DOC_W * (0.5 + Math.random() * 0.3) * (i === 1 ? 0.7 : 1);
+      this.docLines.push({ offsetY: lineSpacing * i, w: lineW, indent: lineIndent });
+    }
+  }
+
+  update() {
+    if (this.exiting) {
+      this.exitSpeed += 0.15;
+      this.y += this.exitSpeed;
+      if (this.y > H + DOC_H) this.done = true;
+      return;
+    }
+    if (!this.arrived) {
+      this.y += this.speed;
+      if (this.y >= this.targetY) {
+        this.y = this.targetY;
+        this.arrived = true;
+      }
+    }
+  }
+
+  drawDocFixed(ctx) {
+    ctx.save();
+    // Shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 4;
+    ctx.fillStyle = '#fafaf5';
+    ctx.beginPath();
+    ctx.rect(this.x, this.y, DOC_W, DOC_H);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+
+    // Document lines (stable pre-computed positions)
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+    ctx.lineWidth = 1;
+    for (const line of this.docLines) {
+      const lx = this.x + line.indent;
+      const ly = this.y + line.offsetY;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(lx + line.w, ly);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  draw(ctx) {
+    this.drawDocFixed(ctx);
+    if (this.stamped && this.stampAlpha > 0) {
+      drawStampMark(ctx,
+        this.stampX, this.stampY,
+        this.stampRadius, this.stampVariant,
+        this.stampAlpha
+      );
+    }
+  }
+
+  stamp() {
+    if (!this.arrived || this.stamped) return false;
+    this.stamped = true;
+    this.stampAlpha = 0.85;
+    return true;
+  }
+
+  exit() {
+    if (this.stamped && !this.exiting) {
+      this.exiting = true;
+      this.exitSpeed = -0.5; // briefly pause then fall
+      setTimeout(() => { this.exitSpeed = 2; }, 300);
+    }
+  }
+}
+
+// Stamp arm animation
+class StampAnim {
+  constructor(x, y, radius, variant) {
+    this.x = x;
+    this.y = y;
+    this.radius = radius;
+    this.variant = variant;
+    this.t = 0;
+    this.duration = 30;
+    this.done = false;
+  }
+
+  update() {
+    this.t++;
+    if (this.t >= this.duration) this.done = true;
+  }
+
+  draw(ctx) {
+    const progress = this.t / this.duration;
+    // Arm comes down (0→0.4), bounces (0.4→0.6), goes up (0.6→1)
+    let armY;
+    if (progress < 0.4) {
+      armY = this.y - this.radius * 1.5 * (1 - progress / 0.4);
+    } else if (progress < 0.6) {
+      armY = this.y - this.radius * 0.2 * Math.sin((progress - 0.4) / 0.2 * Math.PI);
+    } else {
+      armY = this.y - this.radius * 1.5 * ((progress - 0.6) / 0.4);
+    }
+
+    // Draw arm
+    ctx.save();
+    ctx.strokeStyle = '#5a5a5a';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(this.x, armY - this.radius * 1.2);
+    ctx.lineTo(this.x, armY);
+    ctx.stroke();
+
+    // Draw stamp body
+    ctx.fillStyle = '#6b4c4c';
+    ctx.beginPath();
+    ctx.rect(this.x - this.radius * 0.8, armY - this.radius * 0.5,
+             this.radius * 1.6, this.radius * 0.5);
+    ctx.fill();
+
+    // Ink pad flash at impact
+    if (progress > 0.35 && progress < 0.55) {
+      const impactAlpha = Math.sin((progress - 0.35) / 0.2 * Math.PI) * 0.4;
+      ctx.fillStyle = `rgba(139,58,58,${impactAlpha})`;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius * 1.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+}
+
+// Auto-spawn documents in each column
+function spawnDocument(col) {
+  documents.push(new Document(col));
+}
+
+// Spawn initial set
+const colOrder = [0, 1, 2, 3];
+colOrder.forEach((col, i) => {
+  setTimeout(() => spawnDocument(col), i * 800);
+});
+
+// Auto-stamp and dispatch arrived documents
+function autoProcess() {
+  for (const doc of documents) {
+    if (doc.arrived && !doc.stamped) {
+      doc.stamp();
+      const cx = doc.stampX;
+      const cy = doc.stampY;
+      stamps.push(new StampAnim(cx, cy, doc.stampRadius, doc.stampVariant));
+      setTimeout(() => doc.exit(), 1200);
+      break; // one at a time
+    }
+  }
+}
+
+// Respawn after document exits
+function checkRespawn() {
+  for (let col = 0; col < COLS; col++) {
+    const hasInCol = documents.some(d => d.col === col && !d.done);
+    if (!hasInCol) {
+      setTimeout(() => spawnDocument(col), Math.random() * 600 + 200);
+    }
+  }
+}
+
+// Click: manual stamp (stamp wherever mouse is)
+canvas.addEventListener('click', (e) => {
+  const mx = e.clientX;
+  const my = e.clientY;
+
+  // Find nearest arrived unstamped doc
+  let nearest = null;
+  let nearestDist = Infinity;
+  for (const doc of documents) {
+    if (!doc.arrived || doc.stamped) continue;
+    const cx = doc.x + DOC_W / 2;
+    const cy = doc.y + DOC_H / 2;
+    const dist = Math.hypot(mx - cx, my - cy);
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearest = doc;
+    }
+  }
+
+  if (nearest && nearestDist < DOC_W) {
+    nearest.stampX = Math.max(nearest.x + nearest.stampRadius,
+                     Math.min(mx, nearest.x + DOC_W - nearest.stampRadius));
+    nearest.stampY = Math.max(nearest.y + nearest.stampRadius,
+                     Math.min(my, nearest.y + DOC_H - nearest.stampRadius));
+    nearest.stamp();
+    stamps.push(new StampAnim(nearest.stampX, nearest.stampY, nearest.stampRadius, nearest.stampVariant));
+    setTimeout(() => nearest.exit(), 1000);
+  }
+});
+
+let frameCount = 0;
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Background texture
+  ctx.fillStyle = '#f0ece4';
+  ctx.fillRect(0, 0, W, H);
+
+  // Column dividers (subtle)
+  ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+  ctx.lineWidth = 1;
+  for (let c = 1; c < COLS; c++) {
+    const x = (W / COLS) * c;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+  }
+
+  // Remove done documents
+  for (let i = documents.length - 1; i >= 0; i--) {
+    if (documents[i].done) documents.splice(i, 1);
+  }
+  for (let i = stamps.length - 1; i >= 0; i--) {
+    if (stamps[i].done) stamps.splice(i, 1);
+  }
+
+  // Update and draw documents
+  for (const doc of documents) {
+    doc.update();
+    doc.draw(ctx);
+  }
+
+  // Update and draw stamp animations
+  for (const s of stamps) {
+    s.update();
+    s.draw(ctx);
+  }
+
+  // Auto-process every ~40 frames
+  frameCount++;
+  if (frameCount % 40 === 0) {
+    autoProcess();
+  }
+  if (frameCount % 80 === 0) {
+    checkRespawn();
+  }
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '259',
+  title:  'Stamp',
+  detail: '書類が上から流れてきて、通関スタンプが押される。クリックすると手動でスタンプを押せる。スタンプの模様は書類ごとに異なる。文字は使っていない。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
