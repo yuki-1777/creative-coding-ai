@@ -1213,5 +1213,41 @@
     "path": "sketches/134_haze/",
     "description": "霧の中の格子。近いものは見えて、遠いものは消える。境界はどこにもない。マウスで向きを変えられる。",
     "thumb": "img/thumb_134.png"
+  },
+  {
+    "num": "136",
+    "title": "Frequency",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/136_frequency/",
+    "description": "2本の横縞が重なって干渉している。時間が経つにつれて周波数がゆっくり変わり、縞の間隔が詰まったり広がったりする。マウスを上下に動かすと密度が変わる。",
+    "thumb": "img/thumb_136.png"
+  },
+  {
+    "num": "137",
+    "title": "Compass",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/137_compass/",
+    "description": "小さな針が、空間を埋めている。それぞれが磁場に従って向きを決める。マウスで磁極が動き、針の向きが変わる。もう一つの極が、ゆっくり円を描いている。",
+    "thumb": "img/thumb_137.png"
+  },
+  {
+    "num": "138",
+    "title": "Halation",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/138_halation/",
+    "description": "光が3つある。輪郭がノイズで歪んで、滲んでいる。マウスで主光源が動く。残り2つは、ゆっくり漂っている。暗い紙の上で光が滲む様子を、ただ見ている。",
+    "thumb": "img/thumb_138.png"
+  },
+  {
+    "num": "139",
+    "title": "Knit",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/139_knit/",
+    "description": "V字のループが交互に並んで、編み物みたいになった。ゆっくりずれていく。マウスを左右に動かすと目の細かさが変わる。",
+    "thumb": "img/thumb_139.png"
   }
 ]
