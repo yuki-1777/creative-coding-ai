@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>125 — Scatter</title>
+  <meta name="description" content="クリックすると点が飛び散る。重力でゆっくり落ちて、紙の端に積もる。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="125 — Scatter | Creative Coding">
+  <meta property="og:description" content="クリックすると点が飛び散る。重力でゆっくり落ちて、紙の端に積もる。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/125_scatter/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_125.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="125 — Scatter | Creative Coding">
+  <meta name="twitter:description" content="クリックすると点が飛び散る。重力でゆっくり落ちて、紙の端に積もる。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_125.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const GRAVITY = 0.12;
+const DAMPING = 0.55; // bounce damping
+const FRICTION = 0.88; // horizontal friction on ground
+const particles = [];
+
+class Particle {
+  constructor(x, y) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 6;
+    this.x = x;
+    this.y = y;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed - 2; // slight upward bias
+    this.r = 1.5 + Math.random() * 2.5;
+    this.alpha = 0.5 + Math.random() * 0.4;
+    this.settled = false;
+    this.bounces = 0;
+    this.maxBounces = Math.floor(Math.random() * 4) + 1;
+  }
+
+  update() {
+    if (this.settled) return;
+
+    this.vy += GRAVITY;
+    this.x += this.vx;
+    this.y += this.vy;
+
+    // Ground bounce
+    const ground = H - this.r;
+    if (this.y >= ground) {
+      this.y = ground;
+      this.vy *= -DAMPING;
+      this.vx *= FRICTION;
+      this.bounces++;
+      if (this.bounces >= this.maxBounces || Math.abs(this.vy) < 0.3) {
+        this.vy = 0;
+        this.vx *= 0.5;
+        if (Math.abs(this.vx) < 0.1) {
+          this.settled = true;
+        }
+      }
+    }
+
+    // Wall bounce
+    if (this.x < this.r) {
+      this.x = this.r;
+      this.vx *= -0.6;
+    }
+    if (this.x > W - this.r) {
+      this.x = W - this.r;
+      this.vx *= -0.6;
+    }
+  }
+
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(42, 42, 42, ${this.alpha})`;
+    ctx.fill();
+  }
+}
+
+function scatter(x, y, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push(new Particle(x, y));
+  }
+}
+
+// Occasional auto-scatter from random positions
+let autoTimer = 0;
+const AUTO_INTERVAL = 60; // first auto-scatter at frame 60
+
+canvas.addEventListener('click', e => {
+  scatter(e.clientX, e.clientY, 30 + Math.floor(Math.random() * 20));
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  scatter(t.clientX, t.clientY, 30 + Math.floor(Math.random() * 20));
+}, { passive: false });
+
+function draw() {
+  requestAnimationFrame(draw);
+
+  // Auto scatter — multiple bursts across the canvas
+  autoTimer++;
+  if (autoTimer === AUTO_INTERVAL) {
+    scatter(W * 0.3, H * 0.25, 35);
+  }
+  if (autoTimer === AUTO_INTERVAL + 30) {
+    scatter(W * 0.7, H * 0.35, 30);
+  }
+  if (autoTimer === AUTO_INTERVAL + 60) {
+    scatter(W * 0.5, H * 0.2, 40);
+  }
+  if (autoTimer === AUTO_INTERVAL + 90) {
+    scatter(W * 0.2, H * 0.4, 25);
+  }
+  if (autoTimer === AUTO_INTERVAL + 120) {
+    scatter(W * 0.8, H * 0.3, 30);
+  }
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw a faint horizontal line near bottom — the "ground"
+  const groundY = H - 1;
+  ctx.beginPath();
+  ctx.moveTo(0, groundY);
+  ctx.lineTo(W, groundY);
+  ctx.strokeStyle = 'rgba(42, 42, 42, 0.08)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  for (const p of particles) {
+    p.update();
+    p.draw();
+  }
+
+  // Hint text before first click
+  if (particles.length === 0) {
+    ctx.fillStyle = 'rgba(42, 42, 42, 0.18)';
+    ctx.font = '13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('click', W / 2, H / 2);
+  }
+}
+
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '125',
+  title:  'Scatter',
+  desc:   'クリックすると点が飛び散る。重力でゆっくり落ちて、紙の端に積もる。何度か跳ねてから、静かになる。',
+  detail: 'クリックした場所から粒子が飛び散ります。それぞれが重力の影響を受け、地面で跳ね返りながら最終的に静止します。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
