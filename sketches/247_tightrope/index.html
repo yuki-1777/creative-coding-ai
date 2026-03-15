@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>247 – Tightrope</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// Tightrope — 綱渡り
+// 1点の重心が綱の上にある。バランスポールが揺れている。
+// 人物は描かない。均衡だけを描く。
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf0ede8);
+
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 2, 18);
+camera.lookAt(0, 1, 0);
+
+// マテリアル
+const matDark   = new THREE.LineBasicMaterial({ color: 0x2a2420 });
+const matAccent = new THREE.LineBasicMaterial({ color: 0x8b4a35 });
+const matLight  = new THREE.LineBasicMaterial({ color: 0xb0a89e });
+
+// --- 綱（catenary カーブ） ---
+const ROPE_SPAN  = 14;   // 両端の水平距離
+const ROPE_SAG   = 0.7;  // たわみ量
+const ROPE_Y     = 1.5;  // 綱の高さ（両端）
+const ROPE_SEGS  = 60;
+
+function buildRope() {
+  const pts = [];
+  for (let i = 0; i <= ROPE_SEGS; i++) {
+    const t = i / ROPE_SEGS;
+    const x = (t - 0.5) * ROPE_SPAN;
+    // カテナリー近似（放物線）
+    const sag = ROPE_SAG * (1 - (2 * t - 1) * (2 * t - 1));
+    pts.push(x, ROPE_Y - sag, 0);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3));
+  return new THREE.Line(geo, matDark);
+}
+scene.add(buildRope());
+
+// 綱の両端の支柱
+function addPost(x) {
+  const pts = new Float32Array([x, 0, 0, x, ROPE_Y + 0.3, 0]);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+  scene.add(new THREE.Line(geo, matLight));
+}
+addPost(-ROPE_SPAN / 2);
+addPost( ROPE_SPAN / 2);
+
+// 重心点の初期X位置（綱の上をゆっくり移動）
+let walkerX   = 0;   // -ROPE_SPAN/2 〜 ROPE_SPAN/2
+let walkerVel = 0;   // 水平速度
+
+// 重心高さ（綱の形状から計算）
+function ropeY(x) {
+  const t = x / ROPE_SPAN + 0.5;
+  const sag = ROPE_SAG * (1 - (2 * t - 1) * (2 * t - 1));
+  return ROPE_Y - sag;
+}
+
+// --- バランスポール ---
+// ピボットは重心点。ポールは両翼に伸びる。
+// angle: ポールのX軸傾き（正=右が下がる）
+// swayZ: わずかなZ軸ゆらぎ
+
+const POLE_HALF  = 3.8;    // 半分の長さ
+const POLE_DIP   = 0.5;    // 自然状態での翼の下がり量（ポールが弧を描く）
+
+let poleAngle    = 0;      // 傾き角度（rad）
+let poleAngVel   = 0;      // 角速度
+let poleSwayZ    = 0;      // Z方向の揺れ
+let poleSwayZVel = 0;
+
+// ポールのメッシュ（曲線の線）
+const POLE_SEGS = 30;
+const polePts   = new Float32Array((POLE_SEGS + 1) * 3);
+const poleGeo   = new THREE.BufferGeometry();
+poleGeo.setAttribute('position', new THREE.BufferAttribute(polePts, 3));
+const poleLine  = new THREE.Line(poleGeo, matDark);
+scene.add(poleLine);
+
+// ポール両端の小さい錘（補助線）
+const weightPts = new Float32Array(6 * 3);
+const weightGeo = new THREE.BufferGeometry();
+weightGeo.setAttribute('position', new THREE.BufferAttribute(weightPts, 3));
+const weightLines = new THREE.LineSegments(weightGeo, matAccent);
+scene.add(weightLines);
+
+// 重心点（小さい線の十字）
+const cpPts = new Float32Array([
+  -0.12, 0, 0,  0.12, 0, 0,
+  0, -0.12, 0,  0, 0.12, 0
+]);
+const cpGeo = new THREE.BufferGeometry();
+cpGeo.setAttribute('position', new THREE.BufferAttribute(cpPts, 3));
+const cpMark = new THREE.LineSegments(cpGeo, matAccent);
+scene.add(cpMark);
+
+// バランスポールを更新
+function updatePoleGeometry(wx, wy, angle, swayZ) {
+  for (let i = 0; i <= POLE_SEGS; i++) {
+    const u = i / POLE_SEGS;    // 0〜1
+    const local = (u - 0.5) * POLE_HALF * 2;  // -POLE_HALF 〜 POLE_HALF
+
+    // ポールはわずかに弓なりに下がる（弾力表現）
+    const droop = -POLE_DIP * (1 - (local / POLE_HALF) * (local / POLE_HALF));
+
+    // 傾き適用
+    const px = local * Math.cos(angle);
+    const py = local * Math.sin(angle) + droop * Math.cos(angle);
+    const pz = swayZ * (local / POLE_HALF);
+
+    polePts[i * 3]     = wx + px;
+    polePts[i * 3 + 1] = wy + py;
+    polePts[i * 3 + 2] = pz;
+  }
+  poleGeo.attributes.position.needsUpdate = true;
+
+  // 錘（ポール両端から垂れ下がる小さい線）
+  const WEIGHT_LEN = 0.25;
+  const ends = [
+    { lx: -POLE_HALF, sign: -1 },
+    { lx:  POLE_HALF, sign:  1 }
+  ];
+  ends.forEach((e, idx) => {
+    const local = e.lx;
+    const droop = -POLE_DIP;
+    const ex = wx + local * Math.cos(angle);
+    const ey = wy + local * Math.sin(angle) + droop * Math.cos(angle);
+    const ez = swayZ * (local / POLE_HALF);
+    weightPts[idx * 6]     = ex;
+    weightPts[idx * 6 + 1] = ey;
+    weightPts[idx * 6 + 2] = ez;
+    weightPts[idx * 6 + 3] = ex;
+    weightPts[idx * 6 + 4] = ey - WEIGHT_LEN;
+    weightPts[idx * 6 + 5] = ez;
+  });
+  weightGeo.attributes.position.needsUpdate = true;
+
+  // 重心マーク
+  cpMark.position.set(wx, wy, 0);
+}
+
+// マウス
+let mouseNX = 0.5;   // 0〜1（画面左=0, 右=1）
+let mouseNY = 0.5;
+
+window.addEventListener('mousemove', (e) => {
+  mouseNX = e.clientX / window.innerWidth;
+  mouseNY = e.clientY / window.innerHeight;
+});
+
+// 時間
+let lastTime = 0;
+let elapsed  = 0;
+
+// 不安定さの蓄積：マウスを動かさないと増加
+let instability = 0;
+let lastMouseX = 0.5;
+
+function animate(time) {
+  requestAnimationFrame(animate);
+
+  const t   = time / 1000;
+  const dt  = Math.min(t - lastTime, 0.05);
+  lastTime  = t;
+  elapsed  += dt;
+
+  // 不安定さ（マウスが静止していると増える）
+  const mouseDelta = Math.abs(mouseNX - lastMouseX);
+  if (mouseDelta < 0.001) {
+    instability = Math.min(1.0, instability + dt * 0.05);
+  } else {
+    instability = Math.max(0.0, instability - dt * 0.5);
+  }
+  lastMouseX = mouseNX;
+
+  // --- 歩行者の横移動（ゆっくり） ---
+  // マウスX: 0=左端まで行く, 0.5=中央, 1=右端まで行く
+  const targetX = (mouseNX - 0.5) * ROPE_SPAN * 0.85;
+  const dx      = targetX - walkerX;
+  walkerVel    += dx * 0.6 * dt;
+  walkerVel    *= Math.pow(0.88, dt * 60);
+  walkerX      += walkerVel * dt;
+  walkerX       = Math.max(-ROPE_SPAN / 2 * 0.92, Math.min(ROPE_SPAN / 2 * 0.92, walkerX));
+
+  const wy = ropeY(walkerX) + 0.02;  // 綱の上に乗る
+
+  // --- バランスポールの物理 ---
+  // 傾きの目標：マウスY（上=大きく傾く）、不安定さ
+  const leanTarget = (mouseNY - 0.5) * 0.6 + instability * Math.sin(elapsed * 0.7) * 0.4;
+  const restoreK   = 2.2;   // 復元力
+  const gravityK   = 1.0;   // 重力（傾きを強める）
+  const dampK      = 3.5;   // 減衰
+
+  const restore = -poleAngle * restoreK;
+  const gravity = leanTarget * gravityK;
+  const damp    = -poleAngVel * dampK;
+  // 微小な外乱（不安定さに応じて）
+  const noise   = (Math.sin(elapsed * 2.3) * 0.5 + Math.sin(elapsed * 3.7) * 0.3) * instability * 0.8;
+
+  poleAngVel += (restore + gravity + damp + noise) * dt;
+  poleAngle  += poleAngVel * dt;
+  poleAngle   = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, poleAngle));
+
+  // Z揺れ（前後の微小ゆれ）
+  const swayTargetZ = Math.sin(elapsed * 1.1) * 0.05 * (1 + instability);
+  const swayRestoreZ = -poleSwayZ * 3.0;
+  const swayDampZ   = -poleSwayZVel * 4.0;
+  poleSwayZVel += (swayRestoreZ + swayDampZ + (swayTargetZ - poleSwayZ) * 2.0) * dt;
+  poleSwayZ    += poleSwayZVel * dt;
+
+  updatePoleGeometry(walkerX, wy, poleAngle, poleSwayZ);
+
+  renderer.render(scene, camera);
+}
+
+animate(0);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '247',
+  title:  'Tightrope',
+  detail: 'マウスを左右に動かすと重心が綱の上を移動します。上下に動かすとバランスポールが傾きます。動かさずにいると、少しずつ不安定になっていきます。人物は描いていません。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
