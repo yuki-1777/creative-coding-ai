@@ -2475,6 +2475,51 @@
     "thumb": "img/thumb_275.png"
   },
   {
+    "num": "276",
+    "title": "Scale",
+    "tech": "p5.js",
+    "date": "2026-03-16",
+    "path": "sketches/276_scale/",
+    "description": "スクロールで重さを足したら、針がバネのように跳ね返った。数字はどこにもない。",
+    "thumb": "img/thumb_276.png"
+  },
+  {
+    "num": "277",
+    "title": "Insulator",
+    "tech": "three.js",
+    "date": "2026-03-16",
+    "path": "sketches/277_insulator/",
+    "description": "電信柱の碍子を9個並べた。電流の波が端から端へ流れ、それぞれが一瞬だけ輝く。電線は描かなかった。",
+    "thumb": "img/thumb_277.png"
+  },
+  {
+    "num": "278",
+    "title": "Slide",
+    "tech": "glsl",
+    "date": "2026-03-16",
+    "path": "sketches/278_slide/",
+    "description": "キーを押すたびにフィルターが一枚重なった。重ねるほど光が変わっていく。",
+    "thumb": "img/thumb_278.png"
+  },
+  {
+    "num": "279",
+    "title": "Tally",
+    "tech": "canvas",
+    "date": "2026-03-16",
+    "path": "sketches/279_ballot_box/",
+    "description": "票が一票ずつ入ってきて、棒の高さが変わる。開票が終わると、一番高い棒に印がつく。数字は出ない。",
+    "thumb": "img/thumb_279.png"
+  },
+  {
+    "num": "280",
+    "title": "Molt",
+    "tech": "glsl",
+    "date": "2026-03-16",
+    "path": "sketches/280_molt/",
+    "description": "膜が張っていた。引っ張ったら破れた。しばらくして、また張り直した。",
+    "thumb": "img/thumb_280.png"
+  },
+  {
     "num": "281",
     "title": "Comb",
     "tech": "canvas",
@@ -2520,6 +2565,51 @@
     "thumb": "img/thumb_285.png"
   },
   {
+    "num": "286",
+    "title": "Geiger",
+    "tech": "canvas",
+    "date": "2026-03-16",
+    "path": "sketches/286_geiger/",
+    "description": "パルスが来た。縦線ひとつが検出ひとつ。古いものから薄れていく。静かなのに、絶えず何かが起きている。",
+    "thumb": "img/thumb_286.png"
+  },
+  {
+    "num": "287",
+    "title": "Loom",
+    "tech": "p5.js",
+    "date": "2026-03-16",
+    "path": "sketches/287_loom/",
+    "description": "画面を横にドラッグするたびに緯糸が1本通った。経糸との上下の交差だけで布ができていく。",
+    "thumb": "img/thumb_287.png"
+  },
+  {
+    "num": "288",
+    "title": "Sundew",
+    "tech": "three.js",
+    "date": "2026-03-16",
+    "path": "sketches/288_sundew/",
+    "description": "モウセンゴケの腺毛を線で描いた。マウスを近づけると、毛がゆっくり内側に曲がった。",
+    "thumb": "img/thumb_288.png"
+  },
+  {
+    "num": "289",
+    "title": "Autoclave",
+    "tech": "glsl",
+    "date": "2026-03-16",
+    "path": "sketches/289_autoclave/",
+    "description": "圧力を上げたら空間が詰まってきた。等圧線が細かくなり、蒸気が濃くなった。数字は使っていない。",
+    "thumb": "img/thumb_289.png"
+  },
+  {
+    "num": "290",
+    "title": "Abacus",
+    "tech": "canvas",
+    "date": "2026-03-16",
+    "path": "sketches/290_abacus/",
+    "description": "数字キーを押すたびに珠が動いた。数字は表示しない。珠の位置だけが数を語る。",
+    "thumb": "img/thumb_290.png"
+  },
+  {
     "num": "291",
     "title": "Sluice",
     "tech": "canvas",
@@ -2527,5 +2617,14 @@
     "path": "sketches/291_sluice/",
     "description": "水門を一枚置いたら、粒子が上で溜まり始めた。開けると一斉に流れ出た。",
     "thumb": "img/thumb_291.png"
+  },
+  {
+    "num": "292",
+    "title": "Reel",
+    "tech": "canvas",
+    "date": "2026-03-16",
+    "path": "sketches/292_reel/",
+    "description": "映写機のコマ送りだけ書いた。フィルムは24コマ毎秒で送られ続けるが、映っているものは何もない。",
+    "thumb": "img/thumb_292.png"
   }
 ]
