@@ -246,7 +246,22 @@
       color: rgba(42,42,42,0.4);
       padding: 8px 12px 6px;
       border-bottom: 1px solid rgba(42,42,42,0.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
+    #sketch-fb-clear {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.1em;
+      background: transparent;
+      border: none;
+      color: rgba(42,42,42,0.25);
+      cursor: pointer;
+      padding: 0;
+      transition: color 0.2s;
+    }
+    #sketch-fb-clear:hover { color: rgba(42,42,42,0.6); }
     #sketch-fb-textarea {
       display: block;
       width: 100%;
@@ -341,7 +356,7 @@
     const fbPanel = document.createElement('div');
     fbPanel.id = 'sketch-fb-panel';
     fbPanel.innerHTML = `
-      <div id="sketch-fb-label">FB</div>
+      <div id="sketch-fb-label"><span>FB</span><button id="sketch-fb-clear">clear</button></div>
       <textarea id="sketch-fb-textarea" placeholder="フィードバックを入力…"></textarea>
     `;
     document.body.appendChild(fbPanel);
@@ -353,6 +368,16 @@
       const all = JSON.parse(localStorage.getItem(FB_KEY) || '{}');
       fbTextarea.value = all[meta.num] || '';
     } catch (e) {}
+
+    // clear ボタン
+    document.getElementById('sketch-fb-clear').addEventListener('click', () => {
+      fbTextarea.value = '';
+      try {
+        const all = JSON.parse(localStorage.getItem(FB_KEY) || '{}');
+        delete all[meta.num];
+        localStorage.setItem(FB_KEY, JSON.stringify(all));
+      } catch (e) {}
+    });
 
     // 入力 → localStorage に保存（debounce）
     let fbTimer;

@@ -777,7 +777,9 @@
         color: rgba(42,42,42,0.35);
         flex-shrink: 0;
         width: 24px;
+        text-decoration: none;
       }
+      a.fb-num-link:hover { color: rgba(42,42,42,0.7); text-decoration: underline; }
       .fb-comment {
         font-size: 0.72rem;
         line-height: 1.6;
@@ -837,6 +839,11 @@
     `;
     document.body.appendChild(overlay);
 
+    let pathMap = {};
+    fetch('works.json').then(r => r.json()).then(works => {
+      works.forEach(w => { pathMap[w.num] = w.path; });
+    }).catch(() => {});
+
     function renderFb() {
       const list = document.getElementById('fb-list');
       let all = {};
@@ -846,13 +853,18 @@
         list.innerHTML = '<div id="fb-overlay-empty">no feedback yet</div>';
         return;
       }
-      list.innerHTML = entries.map(([num, comment]) => `
+      list.innerHTML = entries.map(([num, comment]) => {
+        const path = pathMap[num];
+        const numEl = path
+          ? `<a class="fb-num fb-num-link" href="${path}index.html">${num}</a>`
+          : `<span class="fb-num">${num}</span>`;
+        return `
         <div class="fb-row">
-          <span class="fb-num">${num}</span>
+          ${numEl}
           <span class="fb-comment">${comment.replace(/</g, '&lt;')}</span>
           <button class="fb-delete" data-num="${num}">×</button>
-        </div>
-      `).join('');
+        </div>`;
+      }).join('');
 
       list.querySelectorAll('.fb-delete').forEach(btn => {
         btn.addEventListener('click', () => {
