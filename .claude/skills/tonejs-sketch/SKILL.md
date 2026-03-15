@@ -3,13 +3,9 @@ name: tonejs-sketch
 description: Tone.jsを使った音+ビジュアルのスケッチを作成するスキル。「音を出して」「サウンドスケッチ作って」「音とビジュアルを組み合わせて」などの指示で使う。このプロジェクトのスケッチガイドライン（sketch-guideline.md）に従って実装する。
 ---
 
-Tone.jsとCanvas/p5.js/three.jsを組み合わせて、音とビジュアルが連動するスケッチを作る。
+音の実装に Tone.js を使う。ビジュアル・コンセプト・ライティングは `docs/creative-direction/sketch-guideline.md` に従う。
 
-## 前提
-
-- `docs/creative-direction/sketch-guideline.md` のガイドラインに従う
-- `works.json` を読んで既存作品との重複を避ける
-- Tone.jsは音楽生成・音声合成に使う。単純なビープ音ならWeb Audio APIで十分
+Tone.jsは音楽生成・音声合成に使う。単純なビープ音ならWeb Audio APIで十分。
 
 ---
 
@@ -103,13 +99,7 @@ Tone.getTransport().start();
 
 ## 実装の流れ
 
-1. **コンセプト決定**（sketch-guideline.mdの手順に従う）
-   - モチーフ
-   - インプット：最初に浮かんだ3つを捨てて4つ目を使う
-   - アウトプット：音+ビジュアルをどう対応させるか決める
-   - 制約
-
-2. **音とビジュアルの対応を設計する**
+1. **音とビジュアルの対応を設計する**
    - 何が音程・音量・音色・リズムを決めるか
    - 音の変化がビジュアルにどう反映されるか（または逆）
    - どちらが主でどちらが従か（または対等か）
@@ -122,15 +112,6 @@ Tone.getTransport().start();
 4. **SKETCH_METAとworks.jsonを書く**
    - `detail`に音の操作方法を必ず書く
    - `description`はライティングガイドに従う
-
----
-
-## ビジュアルの制約（再掲）
-
-sketch-guideline.mdに従う。音があっても視覚的なルールは変わらない：
-- 背景：明るいオフホワイト〜ライトグレー
-- 色：グラファイト＋1色まで
-- 線・軌跡ベース
 
 ---
 
