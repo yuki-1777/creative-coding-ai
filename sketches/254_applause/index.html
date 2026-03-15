@@ -39,12 +39,12 @@ function initAudio() {
 
 function playClap(delayOffset) {
   if (!audioCtx) return;
-  const duration = 0.07;
+  const duration = 0.10;
   const bufferSize = Math.ceil(audioCtx.sampleRate * duration);
   const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < bufferSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.16));
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.22));
   }
 
   const t = audioCtx.currentTime + (delayOffset || 0);
@@ -54,34 +54,29 @@ function playClap(delayOffset) {
   const source2 = audioCtx.createBufferSource();
   source2.buffer = buffer;
 
-  // --- 打撃成分: highpass(1500Hz) + bandpass(2200Hz, Q=1.2) ---
-  const hpf = audioCtx.createBiquadFilter();
-  hpf.type = 'highpass';
-  hpf.frequency.value = 1500;
-
+  // --- 打撃成分: bandpass(1000Hz, Q=2.0) — 丸みのある中域 ---
   const bpf = audioCtx.createBiquadFilter();
   bpf.type = 'bandpass';
-  bpf.frequency.value = 2200;
-  bpf.Q.value = 1.2;
+  bpf.frequency.value = 1000;
+  bpf.Q.value = 2.0;
 
   const gainHigh = audioCtx.createGain();
-  gainHigh.gain.setValueAtTime(0.20, t);
+  gainHigh.gain.setValueAtTime(0.18, t);
   gainHigh.gain.exponentialRampToValueAtTime(0.001, t + duration);
 
-  source1.connect(hpf);
-  hpf.connect(bpf);
+  source1.connect(bpf);
   bpf.connect(gainHigh);
   gainHigh.connect(audioCtx.destination);
 
-  // --- ボディ成分: bandpass(800Hz, Q=2.0) ---
+  // --- ボディ成分: bandpass(600Hz, Q=1.8) — 低域の厚み ---
   const bpfBody = audioCtx.createBiquadFilter();
   bpfBody.type = 'bandpass';
-  bpfBody.frequency.value = 800;
-  bpfBody.Q.value = 2.0;
+  bpfBody.frequency.value = 600;
+  bpfBody.Q.value = 1.8;
 
   const gainBody = audioCtx.createGain();
-  gainBody.gain.setValueAtTime(0.08, t);
-  gainBody.gain.exponentialRampToValueAtTime(0.001, t + duration * 0.8);
+  gainBody.gain.setValueAtTime(0.14, t);
+  gainBody.gain.exponentialRampToValueAtTime(0.001, t + duration);
 
   source2.connect(bpfBody);
   bpfBody.connect(gainBody);
