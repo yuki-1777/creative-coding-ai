@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>102 — Crease</title>
+  <meta name="description" content="折り目が現れて、消える。どこかで誰かが紙を折っているような気がする。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="102 — Crease | Creative Coding">
+  <meta property="og:description" content="折り目が現れて、消える。どこかで誰かが紙を折っているような気がする。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/102_crease/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_102.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="102 — Crease | Creative Coding">
+  <meta name="twitter:description" content="折り目が現れて、消える。どこかで誰かが紙を折っているような気がする。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_102.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 折り目：紙を折ったときにできる線が現れては消える
+// 折り目は必ず画面を完全に横断するか、端から端へ伸びる
+
+const MAX_CREASES = 8;
+let creases = [];
+let nextCreaseFrame = 0;
+
+function makeCrease() {
+  // 折り目は2点を結ぶ直線（画面端から端）
+  const side1 = Math.floor(random(4)); // 0:top, 1:right, 2:bottom, 3:left
+  const side2 = (side1 + Math.floor(random(1, 3))) % 4; // 隣接しない辺または隣辺
+
+  function pointOnSide(s) {
+    switch (s) {
+      case 0: return { x: random(width), y: 0 };
+      case 1: return { x: width, y: random(height) };
+      case 2: return { x: random(width), y: height };
+      case 3: return { x: 0, y: random(height) };
+    }
+  }
+
+  const p1 = pointOnSide(side1);
+  const p2 = pointOnSide(side2);
+
+  return {
+    x1: p1.x, y1: p1.y,
+    x2: p2.x, y2: p2.y,
+    progress: 0,    // 0=現れている途中
+    phase: 'grow',  // grow -> hold -> fade
+    holdTimer: 0,
+    alpha: 0,
+  };
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  nextCreaseFrame = 60;
+}
+
+function draw() {
+  background(245, 243, 238);
+
+  // 新しい折り目を追加
+  if (frameCount >= nextCreaseFrame && creases.length < MAX_CREASES) {
+    creases.push(makeCrease());
+    nextCreaseFrame = frameCount + Math.floor(random(40, 90));
+  }
+
+  for (let i = creases.length - 1; i >= 0; i--) {
+    const c = creases[i];
+
+    if (c.phase === 'grow') {
+      c.progress = Math.min(1, c.progress + 0.025);
+      c.alpha = c.progress * 120;
+      if (c.progress >= 1) {
+        c.phase = 'hold';
+        c.holdTimer = Math.floor(random(80, 200));
+      }
+    } else if (c.phase === 'hold') {
+      c.holdTimer--;
+      if (c.holdTimer <= 0) {
+        c.phase = 'fade';
+      }
+    } else if (c.phase === 'fade') {
+      c.alpha = Math.max(0, c.alpha - 1.5);
+      if (c.alpha <= 0) {
+        creases.splice(i, 1);
+        continue;
+      }
+    }
+
+    // 折り目を描く：成長中は途中まで
+    const px = lerp(c.x1, c.x2, c.progress);
+    const py = lerp(c.y1, c.y2, c.progress);
+
+    stroke(42, 42, 42, c.alpha);
+    strokeWeight(0.7);
+    line(c.x1, c.y1, px, py);
+
+    // 折り目には影のような薄い線を並行して引く（折った厚みの感じ）
+    const dx = c.y2 - c.y1;
+    const dy = -(c.x2 - c.x1);
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = dx / len * 2;
+    const ny = dy / len * 2;
+
+    stroke(42, 42, 42, c.alpha * 0.3);
+    strokeWeight(0.4);
+    line(c.x1 + nx, c.y1 + ny, px + nx, py + ny);
+  }
+}
+
+function mousePressed() {
+  // クリックで即座に折り目を追加
+  if (creases.length < MAX_CREASES) {
+    const c = makeCrease();
+    // クリック位置を通るように調整
+    c.x1 = mouseX + random(-50, 50);
+    c.y1 = 0;
+    c.x2 = mouseX + random(-50, 50);
+    c.y2 = height;
+    creases.push(c);
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '102',
+  title:  'Crease',
+  desc:   '折り目が現れて、消える。どこかで誰かが紙を折っているような気がする。クリックで折り目を追加できる。',
+  detail: '自動的に折り目の線が現れては消えます。クリックするとその位置に折り目を追加します。折り目には薄い影の線がついています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
