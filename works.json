@@ -2394,6 +2394,15 @@
     "thumb": "img/thumb_260.png"
   },
   {
+    "num": "274",
+    "title": "Kymograph",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/274_kymograph/",
+    "description": "回転するドラムに紙を巻いて、針に波形を刻ませた。螺旋状に記録が積み重なり、どこが今かわからなくなった。",
+    "thumb": "img/thumb_274.png"
+  },
+  {
     "num": "264",
     "title": "Rust",
     "tech": "glsl",
