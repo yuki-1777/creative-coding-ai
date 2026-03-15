@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>121 — Grain</title>
+  <meta name="description" content="止まっているとノイズ。動いていると何かに見える。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="121 — Grain | Creative Coding">
+  <meta property="og:description" content="止まっているとノイズ。動いていると何かに見える。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/121_grain/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_121.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="121 — Grain | Creative Coding">
+  <meta name="twitter:description" content="止まっているとノイズ。動いていると何かに見える。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_121.png">
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+uniform float uSeed;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+// フラクタルノイズ（fbm）
+float fbm(vec2 p) {
+  float v = 0.0;
+  float amp = 0.5;
+  float freq = 1.0;
+  for (int i = 0; i < 5; i++) {
+    v += noise(p * freq + uSeed * 7.3) * amp;
+    amp *= 0.5;
+    freq *= 2.1;
+  }
+  return v;
+}
+
+// グリッドセル内のランダムな点との距離
+float cellDot(vec2 p, float scale, float dotRadius) {
+  vec2 cell = floor(p * scale);
+  vec2 f    = fract(p * scale);
+  // セル中心をランダムにずらした「点」の位置
+  vec2 offset = vec2(hash(cell + vec2(uSeed * 0.1, 0.0)),
+                     hash(cell + vec2(0.0, uSeed * 0.1 + 1.7)));
+  float dist = length(f - offset);
+  return smoothstep(dotRadius, dotRadius * 0.4, dist);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float asp = uResolution.x / uResolution.y;
+  vec2 p = (uv - 0.5) * vec2(asp, 1.0);
+
+  // 時間でゆっくり流れる
+  float t = uTime * 0.10;
+  vec2 flow = vec2(t * 0.20, t * 0.12);
+
+  // マウスで見る領域を動かす
+  vec2 mouseOffset = (uMouse - 0.5) * 0.5;
+
+  // 大きなfbm場: 点の密度マップ
+  float densityMap = fbm(p * 2.2 + flow + mouseOffset);
+  // 0〜1 に正規化
+  float d = clamp((densityMap - 0.28) / 0.44, 0.0, 1.0);
+
+  // 各スケールの点描
+  // dotRadius: d が大きい（密な）場所では点が大きく（より多く描画される）
+  float r1 = mix(0.65, 0.38, d);
+  float r2 = mix(0.68, 0.42, d);
+  float r3 = mix(0.70, 0.45, d);
+
+  // セルをずらして三重に重ねる（時間でゆっくりシフト）
+  vec2 shift1 = flow * 0.8;
+  vec2 shift2 = flow * 1.1 + vec2(0.37, 0.21);
+  vec2 shift3 = flow * 0.6 + vec2(0.61, 0.44);
+
+  float g1 = cellDot(p + shift1, 28.0, r1);
+  float g2 = cellDot(p + shift2, 20.0, r2) * 0.65;
+  float g3 = cellDot(p + shift3, 14.0, r3) * 0.40;
+
+  float grain = clamp(g1 + g2 + g3, 0.0, 1.0);
+
+  // 端をフェードアウト
+  float vignette = smoothstep(0.68, 0.30, length(p));
+
+  float ink = grain * d * vignette * 0.55;
+
+  // 超微細グレイン（紙の質感）
+  float microGrain = (hash(uv * uResolution + fract(uTime * 47.3)) - 0.5) * 0.015;
+
+  ink = clamp(ink + microGrain, 0.0, 1.0);
+
+  vec3 paper    = vec3(0.961, 0.953, 0.934);
+  vec3 graphite = vec3(0.22, 0.21, 0.20);
+
+  vec3 color = mix(paper, graphite, ink);
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s)); return null;
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+const uSeed  = gl.getUniformLocation(prog, 'uSeed');
+
+let mouse = { x: 0.5, y: 0.5 };
+let seed = Math.random() * 100.0;
+
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX / window.innerWidth;
+  mouse.y = 1.0 - e.clientY / window.innerHeight;
+});
+
+window.addEventListener('click', () => {
+  seed = Math.random() * 100.0;
+});
+
+function resize() {
+  canvas.width  = window.innerWidth  * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const startTime = performance.now();
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.uniform1f(uSeed, seed);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '121',
+  title:  'Grain',
+  desc:   '止まっているとノイズ。動いていると何かに見える。無数の粒が流れて、濃い場所・薄い場所が生まれる。マウスで粒の流れる場所が変わる。クリックで別のノイズへ。',
+  detail: 'マウスを動かすと粒の見える場所が変わります。クリックすると異なるパターンに切り替わります。複数のスケールのノイズを重ねた「fbm」という手法で、粒の濃淡の構造を作っています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

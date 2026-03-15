@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>120 — Moiré</title>
+  <meta name="description" content="2枚を重ねたら、3枚目の模様が現れた。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="120 — Moiré | Creative Coding">
+  <meta property="og:description" content="2枚を重ねたら、3枚目の模様が現れた。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/120_moire/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_120.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="120 — Moiré | Creative Coding">
+  <meta name="twitter:description" content="2枚を重ねたら、3枚目の模様が現れた。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_120.png">
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+
+const float PI = 3.14159265359;
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float asp = uResolution.x / uResolution.y;
+  vec2 p = (uv - 0.5) * vec2(asp, 1.0);
+
+  // 1枚目: 画面中心から同心円
+  float freq = 28.0;
+  float r1 = length(p);
+  float rings1 = sin(r1 * freq * PI * 2.0 - uTime * 0.6);
+
+  // 2枚目: マウス位置を中心とした同心円（少しずれた中心）
+  vec2 center2 = (uMouse - 0.5) * vec2(asp, 1.0) * 0.7;
+  float r2 = length(p - center2);
+  float rings2 = sin(r2 * freq * PI * 2.0 - uTime * 0.6);
+
+  // 2枚を掛け合わせるとモアレが出る
+  // 1が+で2が+なら明、1が-で2が-なら明、それ以外は暗
+  float moire = rings1 * rings2;
+
+  // 細い線として表示（値がゼロに近いところを線にする）
+  float line = smoothstep(0.0, 0.12, abs(moire)) - smoothstep(0.12, 0.35, abs(moire));
+
+  // 中心に近いほど薄く（密になりすぎる部分をやわらげる）
+  float fade = smoothstep(0.02, 0.12, r1) * smoothstep(0.02, 0.10, r2);
+
+  // 外周をフェードアウト
+  float vignette = smoothstep(0.6, 0.35, length(p));
+
+  float ink = line * fade * vignette * 0.55;
+
+  vec3 paper    = vec3(0.961, 0.953, 0.934);
+  vec3 graphite = vec3(0.22, 0.21, 0.20);
+
+  vec3 color = mix(paper, graphite, clamp(ink, 0.0, 1.0));
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.innerHTML = '<p style="padding:2rem">WebGL not supported</p>'; }
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s)); return null;
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = { x: 0.6, y: 0.55 };
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX / window.innerWidth;
+  mouse.y = 1.0 - e.clientY / window.innerHeight;
+});
+
+function resize() {
+  canvas.width  = window.innerWidth  * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const startTime = performance.now();
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '120',
+  title:  'Moiré',
+  desc:   '2枚を重ねたら、3枚目の模様が現れた。2組の同心円をわずかにずらして重ねると、誰も描いていないはずの縞が出てくる。マウスで2枚目の中心をずらすと模様が変化する。',
+  detail: 'マウスを動かすと2つの同心円の中心がずれ、モアレ縞が変化します。モアレとは、細かい模様を2枚重ねたときに現れる干渉縞です。印刷ずれのアレです。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
