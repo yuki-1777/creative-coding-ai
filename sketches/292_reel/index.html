@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reel</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe3; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Film reel parameters ─────────────────────────────────────────────────────
+// One reel on left, one on right.
+// Film strip runs horizontally between them through a gate in the center.
+// Every ~1/24s, the film advances one frame with a characteristic Geneva-drive
+// jump: very fast advance, then pause.
+
+const FPS_TARGET = 24;   // simulated frame rate
+const FRAME_INTERVAL = 1000 / FPS_TARGET; // ms per frame
+
+// Layout derived at draw time
+function layout() {
+  const reelR   = Math.min(W, H) * 0.22;   // reel radius
+  const reelY   = H * 0.5;
+  const reelLX  = W * 0.25;
+  const reelRX  = W * 0.75;
+  const gateW   = Math.min(W, H) * 0.14;   // film gate width
+  const gateH   = gateW * 1.33;            // aspect ~4:3
+  const gateX   = W * 0.5 - gateW * 0.5;
+  const gateY   = reelY - gateH * 0.5;
+  const filmH   = gateH * 0.72;            // visible film frame height
+  return { reelR, reelY, reelLX, reelRX, gateW, gateH, gateX, gateY, filmH };
+}
+
+// Film transport state
+let totalFrames = 0;        // frames shown so far
+let frameProgress = 0;      // 0–1 position within current advance cycle
+let framePhase = 'pause';   // 'advance' | 'pause'
+let advanceTimer = 0;       // ms into current phase
+const ADVANCE_DUR = 30;     // ms to advance one frame (fast flick)
+const PAUSE_DUR   = FRAME_INTERVAL - ADVANCE_DUR; // ms to hold still
+
+// Reel angle tracking
+let reelAngle = 0;          // accumulates rotation
+const FRAMES_PER_REV = 18;  // how many frames per full reel revolution
+
+// Film content: each frame is a random abstract composition (lines/dots)
+// Pre-generate N frames as drawing functions
+const FRAME_COUNT = 48;
+const frameSeeds = [];
+for (let i = 0; i < FRAME_COUNT; i++) {
+  // Each frame: a set of line/dot descriptors
+  const items = [];
+  const n = 3 + Math.floor(Math.random() * 7);
+  for (let j = 0; j < n; j++) {
+    items.push({
+      type: Math.random() < 0.55 ? 'line' : 'dot',
+      x1: Math.random(), y1: Math.random(),
+      x2: Math.random(), y2: Math.random(),
+      r:  0.03 + Math.random() * 0.12,
+      alpha: 0.3 + Math.random() * 0.55,
+      w: 0.5 + Math.random() * 1.5
+    });
+  }
+  frameSeeds.push(items);
+}
+
+// ── Draw a single film frame content ────────────────────────────────────────
+function drawFrameContent(fx, fy, fw, fh, frameIndex) {
+  const idx = ((frameIndex % FRAME_COUNT) + FRAME_COUNT) % FRAME_COUNT;
+  const items = frameSeeds[idx];
+  ctx.save();
+  ctx.rect(fx, fy, fw, fh);
+  ctx.clip();
+  for (const it of items) {
+    ctx.save();
+    ctx.globalAlpha = it.alpha * 0.8;
+    ctx.strokeStyle = 'rgba(50,45,40,1)';
+    ctx.fillStyle   = 'rgba(50,45,40,1)';
+    if (it.type === 'line') {
+      ctx.lineWidth = it.w;
+      ctx.beginPath();
+      ctx.moveTo(fx + it.x1 * fw, fy + it.y1 * fh);
+      ctx.lineTo(fx + it.x2 * fw, fy + it.y2 * fh);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(fx + it.x1 * fw, fy + it.y1 * fh, it.r * Math.min(fw, fh), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+// ── Draw a reel ──────────────────────────────────────────────────────────────
+function drawReel(cx, cy, r, angle, isLeft) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  // Outer ring
+  ctx.strokeStyle = 'rgba(50,45,40,0.65)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Hub
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.12, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(50,45,40,0.55)';
+  ctx.fill();
+
+  // Spokes
+  const SPOKE_COUNT = 5;
+  for (let i = 0; i < SPOKE_COUNT; i++) {
+    const a = (i / SPOKE_COUNT) * Math.PI * 2;
+    ctx.save();
+    ctx.rotate(a);
+    ctx.strokeStyle = 'rgba(50,45,40,0.40)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, r * 0.14);
+    ctx.lineTo(0, r * 0.90);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Film wrapped around outer edge: scalloped film perforations
+  const PERF_COUNT = 32;
+  for (let i = 0; i < PERF_COUNT; i++) {
+    const a = (i / PERF_COUNT) * Math.PI * 2;
+    const px = Math.cos(a) * r * 0.96;
+    const py = Math.sin(a) * r * 0.96;
+    ctx.save();
+    ctx.globalAlpha = 0.30;
+    ctx.fillStyle = '#eeebe3';
+    ctx.beginPath();
+    ctx.arc(px, py, r * 0.028, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+// ── Draw film strip between reels ────────────────────────────────────────────
+function drawFilmStrip(l, filmOffset) {
+  // Clip film strip to the region between the two reels (not overlapping reels)
+  const stripClipLeft  = l.reelLX + l.reelR + 2;
+  const stripClipRight = l.reelRX - l.reelR - 2;
+  if (stripClipRight <= stripClipLeft) return;
+  const STRIP_H = l.filmH * 1.35;   // total film height including perforations
+  const PERF_H  = STRIP_H * 0.14;   // perforation strip on each side
+  const FRAME_H = STRIP_H - PERF_H * 2; // usable frame height
+  const FRAME_W = FRAME_H * 0.75;   // aspect ratio
+
+  // How many frames fit in the gate + some buffer
+  const gateX1 = l.gateX - l.gateW * 0.5;
+  const gateX2 = l.gateX + l.gateW + l.gateW * 0.5;
+  const FRAMES_VISIBLE = Math.ceil((gateX2 - gateX1) / FRAME_W) + 2;
+
+  const stripY  = l.reelY - STRIP_H * 0.5;
+  const filmY   = stripY + PERF_H;  // top of frame area
+
+  const filmStripW = stripClipRight - stripClipLeft;
+
+  // Film base colour — only between reels
+  ctx.save();
+  ctx.fillStyle = 'rgba(230,225,215,0.85)';
+  ctx.fillRect(stripClipLeft, stripY, filmStripW, STRIP_H);
+
+  // Perforation stripes
+  ctx.fillStyle = 'rgba(50,45,40,0.08)';
+  ctx.fillRect(stripClipLeft, stripY,                         filmStripW, PERF_H);
+  ctx.fillRect(stripClipLeft, stripY + STRIP_H - PERF_H,     filmStripW, PERF_H);
+  ctx.restore();
+
+  // Perforations — square holes along top and bottom
+  const PERF_W     = PERF_H * 0.70;
+  const PERF_COUNT = Math.ceil(filmStripW / (PERF_W * 2.0)) + 2;
+  const PERF_STEP  = filmStripW / PERF_COUNT;
+  const perfOffset = ((filmOffset / FRAME_W) % 1) * PERF_STEP;
+
+  for (let i = -1; i <= PERF_COUNT + 1; i++) {
+    const px = stripClipLeft + i * PERF_STEP - perfOffset;
+    const pw = PERF_W;
+    const ph = PERF_H * 0.55;
+    const margin = (PERF_H - ph) * 0.5;
+
+    ctx.save();
+    ctx.fillStyle = '#eeebe3';
+    ctx.globalAlpha = 0.90;
+    ctx.fillRect(px - pw * 0.5, stripY + margin,                       pw, ph);
+    ctx.fillRect(px - pw * 0.5, stripY + STRIP_H - PERF_H + margin,   pw, ph);
+    ctx.restore();
+  }
+
+  // Frame dividers and content — scrolling with filmOffset
+  const centreFrame = totalFrames;
+  const firstFrameX = l.gateX + l.gateW * 0.5 - (centreFrame + 0.5 - filmOffset / FRAME_W) * FRAME_W;
+
+  const showStart = Math.floor((stripClipLeft - firstFrameX) / FRAME_W) - 1;
+  const showEnd   = Math.ceil ((stripClipRight - firstFrameX) / FRAME_W) + 1;
+
+  for (let i = showStart; i <= showEnd; i++) {
+    const fx = firstFrameX + i * FRAME_W;
+    if (fx + FRAME_W < stripClipLeft || fx > stripClipRight) continue;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(210,205,195,0.60)';
+    ctx.fillRect(fx, filmY, FRAME_W - 1, FRAME_H);
+    ctx.restore();
+
+    drawFrameContent(fx + 2, filmY + 2, FRAME_W - 4, FRAME_H - 4, i);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(50,45,40,0.22)';
+    ctx.lineWidth = 0.8;
+    ctx.strokeRect(fx, filmY, FRAME_W - 1, FRAME_H);
+    ctx.restore();
+  }
+
+  // Gate vignette — fade out toward gate edges
+  const grad = ctx.createLinearGradient(l.gateX - 24, 0, l.gateX, 0);
+  grad.addColorStop(0, 'rgba(238,235,227,0.92)');
+  grad.addColorStop(1, 'rgba(238,235,227,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(stripClipLeft, stripY - 2, l.gateX - stripClipLeft + 24, STRIP_H + 4);
+
+  const gradR = ctx.createLinearGradient(l.gateX + l.gateW, 0, l.gateX + l.gateW + 24, 0);
+  gradR.addColorStop(0, 'rgba(238,235,227,0)');
+  gradR.addColorStop(1, 'rgba(238,235,227,0.92)');
+  ctx.fillStyle = gradR;
+  ctx.fillRect(l.gateX + l.gateW, stripY - 2, stripClipRight - l.gateX - l.gateW + 24, STRIP_H + 4);
+
+  // Gate frame (projector aperture)
+  ctx.save();
+  ctx.strokeStyle = 'rgba(50,45,40,0.55)';
+  ctx.lineWidth = 2.5;
+  ctx.strokeRect(l.gateX, filmY - PERF_H * 0.3, l.gateW, STRIP_H - PERF_H * 0.4);
+  ctx.restore();
+}
+
+// ── Animation ────────────────────────────────────────────────────────────────
+let lastTime = 0;
+let filmOffset = 0;   // pixel offset of film scroll
+
+function draw(ts) {
+  const dt = Math.min(ts - lastTime, 50);
+  lastTime = ts;
+
+  // Geneva-drive simulation
+  advanceTimer += dt;
+  if (framePhase === 'pause') {
+    filmOffset = 0;
+    if (advanceTimer >= PAUSE_DUR) {
+      advanceTimer -= PAUSE_DUR;
+      framePhase = 'advance';
+    }
+  } else {
+    // Advance phase: snap film by one frame over ADVANCE_DUR
+    const t = Math.min(advanceTimer / ADVANCE_DUR, 1.0);
+    // Ease: quick out (film jerks then stops)
+    const eased = 1 - Math.pow(1 - t, 3);
+    const l = layout();
+    const FRAME_W = (l.filmH * 1.35 - l.filmH * 1.35 * 0.14 * 2) * 0.75;
+    filmOffset = eased * FRAME_W;
+    if (advanceTimer >= ADVANCE_DUR) {
+      advanceTimer -= ADVANCE_DUR;
+      totalFrames++;
+      filmOffset = 0;
+      reelAngle += (Math.PI * 2) / FRAMES_PER_REV;
+      framePhase = 'pause';
+    }
+  }
+
+  ctx.fillStyle = '#eeebe3';
+  ctx.fillRect(0, 0, W, H);
+
+  const l = layout();
+  const STRIP_H = l.filmH * 1.35;
+  const PERF_H  = STRIP_H * 0.14;
+  const FRAME_H = STRIP_H - PERF_H * 2;
+  const FRAME_W = FRAME_H * 0.75;
+
+  // Current frame accumulates reel angle
+  const currentAngle = reelAngle + (framePhase === 'advance'
+    ? (advanceTimer / ADVANCE_DUR) * ((Math.PI * 2) / FRAMES_PER_REV)
+    : 0);
+
+  drawFilmStrip(l, filmOffset);
+  drawReel(l.reelLX, l.reelY, l.reelR, -currentAngle, true);
+  drawReel(l.reelRX, l.reelY, l.reelR,  currentAngle, false);
+
+  // Frame counter
+  ctx.save();
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = 'rgba(50,45,40,1)';
+  ctx.font = '10px monospace';
+  ctx.fillText('#' + String(totalFrames % 9999).padStart(4, '0'), l.gateX + 2, l.reelY + STRIP_H * 0.5 + 14);
+  ctx.restore();
+
+  requestAnimationFrame(draw);
+}
+
+requestAnimationFrame(draw);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '292',
+  title:  'Reel',
+  detail: '映写機のフィルムリール。ジュネーブ機構（コマ送り）の動きを再現している。フィルムは1コマずつ素早く送られ、その間止まる。コマの中身は毎回違う。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
