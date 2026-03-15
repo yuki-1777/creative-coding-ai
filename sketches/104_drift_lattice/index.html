@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>104 — Drift Lattice</title>
+  <meta name="description" content="格子を作ったら、点がそれぞれ勝手に漂い始めた。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="104 — Drift Lattice | Creative Coding">
+  <meta property="og:description" content="格子を作ったら、点がそれぞれ勝手に漂い始めた。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/104_drift_lattice/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_104.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="104 — Drift Lattice | Creative Coding">
+  <meta name="twitter:description" content="格子を作ったら、点がそれぞれ勝手に漂い始めた。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_104.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 8);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // 格子状に点を配置
+    const COLS = 20;
+    const ROWS = 14;
+    const SPACING = 0.45;
+    const COUNT = COLS * ROWS;
+
+    const positions = new Float32Array(COUNT * 3);
+    const basePositions = new Float32Array(COUNT * 3);
+    const phaseOffsets = new Float32Array(COUNT * 3); // x, y, z 方向それぞれの位相
+
+    let idx = 0;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const x = (c - (COLS - 1) / 2) * SPACING;
+        const y = (r - (ROWS - 1) / 2) * SPACING;
+        basePositions[idx * 3]     = x;
+        basePositions[idx * 3 + 1] = y;
+        basePositions[idx * 3 + 2] = 0;
+        phaseOffsets[idx * 3]     = Math.random() * Math.PI * 2;
+        phaseOffsets[idx * 3 + 1] = Math.random() * Math.PI * 2;
+        phaseOffsets[idx * 3 + 2] = Math.random() * Math.PI * 2;
+        idx++;
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const mat = new THREE.PointsMaterial({
+      color: 0x2A2826,
+      size: 0.045,
+      sizeAttenuation: true,
+    });
+
+    const points = new THREE.Points(geo, mat);
+    scene.add(points);
+
+    // マウス位置（正規化デバイス座標）
+    const mouse = new THREE.Vector2(9999, 9999);
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2 * 4.5;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2 * 3.2;
+    });
+    window.addEventListener('mouseleave', () => {
+      mouse.x = 9999;
+      mouse.y = 9999;
+    });
+
+    // ノイズ関数（simplex風の簡易版）
+    function smoothNoise(x, y, t) {
+      const ix = Math.floor(x);
+      const iy = Math.floor(y);
+      const fx = x - ix;
+      const fy = y - iy;
+      const ux = fx * fx * (3 - 2 * fx);
+      const uy = fy * fy * (3 - 2 * fy);
+      const a = Math.sin(ix * 127.1 + iy * 311.7 + t * 0.7) * 43758.5453;
+      const b = Math.sin((ix + 1) * 127.1 + iy * 311.7 + t * 0.7) * 43758.5453;
+      const c = Math.sin(ix * 127.1 + (iy + 1) * 311.7 + t * 0.7) * 43758.5453;
+      const d = Math.sin((ix + 1) * 127.1 + (iy + 1) * 311.7 + t * 0.7) * 43758.5453;
+      return (a + (b - a) * ux + (c - a) * uy + (d - b - c + a) * ux * uy) % 1;
+    }
+
+    let time = 0;
+    const posAttr = geo.attributes.position;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.008;
+
+      for (let i = 0; i < COUNT; i++) {
+        const bx = basePositions[i * 3];
+        const by = basePositions[i * 3 + 1];
+
+        // 各点に独立した低速ノイズドリフト
+        const px = phaseOffsets[i * 3];
+        const py = phaseOffsets[i * 3 + 1];
+        const pz = phaseOffsets[i * 3 + 2];
+
+        const nx = Math.sin(time * 0.4 + px) * Math.cos(time * 0.27 + py) * 0.12;
+        const ny = Math.sin(time * 0.35 + py) * Math.cos(time * 0.31 + pz) * 0.12;
+        const nz = Math.sin(time * 0.3 + pz) * 0.05;
+
+        // マウス近傍の点を押す
+        const dx = bx - mouse.x;
+        const dy = by - mouse.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const repel = Math.max(0, 1.0 - dist / 1.2) * 0.35;
+        const angle = Math.atan2(dy, dx);
+
+        posAttr.setXYZ(
+          i,
+          bx + nx + Math.cos(angle) * repel,
+          by + ny + Math.sin(angle) * repel,
+          nz
+        );
+      }
+
+      posAttr.needsUpdate = true;
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:    '104',
+    title:  'Drift Lattice',
+    desc:   '格子を作ったら、点がそれぞれ勝手に漂い始めた。整列しているはずが、少しずつ崩れていく。',
+    detail: '格子状に並んだ280個の点が、それぞれ独立したリズムでゆっくりと揺れています。マウスを近づけると点が離れます。整列と拡散のあいだ。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
