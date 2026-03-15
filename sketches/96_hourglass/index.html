@@ -46,14 +46,7 @@ resize();
 
 function init() {
   grid = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
-  // Fill upper half with sand
-  for (let row = 0; row < Math.floor(ROWS * 0.45); row++) {
-    for (let col = 0; col < COLS; col++) {
-      if (inHourglass(row, col)) {
-        grid[row][col] = 1;
-      }
-    }
-  }
+  // Start empty — sand spawns at the neck (center)
 }
 
 // Check if cell is inside the hourglass shape
@@ -101,8 +94,12 @@ function update() {
 function draw() {
   requestAnimationFrame(draw);
 
-  // Multiple updates per frame for speed
-  for (let i = 0; i < 1; i++) update();
+  // Spawn sand at the neck (center of hourglass)
+  const neckRow = Math.floor(ROWS / 2);
+  const neckCol = Math.floor(COLS / 2);
+  if (grid[neckRow][neckCol] === 0) grid[neckRow][neckCol] = 1;
+
+  update();
 
   ctx.fillStyle = '#F5F3EE';
   ctx.fillRect(0, 0, W, H);
