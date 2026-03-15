@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>229 — Isobar</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #f5f2ed; }
+    canvas { display: block; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// 229 — Isobar
+// 気圧の地図。高気圧と低気圧が漂い、その間の等圧線がリアルタイムで変形する。
+// マウスで高気圧の中心を動かすと、等圧線が引き直される。
+// 制約：等圧線のみ。塗りつぶしなし。ラベルなし。線の間隔だけが圧力差を表す。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.textContent = 'WebGL not supported'; }
+
+const VS = `
+attribute vec2 a_pos;
+varying vec2 v_uv;
+void main() {
+  v_uv = a_pos * 0.5 + 0.5;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+varying vec2 v_uv;
+uniform vec2 u_res;
+uniform float u_time;
+uniform vec2 u_mouse; // 0..1 UV座標
+
+// 気圧系：高気圧1つ（マウス追従）＋高気圧2つ＋低気圧3つ（自律移動）
+// それぞれガウス関数で圧力場を作り合成する
+
+float gauss(vec2 uv, vec2 center, float strength, float spread) {
+  float d2 = dot(uv - center, uv - center);
+  return strength * exp(-d2 / (2.0 * spread * spread));
+}
+
+void main() {
+  vec2 uv = v_uv;
+  // アスペクト比補正
+  float aspect = u_res.x / u_res.y;
+  vec2 suv = vec2(uv.x * aspect, uv.y);
+
+  float t = u_time;
+
+  // マウス位置（高気圧 H1）
+  vec2 h1 = vec2(u_mouse.x * aspect, u_mouse.y);
+
+  // 自律移動する高気圧 H2
+  vec2 h2 = vec2(
+    (0.7 + 0.15 * cos(t * 0.23)) * aspect,
+    0.3 + 0.12 * sin(t * 0.31)
+  );
+
+  // 低気圧たち L1, L2, L3
+  vec2 l1 = vec2(
+    (0.25 + 0.18 * cos(t * 0.17)) * aspect,
+    0.65 + 0.12 * sin(t * 0.21)
+  );
+  vec2 l2 = vec2(
+    (0.55 + 0.1 * sin(t * 0.13)) * aspect,
+    0.2 + 0.15 * cos(t * 0.27)
+  );
+  vec2 l3 = vec2(
+    (0.8 + 0.08 * cos(t * 0.19)) * aspect,
+    0.7 + 0.1 * sin(t * 0.15)
+  );
+
+  // 圧力場（高:+, 低:-）
+  float pressure = 1013.25; // hPa 基準
+  pressure += gauss(suv, h1, 22.0, 0.28);
+  pressure += gauss(suv, h2, 18.0, 0.22);
+  pressure -= gauss(suv, l1, 20.0, 0.25);
+  pressure -= gauss(suv, l2, 16.0, 0.20);
+  pressure -= gauss(suv, l3, 14.0, 0.18);
+
+  // 等圧線：4hPa間隔
+  // mod で0〜4の鋸波を作り、その波の端（0付近と4付近）で線を出す
+  float interval = 4.0;
+  float band = mod(pressure, interval) / interval; // 0..1
+  // 0と1の近傍に線を出す（frac端）
+  float lineHalf = 0.04;
+  float d = min(band, 1.0 - band); // 0に近いほど小さい
+  float isoline = 1.0 - smoothstep(0.0, lineHalf, d);
+
+  // 背景色
+  vec3 bg = vec3(0.961, 0.949, 0.929);
+  // 線色：グラファイト
+  vec3 lineColor = vec3(0.22, 0.21, 0.20);
+  // 高圧域はわずかに暖かく、低圧域はわずかに涼しく（微妙な濃淡のみ）
+  float normP = clamp((pressure - 1013.25) / 25.0, -1.0, 1.0);
+  vec3 tinted = mix(bg, vec3(0.94, 0.94, 0.96), -normP * 0.04);
+  tinted = mix(tinted, vec3(0.96, 0.95, 0.93), normP * 0.04);
+
+  vec3 col = mix(tinted, lineColor, isoline * 0.85);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function mkShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, mkShader(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, mkShader(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+  console.error(gl.getProgramInfoLog(prog));
+}
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1,  1,-1,  -1,1,
+  -1, 1,  1,-1,   1,1
+]), gl.STATIC_DRAW);
+
+let W = 0, H = 0;
+
+function resize() {
+  W = canvas.clientWidth;
+  H = canvas.clientHeight;
+  canvas.width = W;
+  canvas.height = H;
+  gl.viewport(0, 0, W, H);
+}
+window.addEventListener('resize', resize);
+resize();
+
+let mouseUV = { x: 0.25, y: 0.65 };
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseUV.x = (e.clientX - rect.left) / rect.width;
+  mouseUV.y = 1.0 - (e.clientY - rect.top) / rect.height;
+});
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const t = e.touches[0];
+  mouseUV.x = (t.clientX - rect.left) / rect.width;
+  mouseUV.y = 1.0 - (t.clientY - rect.top) / rect.height;
+}, { passive: false });
+
+const startTime = performance.now();
+
+function render() {
+  requestAnimationFrame(render);
+
+  const t = (performance.now() - startTime) / 1000;
+
+  gl.viewport(0, 0, W, H);
+  gl.useProgram(prog);
+
+  const posLoc = gl.getAttribLocation(prog, 'a_pos');
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.enableVertexAttribArray(posLoc);
+  gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+  gl.uniform2f(gl.getUniformLocation(prog, 'u_res'), W, H);
+  gl.uniform1f(gl.getUniformLocation(prog, 'u_time'), t);
+  gl.uniform2f(gl.getUniformLocation(prog, 'u_mouse'), mouseUV.x, mouseUV.y);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '229',
+  title: 'Isobar',
+  detail: 'マウスを動かすと高気圧の中心が移動し、等圧線が引き直される。低気圧は自律的に漂っている。線の間隔が広いところは気圧勾配が緩やか、狭いところは急峻。4hPa間隔で等圧線を引いている。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
