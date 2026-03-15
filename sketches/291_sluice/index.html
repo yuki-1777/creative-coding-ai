@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sluice</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe3; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; cursor: pointer; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Sluice gate state
+let gateOpen = false;
+let gateOpenAmount = 0; // 0 = closed, 1 = fully open
+
+function getGate() {
+  return {
+    x: W * 0.5,
+    y: H * 0.46,
+    halfW: W * 0.15,
+    thickness: 8
+  };
+}
+
+// ─── Particles ──────────────────────────────────────────────────────────────
+const MAX_PARTICLES = 700;
+const particles = [];
+
+function channelX() {
+  const g = getGate();
+  return { left: g.x - g.halfW * 0.92, right: g.x + g.halfW * 0.92 };
+}
+
+class Particle {
+  constructor(initial) {
+    this.init(initial);
+  }
+
+  init(initial) {
+    const g = getGate();
+    const ch = channelX();
+    this.x = ch.left + Math.random() * (ch.right - ch.left);
+    if (initial) {
+      // Fill the entire above-gate zone densely
+      this.y = Math.random() * (g.y - 6);
+    } else {
+      this.y = -4 - Math.random() * 20;
+    }
+    this.vy = 0.6 + Math.random() * 0.7;
+    this.vx = (Math.random() - 0.5) * 0.5;
+    this.r   = 1.6 + Math.random() * 1.8;
+    this.alpha = 0.50 + Math.random() * 0.40;
+    this.passed = false;
+    this.blocked = false;
+  }
+
+  update() {
+    const g = getGate();
+    const gapHalf = gateOpenAmount * g.halfW * 0.46; // gap half-width
+
+    if (!this.passed) {
+      // Gravity
+      this.vy += 0.055;
+      this.vy = Math.min(this.vy, 5.5);
+      this.vx += (Math.random() - 0.5) * 0.055;
+      this.vx *= 0.95;
+
+      // Wall bounce
+      const ch = channelX();
+      if (this.x - this.r < ch.left)  { this.x = ch.left  + this.r; this.vx *= -0.4; }
+      if (this.x + this.r > ch.right) { this.x = ch.right - this.r; this.vx *= -0.4; }
+
+      this.x += this.vx;
+      this.y += this.vy;
+
+      // Collision with gate
+      if (this.y + this.r >= g.y - g.thickness * 0.5) {
+        const dist = Math.abs(this.x - g.x);
+        if (gapHalf > 3 && dist <= gapHalf) {
+          // Pass through gap
+          this.passed = true;
+          this.vy = 3.0 + Math.random() * 2.5;
+          this.vx += (Math.random() - 0.5) * 1.2;
+        } else {
+          // Block at gate surface
+          this.y = g.y - g.thickness * 0.5 - this.r;
+          this.vy = 0;
+          this.vx *= 0.70;
+          this.blocked = true;
+          // Creep toward gap when open
+          if (gapHalf > 3) {
+            this.vx += (g.x - this.x) * 0.004;
+          }
+        }
+      }
+    } else {
+      // Below gate — accelerate and spread
+      this.vy += 0.08;
+      this.vx += (Math.random() - 0.5) * 0.12;
+      this.vx *= 0.98;
+      this.x += this.vx;
+      this.y += this.vy;
+    }
+
+    // Off-screen → respawn from top
+    if (this.y > H + 30 || this.x < -80 || this.x > W + 80) {
+      this.init(false);
+    }
+  }
+
+  draw() {
+    ctx.save();
+    if (this.passed) {
+      ctx.globalAlpha = this.alpha * 0.75;
+      ctx.fillStyle = 'rgba(55,85,130,1)';
+    } else {
+      ctx.globalAlpha = this.alpha * 0.65;
+      ctx.fillStyle = 'rgba(75,108,150,1)';
+    }
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+for (let i = 0; i < MAX_PARTICLES; i++) {
+  particles.push(new Particle(true));
+}
+
+// ─── Channel walls ──────────────────────────────────────────────────────────
+function drawChannel() {
+  const ch = channelX();
+  ctx.save();
+  ctx.strokeStyle = 'rgba(50,45,40,0.22)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(ch.left,  0); ctx.lineTo(ch.left,  H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ch.right, 0); ctx.lineTo(ch.right, H); ctx.stroke();
+  ctx.restore();
+}
+
+// ─── Gate ────────────────────────────────────────────────────────────────────
+function drawGate() {
+  const g = getGate();
+  const ch = channelX();
+  const gapHalf = gateOpenAmount * g.halfW * 0.46;
+  const gapL = g.x - gapHalf;
+  const gapR = g.x + gapHalf;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(45,40,35,0.80)';
+  ctx.lineWidth = g.thickness;
+  ctx.lineCap = 'square';
+
+  // Left bar
+  if (gapL > ch.left) {
+    ctx.beginPath();
+    ctx.moveTo(ch.left, g.y);
+    ctx.lineTo(gapL, g.y);
+    ctx.stroke();
+  }
+  // Right bar
+  if (gapR < ch.right) {
+    ctx.beginPath();
+    ctx.moveTo(gapR, g.y);
+    ctx.lineTo(ch.right, g.y);
+    ctx.stroke();
+  }
+
+  // Lifted gate panel (shown above gate line when open)
+  if (gateOpenAmount > 0.02) {
+    const liftY = g.y - gateOpenAmount * g.halfW * 0.55;
+    ctx.save();
+    ctx.globalAlpha = 0.28;
+    ctx.strokeStyle = 'rgba(45,40,35,1)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(ch.left, liftY);
+    ctx.lineTo(ch.right, liftY);
+    ctx.stroke();
+    // Vertical rails
+    ctx.setLineDash([3, 7]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(ch.left + 4,  liftY);
+    ctx.lineTo(ch.left + 4,  g.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(ch.right - 4, liftY);
+    ctx.lineTo(ch.right - 4, g.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Flow arrow when open
+  if (gapHalf > 6) {
+    ctx.save();
+    ctx.globalAlpha = 0.38;
+    ctx.strokeStyle = 'rgba(55,85,130,1)';
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(g.x, g.y - 14);
+    ctx.lineTo(g.x, g.y + 14);
+    ctx.moveTo(g.x - 5, g.y + 8);
+    ctx.lineTo(g.x, g.y + 14);
+    ctx.lineTo(g.x + 5, g.y + 8);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+// ─── Label ──────────────────────────────────────────────────────────────────
+function drawLabel() {
+  const g = getGate();
+  ctx.save();
+  ctx.globalAlpha = 0.30;
+  ctx.fillStyle = 'rgba(50,45,40,1)';
+  ctx.font = '11px monospace';
+  const label = gateOpen ? 'click to close' : 'click to open';
+  ctx.fillText(label, g.x - 42, g.y - 26);
+  ctx.restore();
+}
+
+// ─── Interaction ──────────────────────────────────────────────────────────────
+canvas.addEventListener('click', () => {
+  gateOpen = !gateOpen;
+  // When closing, reset all passed particles so they re-enter from top
+  if (!gateOpen) {
+    for (const p of particles) {
+      if (p.passed) p.init(false);
+    }
+  }
+});
+
+// ─── Loop ────────────────────────────────────────────────────────────────────
+function draw() {
+  const target = gateOpen ? 1 : 0;
+  gateOpenAmount += (target - gateOpenAmount) * 0.045;
+
+  ctx.fillStyle = '#eeebe3';
+  ctx.fillRect(0, 0, W, H);
+
+  drawChannel();
+
+  for (const p of particles) p.update();
+
+  // Draw passed (below gate) first, then gate, then blocked (above)
+  for (const p of particles) { if (p.passed)  p.draw(); }
+  drawGate();
+  for (const p of particles) { if (!p.passed) p.draw(); }
+
+  drawLabel();
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '291',
+  title:  'Sluice',
+  detail: 'クリックで水門を開閉できる。開けると粒子が隙間を通り抜けて下へ流れ出す。閉じると流れが止まり、粒子が水門の上に溜まっていく。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -2473,5 +2473,59 @@
     "path": "sketches/275_hands/",
     "description": "文字盤を取り除いたら、針だけが残った。針が動いた跡が積み重なっていく。時間が経つほど濃くなる。",
     "thumb": "img/thumb_275.png"
+  },
+  {
+    "num": "281",
+    "title": "Comb",
+    "tech": "canvas",
+    "date": "2026-03-16",
+    "path": "sketches/281_comb/",
+    "description": "くしの歯をドラッグで曲げた。それぞれが少しずれたまま、ゆっくり元の位置に戻る。",
+    "thumb": "img/thumb_281.png"
+  },
+  {
+    "num": "282",
+    "title": "Vessel",
+    "tech": "p5.js",
+    "date": "2026-03-16",
+    "path": "sketches/282_vessel/",
+    "description": "分岐のルールだけ書いた。管は細くなりながら広がり続け、端に届くと止まった。",
+    "thumb": "img/thumb_282.png"
+  },
+  {
+    "num": "283",
+    "title": "Wax",
+    "tech": "canvas",
+    "date": "2026-03-16",
+    "path": "sketches/283_wax/",
+    "description": "クリックすると封蝋が広がった。冷えるにつれて縁が硬くなり、表面に筋が入った。",
+    "thumb": "img/thumb_283.png"
+  },
+  {
+    "num": "284",
+    "title": "Turnstile",
+    "tech": "three.js",
+    "date": "2026-03-16",
+    "path": "sketches/284_turnstile/",
+    "description": "改札の腕だけ描いた。本体はない。それぞれ勝手なタイミングでカチッと回る。",
+    "thumb": "img/thumb_284.png"
+  },
+  {
+    "num": "285",
+    "title": "Furrow",
+    "tech": "canvas",
+    "date": "2026-03-16",
+    "path": "sketches/285_furrow/",
+    "description": "畑に鋤を入れた。線が上から順に積み重なり、ところどころ石に当たって途切れた。",
+    "thumb": "img/thumb_285.png"
+  },
+  {
+    "num": "291",
+    "title": "Sluice",
+    "tech": "canvas",
+    "date": "2026-03-16",
+    "path": "sketches/291_sluice/",
+    "description": "水門を一枚置いたら、粒子が上で溜まり始めた。開けると一斉に流れ出た。",
+    "thumb": "img/thumb_291.png"
   }
 ]
