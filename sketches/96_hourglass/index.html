@@ -30,8 +30,8 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
 // Hourglass geometry
-const COLS = 80;
-const ROWS = 80;
+const COLS = 160;
+const ROWS = 160;
 let grid = []; // 0 = empty, 1 = sand
 let flipped = false;
 
@@ -102,7 +102,7 @@ function draw() {
   requestAnimationFrame(draw);
 
   // Multiple updates per frame for speed
-  for (let i = 0; i < 3; i++) update();
+  for (let i = 0; i < 1; i++) update();
 
   ctx.fillStyle = '#F5F3EE';
   ctx.fillRect(0, 0, W, H);
