@@ -87,10 +87,6 @@ function setup() {
 
   // デモ用静的ノイズシルエットを生成
   buildDemoPixels();
-
-  // オーバーレイ非表示でも内部的にTone.jsを初期化（音なし・低ゲイン）
-  // 音なしのデモアニメは startDemoAudio() で開始
-  startDemoAudio();
 }
 
 function buildDemoPixels() {
@@ -119,11 +115,15 @@ function buildDemoPixels() {
   }
 }
 
-async function startDemoAudio() {
-  // デモ：Tone.jsグラフだけ組む（音は出さない・ゲイン=0）
+
+async function startWithCamera() {
+  // Tone.js 音声起動（ユーザージェスチャー後に必ず先に呼ぶ）
+  await Tone.start();
+
+  // Tone.js ノード初期化
   try {
     reverb = new Tone.Reverb({ decay: 2.5, wet: 0.4 }).toDestination();
-    gainNode = new Tone.Gain(0.0).connect(reverb);
+    gainNode = new Tone.Gain(0.6).connect(reverb);
     toneWaveform = new Tone.Waveform(CANVAS_H);
     gainNode.connect(toneWaveform);
 
@@ -132,23 +132,18 @@ async function startDemoAudio() {
       const osc = new Tone.Oscillator({
         frequency: baseFreq,
         type: 'sine',
-        volume: -60
+        volume: -30
       }).connect(gainNode);
       osc.start();
       oscillators.push(osc);
     }
-    // デモモードでは音を出さないがwave形は動く
-    gainNode.gain.value = 0.0;
     audioStarted = true;
   } catch (e) {
-    // Tone.jsが使えない環境でもビジュアルは動く
     audioStarted = false;
   }
-}
 
-async function startWithCamera() {
+  // カメラ取得試行
   try {
-    // カメラ取得試行
     video = createCapture(VIDEO, () => {
       video.size(CANVAS_W, CANVAS_H);
       video.hide();
@@ -157,12 +152,6 @@ async function startWithCamera() {
   } catch (e) {
     useCamera = false;
   }
-
-  // Tone.js 音声起動（ユーザージェスチャー後）
-  try {
-    await Tone.start();
-    if (gainNode) gainNode.gain.rampTo(0.6, 0.5);
-  } catch (e) {}
 }
 
 document.getElementById('start-overlay').addEventListener('click', async () => {
