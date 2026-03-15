@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rattle</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #ededea;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+const BOX_W = 340;
+const BOX_H = 240;
+const BALL_R = 6;
+const NUM_BALLS = 28;
+const FRICTION = 0.88;
+const RESTITUTION = 0.45;
+
+let balls = [];
+let gravity = { x: 0, y: 0 };
+let shakeVel = { x: 0, y: 0 };
+let shakeDecay = 0.92;
+let mouseHasMoved = false;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  colorMode(RGB, 255, 255, 255, 1.0);
+
+  // 箱の中央付近にランダムに粒を配置
+  for (let i = 0; i < NUM_BALLS; i++) {
+    balls.push({
+      x: random(-BOX_W / 2 + BALL_R + 10, BOX_W / 2 - BALL_R - 10),
+      y: random(-BOX_H / 2 + BALL_R + 10, BOX_H / 2 - BALL_R - 10),
+      vx: 0,
+      vy: 0,
+      r: BALL_R + random(-1.5, 1.5)
+    });
+  }
+}
+
+function draw() {
+  background('#ededea');
+
+  // 箱の中心（画面中央）
+  let cx = width / 2;
+  let cy = height / 2;
+
+  // マウス位置から重力方向を決定（マウスが動いていない場合は真下）
+  let gStrength = 0.35;
+  if (mouseHasMoved) {
+    let mx = (mouseX - cx) / cx; // -1〜1
+    let my = (mouseY - cy) / cy; // -1〜1
+    gravity.x = mx * gStrength;
+    gravity.y = my * gStrength + 0.2;
+  } else {
+    gravity.x = 0;
+    gravity.y = 0.35;
+  }
+
+  // シェイク減衰
+  shakeVel.x *= shakeDecay;
+  shakeVel.y *= shakeDecay;
+
+  // 粒の物理更新
+  for (let b of balls) {
+    b.vx += gravity.x + shakeVel.x;
+    b.vy += gravity.y + shakeVel.y;
+
+    b.vx *= FRICTION;
+    b.vy *= FRICTION;
+
+    b.x += b.vx;
+    b.y += b.vy;
+
+    // 箱の壁との衝突
+    let halfW = BOX_W / 2 - b.r;
+    let halfH = BOX_H / 2 - b.r;
+
+    if (b.x < -halfW) { b.x = -halfW; b.vx *= -RESTITUTION; }
+    if (b.x > halfW)  { b.x = halfW;  b.vx *= -RESTITUTION; }
+    if (b.y < -halfH) { b.y = -halfH; b.vy *= -RESTITUTION; }
+    if (b.y > halfH)  { b.y = halfH;  b.vy *= -RESTITUTION; }
+  }
+
+  // 粒同士の衝突（簡易）
+  for (let i = 0; i < balls.length; i++) {
+    for (let j = i + 1; j < balls.length; j++) {
+      let a = balls[i];
+      let b = balls[j];
+      let dx = b.x - a.x;
+      let dy = b.y - a.y;
+      let dist = sqrt(dx * dx + dy * dy);
+      let minDist = a.r + b.r;
+      if (dist < minDist && dist > 0.001) {
+        let overlap = minDist - dist;
+        let nx = dx / dist;
+        let ny = dy / dist;
+        a.x -= nx * overlap * 0.5;
+        a.y -= ny * overlap * 0.5;
+        b.x += nx * overlap * 0.5;
+        b.y += ny * overlap * 0.5;
+
+        // 速度の交換
+        let dvx = a.vx - b.vx;
+        let dvy = a.vy - b.vy;
+        let dot = dvx * nx + dvy * ny;
+        if (dot > 0) {
+          a.vx -= dot * nx * RESTITUTION;
+          a.vy -= dot * ny * RESTITUTION;
+          b.vx += dot * nx * RESTITUTION;
+          b.vy += dot * ny * RESTITUTION;
+        }
+      }
+    }
+  }
+
+  push();
+  translate(cx, cy);
+
+  // 箱の影
+  noStroke();
+  fill(0, 0, 0, 0.04);
+  rect(4, 6, BOX_W, BOX_H, 4);
+
+  // 箱の外枠（薄いグレーの線）
+  stroke(120, 115, 110, 0.5);
+  strokeWeight(1.5);
+  fill(248, 246, 242, 1.0);
+  rect(-BOX_W / 2, -BOX_H / 2, BOX_W, BOX_H, 3);
+
+  // 内側のかすかな線（箱の深さを示すスコアライン）
+  stroke(170, 165, 158, 0.3);
+  strokeWeight(0.8);
+  rect(-BOX_W / 2 + 8, -BOX_H / 2 + 8, BOX_W - 16, BOX_H - 16, 2);
+
+  // 粒を描く
+  for (let b of balls) {
+    // 速さ計算
+    let speed = sqrt(b.vx * b.vx + b.vy * b.vy);
+    let t = constrain(speed / 3, 0, 1);
+
+    // 速いほど暗く（動いているものを強調）
+    let grayVal = lerp(155, 60, t);
+    let alphaVal = lerp(0.6, 0.85, t);
+
+    // 粒本体
+    noStroke();
+    fill(grayVal, grayVal - 5, grayVal - 10, alphaVal);
+    ellipse(b.x, b.y, b.r * 2, b.r * 2);
+
+    // ハイライト
+    fill(255, 255, 255, 0.25);
+    ellipse(b.x - b.r * 0.25, b.y - b.r * 0.3, b.r * 0.7, b.r * 0.5);
+
+    // 影
+    fill(0, 0, 0, 0.07);
+    ellipse(b.x + 1, b.y + 1.5, b.r * 1.6, b.r * 0.8);
+  }
+
+  pop();
+}
+
+function mouseMoved() {
+  mouseHasMoved = true;
+}
+
+function mousePressed() {
+  mouseHasMoved = true;
+  // クリックで揺さぶる
+  shakeVel.x = random(-3, 3);
+  shakeVel.y = random(-3, 3);
+}
+
+function keyPressed() {
+  if (key === ' ') {
+    // スペースキーで強く揺さぶる
+    shakeVel.x = random(-6, 6);
+    shakeVel.y = random(-5, 5);
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '245',
+  title:  'Rattle',
+  detail: 'マウスを動かすと箱が傾いて、中の粒が滑ります。クリックまたはスペースキーで揺さぶれます。粒同士もぶつかります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

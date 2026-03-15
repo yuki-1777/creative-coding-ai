@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scar</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #f0ede8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 傷跡を蓄積する配列
+// 各傷は { points: [{x,y},...], alpha: 0-1, age: 0 }
+let scars = [];
+let currentScar = null;
+let isDrawing = false;
+
+// 背景の微細なテクスチャ用ノイズオフセット
+let noiseOffsets = [];
+const NUM_TEXTURE = 400;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  colorMode(RGB, 255, 255, 255, 1.0);
+  strokeCap(ROUND);
+  strokeJoin(ROUND);
+
+  // テクスチャポイントを事前生成
+  for (let i = 0; i < NUM_TEXTURE; i++) {
+    noiseOffsets.push({
+      x: random(width),
+      y: random(height),
+      size: random(0.5, 2),
+      alpha: random(0.02, 0.06)
+    });
+  }
+
+  // 初期デモ傷を生成（ランダムなスクラッチ）
+  addDemoScars();
+}
+
+function addDemoScars() {
+  let cx = width / 2;
+  let cy = height / 2;
+  let numScars = floor(random(9, 14));
+
+  for (let s = 0; s < numScars; s++) {
+    let startX = random(cx - 280, cx + 280);
+    let startY = random(cy - 180, cy + 180);
+    let angle = random(-PI * 0.4, PI * 0.4);
+    let length = random(40, 180);
+    let curve = random(-0.4, 0.4);
+    let numPts = floor(length / 6);
+    let pts = [];
+    for (let i = 0; i < numPts; i++) {
+      let frac = i / (numPts - 1);
+      let x = startX + cos(angle + curve * frac) * length * frac;
+      let y = startY + sin(angle + curve * frac) * length * frac;
+      // 微細なブレ
+      x += random(-2, 2);
+      y += random(-1.5, 1.5);
+      pts.push({ x, y });
+    }
+    scars.push({
+      points: pts,
+      alpha: random(0.45, 0.75),
+      noiseBase: random(100)
+    });
+  }
+}
+
+function draw() {
+  // 背景：オフホワイトのやわらかい紙風
+  background('#f0ede8');
+
+  // 微細なテクスチャ
+  noStroke();
+  for (let t of noiseOffsets) {
+    fill(160, 145, 130, t.alpha);
+    ellipse(t.x, t.y, t.size, t.size);
+  }
+
+  // 傷を古い順に描く（新しいほど上に来る）
+  for (let scar of scars) {
+    drawScar(scar);
+    // 傷は非常にゆっくりと薄れる（1フレームあたり 0.0003 ずつ）
+    scar.alpha -= 0.0003;
+  }
+
+  // 描画中の傷
+  if (currentScar && currentScar.points.length > 1) {
+    drawScar(currentScar);
+  }
+
+  // 薄くなりきった傷を除去
+  scars = scars.filter(s => s.alpha > 0.02);
+}
+
+function drawScar(scar) {
+  if (scar.points.length < 2) return;
+
+  // 傷の本体：細い線
+  let baseAlpha = scar.alpha;
+  stroke(60, 50, 45, baseAlpha);
+  strokeWeight(1.2);
+  noFill();
+
+  beginShape();
+  for (let i = 0; i < scar.points.length; i++) {
+    let p = scar.points[i];
+    if (i === 0) {
+      curveVertex(p.x, p.y);
+    }
+    curveVertex(p.x, p.y);
+    if (i === scar.points.length - 1) {
+      curveVertex(p.x, p.y);
+    }
+  }
+  endShape();
+
+  // 傷の端のほつれ（3本の細いずれた線で皮膚の裂け目感）
+  if (scar.points.length > 4) {
+    strokeWeight(0.5);
+    stroke(80, 65, 55, baseAlpha * 0.4);
+
+    // 少しオフセットした並行線
+    beginShape();
+    for (let i = 0; i < scar.points.length; i++) {
+      let p = scar.points[i];
+      // 法線方向に微細なオフセット
+      let nx = 0, ny = 0;
+      if (i > 0 && i < scar.points.length - 1) {
+        let prev = scar.points[i - 1];
+        let next = scar.points[i + 1];
+        let dx = next.x - prev.x;
+        let dy = next.y - prev.y;
+        let len = sqrt(dx * dx + dy * dy);
+        if (len > 0) {
+          nx = -dy / len;
+          ny = dx / len;
+        }
+      }
+      let offset = 1.5 * noise(i * 0.3 + scar.noiseBase) - 0.75;
+      if (i === 0) curveVertex(p.x + nx * offset, p.y + ny * offset);
+      curveVertex(p.x + nx * offset, p.y + ny * offset);
+      if (i === scar.points.length - 1) curveVertex(p.x + nx * offset, p.y + ny * offset);
+    }
+    endShape();
+  }
+}
+
+function mousePressed() {
+  isDrawing = true;
+  currentScar = {
+    points: [{ x: mouseX, y: mouseY }],
+    alpha: 0.75,
+    noiseBase: random(100)
+  };
+}
+
+function mouseDragged() {
+  if (!isDrawing || !currentScar) return;
+
+  let last = currentScar.points[currentScar.points.length - 1];
+  let dist = sqrt((mouseX - last.x) ** 2 + (mouseY - last.y) ** 2);
+
+  // 最小距離を超えた場合だけ追加（ノイズ削減）
+  if (dist > 4) {
+    currentScar.points.push({ x: mouseX, y: mouseY });
+  }
+}
+
+function mouseReleased() {
+  if (!isDrawing || !currentScar) return;
+  isDrawing = false;
+
+  // 最低2点以上あれば傷として確定
+  if (currentScar.points.length >= 2) {
+    scars.push(currentScar);
+  }
+  currentScar = null;
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '244',
+  title:  'Scar',
+  detail: 'ドラッグして傷をつけます。傷は少しずつ薄れていきますが、すぐには消えません。何本重ねても、最後には肌の色に戻ります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

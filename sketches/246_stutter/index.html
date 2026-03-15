@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stutter</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #f2f0ec;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 各スロット（横に進む位置）の管理
+const NUM_ROWS = 9;      // 縦に並ぶ行数
+const SPACING = 14;      // 線同士の横間隔
+const LINE_H_RATIO = 0.5; // 線の高さ（画面の何割か）
+
+let rows = [];
+let t = 0; // グローバルタイム
+
+function makeRow(rowIndex) {
+  let totalLines = floor(width / SPACING) + 4;
+  return {
+    rowIndex: rowIndex,
+    phase: rowIndex * 0.0,    // 行ごとの位相ずれ
+    x: 0,                      // 現在の描画頭
+    speed: 1.4,
+    normalSpeed: 1.4,
+    stutterTimer: 0,
+    stutterDuration: 0,
+    isStuttering: false,
+    lines: [],                  // 描いた線の履歴 [{x, alpha, w}]
+    totalLines: totalLines,
+    stuckX: 0,                  // 詰まったX位置
+    stuckCount: 0,              // 同じ位置で何フレーム揺れたか
+    stuckJitter: 0              // 詰まり中のジッター
+  };
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  colorMode(RGB, 255, 255, 255, 1.0);
+  strokeCap(SQUARE);
+
+  for (let i = 0; i < NUM_ROWS; i++) {
+    rows.push(makeRow(i));
+  }
+
+  // 各行の最初の線を配置
+  for (let row of rows) {
+    row.x = row.rowIndex * (width / NUM_ROWS) * 0.15; // 行ごとにわずかに開始位置をずらす
+  }
+}
+
+function draw() {
+  background('#f2f0ec');
+  t += 1;
+
+  let mx = mouseX;
+
+  for (let row of rows) {
+    let cy = (row.rowIndex + 1) * height / (NUM_ROWS + 1);
+    let lineH = height * LINE_H_RATIO;
+
+    // マウスの近さで詰まりやすさが上がる
+    let distFromMouse = abs(mouseY - cy);
+    let mouseFactor = constrain(1.0 - distFromMouse / (height * 0.25), 0, 1);
+
+    // 詰まり判定
+    if (!row.isStuttering) {
+      // 詰まる確率（フレームごと）
+      let baseProb = 0.003;
+      let prob = baseProb + mouseFactor * 0.012;
+      if (random() < prob) {
+        row.isStuttering = true;
+        row.stuckX = row.x;
+        row.stutterDuration = floor(random(18, 55));
+        row.stutterTimer = 0;
+        row.stuckCount = 0;
+        row.stuckJitter = 0;
+      }
+    }
+
+    if (row.isStuttering) {
+      row.stutterTimer++;
+      row.stuckCount++;
+
+      // 詰まり中はランダムな小さいジッター
+      row.stuckJitter = random(-1.5, 1.5);
+      // 詰まり中は動かない（わずかに揺れるだけ）
+      if (row.stutterTimer >= row.stutterDuration) {
+        row.isStuttering = false;
+        row.stuckJitter = 0;
+      }
+    } else {
+      row.x += row.speed;
+    }
+
+    // 画面端を超えたらラップ
+    if (row.x > width + SPACING * 2) {
+      row.x = -SPACING * 2;
+      row.lines = [];
+    }
+
+    // 現在の描画Xに線を追加
+    let drawX = row.x + (row.isStuttering ? row.stuckJitter : 0);
+
+    // 過去の線を履歴に追加
+    // 一定間隔ごとに追加（詰まり中は同じ場所に重ねる→濃くなる）
+    if (!row.isStuttering) {
+      if (row.lines.length === 0 ||
+          row.x - row.lines[row.lines.length - 1].x > SPACING * 0.95) {
+        row.lines.push({
+          x: drawX,
+          alpha: 0.7,
+          w: 1.0
+        });
+      }
+    } else {
+      // 詰まり中：同じ位置にわずかなジッターで線を置く
+      if (row.stuckCount % 3 === 0) {
+        row.lines.push({
+          x: row.stuckX + row.stuckJitter * 0.5,
+          alpha: 0.55,
+          w: 0.8
+        });
+      }
+    }
+
+    // 線を描画
+    for (let i = 0; i < row.lines.length; i++) {
+      let ln = row.lines[i];
+      // 古い線ほど薄い（左の線は古い）
+      let ageFactor = i / max(row.lines.length - 1, 1);
+      let a = ln.alpha * (0.15 + ageFactor * 0.85);
+
+      stroke(55, 50, 45, a);
+      strokeWeight(ln.w);
+      line(ln.x, cy - lineH / 2, ln.x, cy + lineH / 2);
+    }
+
+    // 詰まり中のインジケーター：その行の線が少し重なって見える
+    if (row.isStuttering) {
+      // 詰まりの濃さを示す短い横線
+      let progress = row.stutterTimer / row.stutterDuration;
+      stroke(55, 50, 45, 0.12 * (1 - progress));
+      strokeWeight(0.5);
+      line(row.stuckX - SPACING, cy, row.stuckX + SPACING, cy);
+    }
+
+    // 古すぎる線を削除（画面幅の1.5倍以上溜まったら）
+    if (row.lines.length > floor(width / SPACING) + 10) {
+      row.lines.splice(0, 1);
+    }
+  }
+}
+
+function mouseClicked() {
+  // 全行をリセット
+  for (let i = 0; i < rows.length; i++) {
+    rows[i] = makeRow(i);
+    rows[i].x = i * (width / NUM_ROWS) * 0.15;
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  for (let i = 0; i < rows.length; i++) {
+    rows[i] = makeRow(i);
+    rows[i].x = i * (width / NUM_ROWS) * 0.15;
+  }
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '246',
+  title:  'Stutter',
+  detail: '縦の線が左から右へ流れています。時々、流れが詰まります。マウスを近づけると詰まりやすくなります。クリックでリセットします。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

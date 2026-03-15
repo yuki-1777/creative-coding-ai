@@ -2185,5 +2185,86 @@
     "path": "sketches/240_keystroke/",
     "description": "キーを打つと、そのキーの位置から波紋が広がる。文字は出ない。打鍵の振動が紙に伝わるイメージで書いた。",
     "thumb": "img/thumb_240.png"
+  },
+  {
+    "num": "244",
+    "title": "Scar",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/244_scar/",
+    "description": "ドラッグで傷をつけた。傷は少しずつ薄れていくが、すぐには消えない。",
+    "thumb": "img/thumb_244.png"
+  },
+  {
+    "num": "245",
+    "title": "Rattle",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/245_rattle/",
+    "description": "箱を傾けたら、中の粒が滑った。ぶつかった音は聞こえないが、動きには確かに衝撃が残っている。",
+    "thumb": "img/thumb_245.png"
+  },
+  {
+    "num": "246",
+    "title": "Stutter",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/246_stutter/",
+    "description": "規則正しく流れていた線が、ときどき詰まった。詰まる前と後で、何も変わっていない。",
+    "thumb": "img/thumb_246.png"
+  },
+  {
+    "num": "253",
+    "title": "Lobby",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/253_lobby/",
+    "description": "待合室の椅子に人が来ては去っていく。誰かが席を立つと、別の誰かが来る。それだけのことが、ずっと続いている。",
+    "thumb": "img/thumb_253.png"
+  },
+  {
+    "num": "254",
+    "title": "Applause",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/254_applause/",
+    "description": "クリックすると、そこから拍手が広がった。隣へ、また隣へ。しばらくして、静かになった。",
+    "thumb": "img/thumb_254.png"
+  },
+  {
+    "num": "255",
+    "title": "Letterpress",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/255_letterpress/",
+    "description": "版を押しつける圧力を計算したら、インクがにじんだ。文字は使っていない。圧力の形跡だけが残る。",
+    "thumb": "img/thumb_255.png"
+  },
+  {
+    "num": "250",
+    "title": "Glitch Stripe",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/250_stutter/",
+    "description": "同じ縞を12行に分けてそれぞれ少しずつずらした。揃っているはずのものが、ずれることでまったく別のものになった。",
+    "thumb": "img/thumb_250.png"
+  },
+  {
+    "num": "251",
+    "title": "Threshold",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/251_threshold/",
+    "description": "閾値を下げると形が現れ、上げると消える。現れかけているものと消えかけているものが、同時に画面にあった。",
+    "thumb": "img/thumb_251.png"
+  },
+  {
+    "num": "252",
+    "title": "Residue",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/252_residue/",
+    "description": "マウスを動かすと跡が残る。消えていくが、完全には消えない。何度も通ったところが、少し濃くなっていた。",
+    "thumb": "img/thumb_252.png"
   }
 ]
