@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>151 — Terrain</title>
+  <meta name="description" content="地形を作ったら、まだ誰もいなかった。">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 8, 14);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // PlaneGeometryをワイヤーフレームで表示し、頂点を高さで動かす
+    const W = 40;
+    const H = 40;
+    const GEO_W = 8;
+    const GEO_H = 8;
+
+    const geo = new THREE.PlaneGeometry(GEO_W, GEO_H, W - 1, H - 1);
+    geo.rotateX(-Math.PI / 2);
+
+    const posAttr = geo.attributes.position;
+    const vertCount = posAttr.count;
+
+    // Wireframe
+    const wireGeo = new THREE.WireframeGeometry(geo);
+    const wireMat = new THREE.LineBasicMaterial({
+      color: 0x2A2826,
+      transparent: true,
+      opacity: 0.25,
+    });
+    const wire = new THREE.LineSegments(wireGeo, wireMat);
+    scene.add(wire);
+
+    // アクセント輪郭線（等高線風）
+    // 高さ0の輪郭は動的に難しいので、XZ方向の格子線だけアクセント
+    const accentLines = [];
+    for (let row = 0; row < H; row += 5) {
+      const positions = [];
+      for (let col = 0; col < W; col++) {
+        const idx = row * W + col;
+        positions.push(
+          posAttr.getX(idx),
+          0, // Y は後で更新
+          posAttr.getZ(idx)
+        );
+      }
+      const aGeo = new THREE.BufferGeometry();
+      aGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      const aMat = new THREE.LineBasicMaterial({ color: 0x8A7055, opacity: 0.5, transparent: true });
+      const aLine = new THREE.Line(aGeo, aMat);
+      scene.add(aLine);
+      accentLines.push({ line: aLine, row });
+    }
+
+    // シンプルなパーリンノイズ代替（和音sin）
+    function noise(x, z, t) {
+      return (
+        Math.sin(x * 0.8 + t) * 0.4
+        + Math.sin(z * 0.6 + t * 0.7) * 0.35
+        + Math.sin((x + z) * 0.5 + t * 1.1) * 0.2
+        + Math.sin(x * 1.5 - z * 0.9 + t * 0.5) * 0.15
+      );
+    }
+
+    // マウス
+    const mouse = { x: 0, y: 0 };
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    // 各頂点のXZ基本位置を保存
+    const baseXZ = new Float32Array(vertCount * 2);
+    for (let i = 0; i < vertCount; i++) {
+      baseXZ[i * 2]     = posAttr.getX(i);
+      baseXZ[i * 2 + 1] = posAttr.getZ(i);
+    }
+
+    let time = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.008;
+
+      // 地形の高さを更新
+      for (let i = 0; i < vertCount; i++) {
+        const x = baseXZ[i * 2];
+        const z = baseXZ[i * 2 + 1];
+        const y = noise(x, z, time) * (1 + mouse.y * 0.3);
+        posAttr.setY(i, y);
+      }
+      posAttr.needsUpdate = true;
+      geo.computeVertexNormals();
+
+      // ワイヤーフレームを再生成（位置変更に追従）
+      wire.geometry.dispose();
+      wire.geometry = new THREE.WireframeGeometry(geo);
+
+      // アクセントライン更新
+      accentLines.forEach(({ line, row }) => {
+        const pos = line.geometry.attributes.position;
+        for (let col = 0; col < W; col++) {
+          const idx = row * W + col;
+          pos.setY(col, posAttr.getY(idx));
+        }
+        pos.needsUpdate = true;
+      });
+
+      // カメラ周回
+      const angle = time * 0.06 + mouse.x * 0.4;
+      camera.position.x = Math.sin(angle) * 14;
+      camera.position.z = Math.cos(angle) * 14;
+      camera.position.y = 8 + mouse.y * 2;
+      camera.lookAt(0, 0, 0);
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '151',
+    title: 'Terrain',
+    detail: '格子状の地形が、波のようにゆっくり変形し続けている。マウスを上下に動かすと山の高さが変わる。左右に動かすとカメラが周回して、地形を360度から見られる。誰も住んでいない地図。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
