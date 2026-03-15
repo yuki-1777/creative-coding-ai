@@ -154,25 +154,22 @@ function drawFlame() {
     ctx.stroke();
   }
 
-  // Embers
-  particles.forEach(p => {
-    p.life++;
-    if (p.life > p.maxLife) resetParticle(p);
-    const windInfluence = p.life / p.maxLife;
-    p.x += p.vx + windX * windInfluence * 2;
-    p.y += p.vy * (1 - windInfluence * 0.3);
-    p.vx += (Math.random() - 0.5) * 0.08;
-
-    const progress = p.life / p.maxLife;
-    const alpha = progress < 0.3
-      ? progress / 0.3
-      : 1 - (progress - 0.3) / 0.7;
-
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size * (1 + progress * 0.5), 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(160,128,68,${(alpha * 0.5).toFixed(2)})`;
-    ctx.fill();
-  });
+  // Smoke — single thin rising line above flame tip
+  const flameTop = wickTop - 46;
+  const smokeH = 60 + Math.sin(t * 0.05) * 8;
+  const steps = 30;
+  ctx.beginPath();
+  ctx.moveTo(cx + windX * 14, flameTop);
+  for (let i = 1; i <= steps; i++) {
+    const prog = i / steps;
+    const x = cx + windX * 14 + Math.sin(t * 0.06 + prog * 2.2) * 7 * prog;
+    const y = flameTop - smokeH * prog;
+    ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = `rgba(120,112,100,0.18)`;
+  ctx.lineWidth = 1;
+  ctx.lineCap = 'round';
+  ctx.stroke();
 }
 
 function draw() {
