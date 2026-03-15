@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>312 – Gauge</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeece8; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function() {
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0xeeece8);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 200);
+  camera.position.set(0, 4, 22);
+  camera.lookAt(0, 0, 0);
+
+  // ---- Materials ----
+  const MAT_LINE   = new THREE.LineBasicMaterial({ color: 0x2c2c2c });
+  const MAT_DRUM   = new THREE.LineBasicMaterial({ color: 0x444444 });
+  const MAT_TRACE  = new THREE.LineBasicMaterial({ color: 0x111111, transparent: true, opacity: 0.6 });
+  const MAT_FLOAT  = new THREE.LineBasicMaterial({ color: 0x3a3a3a });
+  const MAT_WATER  = new THREE.MeshBasicMaterial({ color: 0xd0dce8, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+
+  // ---- Dimensions ----
+  const DRUM_R     = 3.2;
+  const DRUM_DEPTH = 1.4;
+  const DRUM_SEG   = 40;
+
+  const FLOAT_R    = 0.55;
+  const ARM_LEN    = 6.5;
+  const PEN_R      = 0.08;
+
+  // Water basin
+  const BASIN_W  = 10;
+  const BASIN_D  = 4;
+  const BASIN_H  = 5;
+
+  // ---- Build geometry helpers ----
+  function linePts(pts, mat) {
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    return new THREE.Line(geo, mat);
+  }
+  function circle2D(r, segs, mat) {
+    const pts = [];
+    for (let i = 0; i <= segs; i++) {
+      const a = (i / segs) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, 0));
+    }
+    return linePts(pts, mat);
+  }
+
+  // ---- Recording drum (cylinder on right side) ----
+  // Drum axis is Z, standing at x=5
+  const drumGroup = new THREE.Group();
+  drumGroup.position.set(5.5, 0, 0);
+  scene.add(drumGroup);
+
+  // Cylinder outline
+  const cylGeo   = new THREE.CylinderGeometry(DRUM_R, DRUM_R, DRUM_DEPTH, DRUM_SEG, 1, true);
+  const cylEdges  = new THREE.EdgesGeometry(cylGeo);
+  const cylMesh   = new THREE.LineSegments(cylEdges, MAT_DRUM);
+  cylMesh.rotation.x = Math.PI / 2; // Y → Z axis
+  drumGroup.add(cylMesh);
+
+  // End caps
+  function addDrumCap(z) {
+    const c = circle2D(DRUM_R, DRUM_SEG, MAT_LINE);
+    c.position.z = z;
+    drumGroup.add(c);
+  }
+  addDrumCap(-DRUM_DEPTH / 2);
+  addDrumCap( DRUM_DEPTH / 2);
+
+  // Trace line on drum surface (record paper)
+  // We'll add points to a growing line
+  const MAX_TRACE = 1600;
+  const tracePositions = new Float32Array(MAX_TRACE * 3);
+  const traceGeo = new THREE.BufferGeometry();
+  traceGeo.setAttribute('position', new THREE.BufferAttribute(tracePositions, 3));
+  traceGeo.setDrawRange(0, 0);
+  const traceLine = new THREE.Line(traceGeo, MAT_TRACE);
+  drumGroup.add(traceLine);
+  let traceCount = 0;
+
+  // ---- Float & arm ----
+  // Pivot is at origin (0,0,0) roughly
+  // Float hangs at end of arm extending into water basin (left side)
+  const pivotGroup = new THREE.Group();
+  pivotGroup.position.set(0, 1.5, 0);
+  scene.add(pivotGroup);
+
+  // Arm (horizontal beam)
+  const armLine = linePts([
+    new THREE.Vector3(-ARM_LEN / 2, 0, 0),
+    new THREE.Vector3( ARM_LEN / 2, 0, 0),
+  ], MAT_LINE);
+  pivotGroup.add(armLine);
+
+  // Pivot dot
+  const pivotCircle = circle2D(0.15, 12, MAT_LINE);
+  pivotGroup.add(pivotCircle);
+
+  // Float (sphere outline) at left end of arm
+  const floatCircle = circle2D(FLOAT_R, 20, MAT_FLOAT);
+  floatCircle.position.x = -ARM_LEN / 2;
+  pivotGroup.add(floatCircle);
+
+  // Cross-section of float (vertical circle)
+  const floatCircleV = circle2D(FLOAT_R, 20, MAT_FLOAT);
+  floatCircleV.position.x = -ARM_LEN / 2;
+  floatCircleV.rotation.y = Math.PI / 2;
+  pivotGroup.add(floatCircleV);
+
+  // Pen tip at right end of arm (touches drum)
+  const penTip = circle2D(PEN_R, 8, MAT_LINE);
+  penTip.position.x = ARM_LEN / 2;
+  pivotGroup.add(penTip);
+
+  // ---- Water surface plane ----
+  const waterGeo = new THREE.PlaneGeometry(BASIN_W, BASIN_D);
+  const waterMesh = new THREE.Mesh(waterGeo, MAT_WATER);
+  waterMesh.rotation.x = -Math.PI / 2;
+  waterMesh.position.y = 1.5; // base water level
+  scene.add(waterMesh);
+
+  // Basin outline (just front face + sides)
+  const basinPts = [
+    new THREE.Vector3(-BASIN_W/2, -BASIN_H/2, BASIN_D/2),
+    new THREE.Vector3( BASIN_W/2, -BASIN_H/2, BASIN_D/2),
+    new THREE.Vector3( BASIN_W/2,  BASIN_H/2, BASIN_D/2),
+    new THREE.Vector3(-BASIN_W/2,  BASIN_H/2, BASIN_D/2),
+    new THREE.Vector3(-BASIN_W/2, -BASIN_H/2, BASIN_D/2),
+  ];
+  scene.add(linePts(basinPts, new THREE.LineBasicMaterial({ color: 0x888888 })));
+  // bottom line at back
+  scene.add(linePts([
+    new THREE.Vector3(-BASIN_W/2, -BASIN_H/2, -BASIN_D/2),
+    new THREE.Vector3( BASIN_W/2, -BASIN_H/2, -BASIN_D/2),
+  ], new THREE.LineBasicMaterial({ color: 0x888888 })));
+
+  // ---- Mouse drag for camera orbit ----
+  let isDragging = false;
+  let prevMX = 0, prevMY = 0;
+  let camTheta = 0, camPhi = 0.3;
+
+  renderer.domElement.addEventListener('mousedown', e => {
+    isDragging = true;
+    prevMX = e.clientX;
+    prevMY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    camTheta -= (e.clientX - prevMX) * 0.008;
+    camPhi    = Math.max(-0.3, Math.min(1.2, camPhi + (e.clientY - prevMY) * 0.006));
+    prevMX = e.clientX;
+    prevMY = e.clientY;
+  });
+
+  // Touch
+  renderer.domElement.addEventListener('touchstart', e => {
+    isDragging = true;
+    prevMX = e.touches[0].clientX;
+    prevMY = e.touches[0].clientY;
+  });
+  window.addEventListener('touchend', () => { isDragging = false; });
+  window.addEventListener('touchmove', e => {
+    if (!isDragging) return;
+    camTheta -= (e.touches[0].clientX - prevMX) * 0.008;
+    camPhi    = Math.max(-0.3, Math.min(1.2, camPhi + (e.touches[0].clientY - prevMY) * 0.006));
+    prevMX = e.touches[0].clientX;
+    prevMY = e.touches[0].clientY;
+  });
+
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  });
+
+  // ---- Tide simulation ----
+  // Multiple sine waves for natural tide-like motion
+  const TIDES = [
+    { amp: 1.8, period: 11.0 },
+    { amp: 0.6, period: 7.3 },
+    { amp: 0.25, period: 3.1 },
+  ];
+
+  function getTideHeight(t) {
+    let h = 0;
+    TIDES.forEach(({ amp, period }) => {
+      h += amp * Math.sin((t / period) * Math.PI * 2);
+    });
+    return h;
+  }
+
+  let t          = 0;
+  let drumAngle  = 0;
+  const DRUM_SPEED = 0.004; // radians per frame
+
+  // Title bar tide value
+  function updateTitle(h) {
+    const val = (h + 2.65).toFixed(2);
+    document.title = `潮位 ${val} m – Gauge`;
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    t          += 0.016;
+    drumAngle  += DRUM_SPEED;
+    cylMesh.rotation.y = drumAngle; // drum rotates around its local Z (world Z after rotation.x=PI/2)
+
+    const tideH = getTideHeight(t);
+    const waterY = 1.5 + tideH;
+
+    // Move water surface
+    waterMesh.position.y = waterY;
+
+    // Arm pivot angle: float rides water surface
+    // float center at x = -ARM_LEN/2 from pivot (world x = -ARM_LEN/2)
+    const floatTargetY = waterY - pivotGroup.position.y;
+    const armAngle = Math.asin(Math.max(-1, Math.min(1, floatTargetY / (ARM_LEN / 2))));
+    pivotGroup.rotation.z = armAngle;
+
+    // Pen tip world Y: right end of arm (ARM_LEN/2 * cos(armAngle) from pivot)
+    const penWorldY = pivotGroup.position.y + (ARM_LEN / 2) * Math.sin(armAngle);
+
+    // Map pen Y to drum surface angle
+    const penAngle = (penWorldY / DRUM_R);
+    const penX = Math.cos(penAngle + drumAngle) * DRUM_R;
+    const penY = Math.sin(penAngle + drumAngle) * DRUM_R;
+
+    // Record trace point on drum (in drum local space)
+    // drum is at (5.5, 0, 0); pen contacts at drum edge facing left (x = 5.5 - DRUM_R)
+    // Map penWorldY → angle on drum circumference
+    if (traceCount < MAX_TRACE) {
+      const idx = traceCount * 3;
+      const drumLocalAngle = drumAngle - penWorldY / DRUM_R * 0.5;
+      const tx = Math.cos(drumLocalAngle) * DRUM_R;
+      const ty = Math.sin(drumLocalAngle) * DRUM_R;
+      const tz = 0;
+      tracePositions[idx]     = tx;
+      tracePositions[idx + 1] = ty;
+      tracePositions[idx + 2] = tz;
+      traceGeo.attributes.position.needsUpdate = true;
+      traceCount++;
+      traceGeo.setDrawRange(0, traceCount);
+    } else {
+      // Shift buffer: move all back by 1
+      for (let i = 0; i < (MAX_TRACE - 1) * 3; i++) {
+        tracePositions[i] = tracePositions[i + 3];
+      }
+      const idx = (MAX_TRACE - 1) * 3;
+      const drumLocalAngle = drumAngle - penWorldY / DRUM_R * 0.5;
+      tracePositions[idx]     = Math.cos(drumLocalAngle) * DRUM_R;
+      tracePositions[idx + 1] = Math.sin(drumLocalAngle) * DRUM_R;
+      tracePositions[idx + 2] = 0;
+      traceGeo.attributes.position.needsUpdate = true;
+    }
+
+    // Update title
+    updateTitle(tideH);
+
+    // Camera
+    const camDist = 24;
+    camera.position.x = camDist * Math.sin(camTheta) * Math.cos(camPhi);
+    camera.position.y = 4 + camDist * Math.sin(camPhi);
+    camera.position.z = camDist * Math.cos(camTheta) * Math.cos(camPhi);
+    camera.lookAt(0, 0, 0);
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+})();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '312',
+  title:  'Gauge',
+  detail: 'フロート（浮き）が潮の満ち引きに合わせて上下し、アームを通じて回転ドラムに波形を刻みます。ドラッグで視点を変えられます。タイトルバーに現在の潮位が表示されます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
