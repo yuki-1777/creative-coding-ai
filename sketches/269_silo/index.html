@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Silo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0eeea; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const W = window.innerWidth, H = window.innerHeight;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xf0eeea);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 100);
+  camera.position.set(0, 2, 10);
+  camera.lookAt(0, 0, 0);
+
+  // サイロのパラメータ
+  const RADIUS = 1.5;
+  const HEIGHT = 4.5;
+  const RING_COUNT = 18;   // 横方向の輪（胴体）
+  const VERT_LINES = 24;   // 縦方向の稜線
+
+  const siloCylinder = new THREE.Group();
+  scene.add(siloCylinder);
+
+  const darkMat = new THREE.LineBasicMaterial({ color: 0x444440 });
+  const lightMat = new THREE.LineBasicMaterial({ color: 0xaaaaaa, opacity: 0.5, transparent: true });
+
+  // 横の輪（リング）
+  for (let r = 0; r <= RING_COUNT; r++) {
+    const y = -HEIGHT / 2 + (r / RING_COUNT) * HEIGHT;
+    const pts = [];
+    const SEG = 64;
+    for (let i = 0; i <= SEG; i++) {
+      const a = (i / SEG) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * RADIUS, y, Math.sin(a) * RADIUS));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const isEdge = (r === 0 || r === RING_COUNT);
+    siloCylinder.add(new THREE.Line(geo, isEdge ? darkMat : lightMat));
+  }
+
+  // 縦の稜線
+  for (let v = 0; v < VERT_LINES; v++) {
+    const a = (v / VERT_LINES) * Math.PI * 2;
+    const x = Math.cos(a) * RADIUS;
+    const z = Math.sin(a) * RADIUS;
+    const pts = [
+      new THREE.Vector3(x, -HEIGHT / 2, z),
+      new THREE.Vector3(x, HEIGHT / 2, z)
+    ];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    siloCylinder.add(new THREE.Line(geo, lightMat));
+  }
+
+  // ドーム型の屋根
+  const DOME_SEGS = 12;
+  const DOME_H = 0.8;
+  for (let lat = 0; lat <= DOME_SEGS; lat++) {
+    const t = lat / DOME_SEGS;
+    const angle = (t * Math.PI / 2); // 0〜90度
+    const y = HEIGHT / 2 + Math.sin(angle) * DOME_H;
+    const r = Math.cos(angle) * RADIUS;
+    const pts = [];
+    for (let i = 0; i <= 64; i++) {
+      const a = (i / 64) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    siloCylinder.add(new THREE.Line(geo, lat === 0 ? darkMat : lightMat));
+  }
+
+  // ドームの縦線
+  for (let v = 0; v < VERT_LINES; v++) {
+    const azimuth = (v / VERT_LINES) * Math.PI * 2;
+    const pts = [];
+    for (let lat = 0; lat <= DOME_SEGS; lat++) {
+      const t = lat / DOME_SEGS;
+      const angle = t * Math.PI / 2;
+      const y = HEIGHT / 2 + Math.sin(angle) * DOME_H;
+      const r = Math.cos(angle) * RADIUS;
+      pts.push(new THREE.Vector3(Math.cos(azimuth) * r, y, Math.sin(azimuth) * r));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    siloCylinder.add(new THREE.Line(geo, lightMat));
+  }
+
+  // 底部の開口（少し太いリング）
+  const botPts = [];
+  for (let i = 0; i <= 64; i++) {
+    const a = (i / 64) * Math.PI * 2;
+    botPts.push(new THREE.Vector3(Math.cos(a) * RADIUS * 0.4, -HEIGHT / 2 - 0.02, Math.sin(a) * RADIUS * 0.4));
+  }
+  siloCylinder.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(botPts), darkMat));
+
+  // マウスインタラクション
+  let isDragging = false;
+  let prevMX = 0, prevMY = 0;
+  let rotY = 0.3;
+  let rotX = 0.2;
+  let autoRotSpeed = 0.003;
+
+  renderer.domElement.addEventListener('mousedown', e => {
+    isDragging = true;
+    prevMX = e.clientX; prevMY = e.clientY;
+    autoRotSpeed = 0;
+  });
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    rotY += (e.clientX - prevMX) * 0.005;
+    rotX += (e.clientY - prevMY) * 0.005;
+    rotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rotX));
+    prevMX = e.clientX; prevMY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    autoRotSpeed = 0.003;
+  });
+
+  // タッチ
+  renderer.domElement.addEventListener('touchstart', e => {
+    isDragging = true;
+    prevMX = e.touches[0].clientX; prevMY = e.touches[0].clientY;
+    autoRotSpeed = 0;
+  }, { passive: true });
+  window.addEventListener('touchmove', e => {
+    if (!isDragging) return;
+    rotY += (e.touches[0].clientX - prevMX) * 0.005;
+    rotX += (e.touches[0].clientY - prevMY) * 0.005;
+    rotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rotX));
+    prevMX = e.touches[0].clientX; prevMY = e.touches[0].clientY;
+  }, { passive: true });
+  window.addEventListener('touchend', () => {
+    isDragging = false;
+    autoRotSpeed = 0.003;
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    rotY += autoRotSpeed;
+    siloCylinder.rotation.y = rotY;
+    siloCylinder.rotation.x = rotX;
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  window.addEventListener('resize', () => {
+    const nW = window.innerWidth, nH = window.innerHeight;
+    renderer.setSize(nW, nH);
+    camera.aspect = nW / nH;
+    camera.updateProjectionMatrix();
+  });
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '269',
+  title:  'Silo',
+  detail: 'ドラッグで視点を変えられます。真上から見ると内側が見えます。面は一枚も描いていません——輪と縦線だけで形ができています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
