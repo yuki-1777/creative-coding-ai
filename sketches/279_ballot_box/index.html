@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tally</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f2f1ee; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// --- 開票速報 ---
+// 票が一票ずつ投じられ、棒の高さで結果を表す。
+// 数字は表示しない。積み上がった高さだけが語る。
+// スクロールで開票速度を変える。クリックで新しい選挙。
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+const NUM_CANDIDATES = 5;
+const TOTAL_VOTES = 200;
+
+let finalVotes = [];
+let displayVotes = [];
+let voteSeq = [];
+let voteSeqIdx = 0;
+let totalDisplayed = 0;
+let done = false;
+let doneTimer = 0;
+let speed = 1.2;
+let frameCount = 0;
+let frameAcc = 0;
+
+function initElection() {
+  finalVotes = [];
+  displayVotes = new Array(NUM_CANDIDATES).fill(0);
+  voteSeq = [];
+  voteSeqIdx = 0;
+  totalDisplayed = 0;
+  done = false;
+  doneTimer = 0;
+  frameAcc = 0;
+
+  let remaining = TOTAL_VOTES;
+  for (let i = 0; i < NUM_CANDIDATES - 1; i++) {
+    const min = Math.floor(remaining * 0.05);
+    const max = Math.floor(remaining * 0.55);
+    const v = min + Math.floor(Math.random() * (max - min + 1));
+    finalVotes.push(v);
+    remaining -= v;
+  }
+  finalVotes.push(Math.max(1, remaining));
+
+  for (let i = 0; i < NUM_CANDIDATES; i++) {
+    for (let k = 0; k < finalVotes[i]; k++) {
+      voteSeq.push(i);
+    }
+  }
+  for (let i = voteSeq.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [voteSeq[i], voteSeq[j]] = [voteSeq[j], voteSeq[i]];
+  }
+}
+
+initElection();
+
+window.addEventListener('wheel', e => {
+  speed = Math.max(0.3, Math.min(8, speed + e.deltaY * 0.003));
+}, { passive: true });
+
+canvas.addEventListener('click', () => {
+  initElection();
+});
+
+function getLeader() {
+  let max = -1, idx = 0;
+  for (let i = 0; i < NUM_CANDIDATES; i++) {
+    if (displayVotes[i] > max) { max = displayVotes[i]; idx = i; }
+  }
+  return idx;
+}
+
+function tick() {
+  requestAnimationFrame(tick);
+  frameCount++;
+
+  // 開票進行
+  if (!done) {
+    frameAcc += speed;
+    while (frameAcc >= 1 && voteSeqIdx < voteSeq.length) {
+      displayVotes[voteSeq[voteSeqIdx]]++;
+      totalDisplayed++;
+      voteSeqIdx++;
+      frameAcc -= 1;
+    }
+    if (voteSeqIdx >= voteSeq.length) done = true;
+  } else {
+    doneTimer++;
+  }
+
+  // 描画
+  ctx.fillStyle = '#f2f1ee';
+  ctx.fillRect(0, 0, W, H);
+
+  const margin_x = W * 0.12;
+  const margin_top = H * 0.15;
+  const margin_bot = H * 0.18;
+  const chartW = W - margin_x * 2;
+  const chartH = H - margin_top - margin_bot;
+  const barWidth = (chartW / NUM_CANDIDATES) * 0.52;
+  const barSpacing = chartW / NUM_CANDIDATES;
+  const leader = getLeader();
+  const scaleMax = TOTAL_VOTES * 0.62;
+  const baseY = margin_top + chartH;
+
+  // ベースライン
+  ctx.beginPath();
+  ctx.moveTo(margin_x, baseY);
+  ctx.lineTo(margin_x + chartW, baseY);
+  ctx.strokeStyle = 'rgba(58,55,50,0.15)';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  // 水平ガイドライン
+  for (let k = 1; k <= 4; k++) {
+    const gy = baseY - chartH * (k * 0.25);
+    ctx.beginPath();
+    ctx.moveTo(margin_x, gy);
+    ctx.lineTo(margin_x + chartW, gy);
+    ctx.strokeStyle = 'rgba(58,55,50,0.06)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  // 棒グラフ
+  for (let i = 0; i < NUM_CANDIDATES; i++) {
+    const cx = margin_x + barSpacing * i + barSpacing / 2;
+    const v = displayVotes[i];
+    const barH = (v / scaleMax) * chartH;
+    const isLeader = (i === leader && v > 0);
+    const alpha = isLeader ? 0.68 : 0.32;
+    const x0 = cx - barWidth / 2;
+    const y0 = baseY - barH;
+
+    if (barH > 0) {
+      ctx.fillStyle = `rgba(58,55,50,${alpha})`;
+      ctx.fillRect(x0, y0, barWidth, barH);
+
+      // 今入った票のトップ強調
+      if (!done && voteSeqIdx > 0 && voteSeq[voteSeqIdx - 1] === i) {
+        ctx.fillStyle = 'rgba(58,55,50,0.92)';
+        ctx.fillRect(x0, y0, barWidth, Math.min(4, barH));
+      }
+
+      // 上端ライン
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x0 + barWidth, y0);
+      ctx.strokeStyle = `rgba(58,55,50,${alpha + 0.1})`;
+      ctx.lineWidth = 0.9;
+      ctx.stroke();
+    }
+
+    // 候補者ラベル（横線シルエット）
+    ctx.fillStyle = 'rgba(58,55,50,0.18)';
+    ctx.fillRect(cx - 14, baseY + 14, 28, 4);
+    ctx.fillRect(cx - 8, baseY + 22, 16, 3);
+  }
+
+  // 開票進捗バー（上部）
+  const progress = totalDisplayed / TOTAL_VOTES;
+  ctx.beginPath();
+  ctx.moveTo(margin_x, H * 0.09);
+  ctx.lineTo(margin_x + chartW * progress, H * 0.09);
+  ctx.strokeStyle = 'rgba(58,55,50,0.22)';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  // 当選確定マーカー
+  if (done && doneTimer < 90) {
+    const cx = margin_x + barSpacing * leader + barSpacing / 2;
+    const v = displayVotes[leader];
+    const barH = (v / scaleMax) * chartH;
+    const markerY = baseY - barH - 10;
+    const a = Math.min(1, doneTimer / 30) * 0.55;
+
+    ctx.beginPath();
+    ctx.moveTo(cx, markerY);
+    ctx.lineTo(cx, markerY - 18);
+    ctx.strokeStyle = `rgba(58,55,50,${a})`;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(cx, markerY - 24);
+    ctx.lineTo(cx + 4, markerY - 18);
+    ctx.lineTo(cx, markerY - 12);
+    ctx.lineTo(cx - 4, markerY - 18);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(58,55,50,${a})`;
+    ctx.fill();
+  }
+
+  // ヒント
+  if (frameCount < 200) {
+    const a = Math.max(0, 1 - frameCount / 160) * 0.45;
+    ctx.fillStyle = `rgba(58,55,50,${a})`;
+    ctx.textAlign = 'center';
+    ctx.font = '11px monospace';
+    ctx.fillText('scroll to change speed · click to restart', W / 2, H * 0.05);
+  }
+}
+
+tick();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '279',
+  title: 'Tally',
+  detail: '5人の候補者に票が一票ずつ投じられていきます。棒の高さだけで結果を表します。数字は出ません。マウスホイール（スクロール）で開票速度を変えられます。クリックで新しい選挙が始まります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
