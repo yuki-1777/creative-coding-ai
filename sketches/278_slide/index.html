@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slide</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f2f1ee; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// --- 透過光のスライド ---
+// キーを押すたびにフィルター（半透明の色）が1枚増える。
+// 重なるほど光が変化する。クリックでリセット。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+canvas.width  = window.innerWidth;
+canvas.height = window.innerHeight;
+gl.viewport(0, 0, canvas.width, canvas.height);
+
+window.addEventListener('resize', () => {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+});
+
+// --- シェーダー ---
+const vert = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}`;
+
+const frag = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_time;
+uniform vec2  u_mouse;
+uniform int   u_layers;   // 現在のフィルター枚数 (0〜12)
+
+// ハッシュ関数
+vec2 hash2(vec2 p) {
+  p = vec2(dot(p, vec2(127.1, 311.7)),
+           dot(p, vec2(269.5, 183.3)));
+  return fract(sin(p) * 43758.5453);
+}
+
+// 滑らかなノイズ
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  float a = dot(hash2(i + vec2(0.0, 0.0)), f - vec2(0.0, 0.0));
+  float b = dot(hash2(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0));
+  float c = dot(hash2(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0));
+  float d = dot(hash2(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y) * 0.5 + 0.5;
+}
+
+// フィルター1枚分の暗化量（グラファイトのノイズ）を返す
+// 0=透明, 1=最大暗化
+float filterDensity(int layerIdx, vec2 uv, float t) {
+  vec2 offset = vec2(0.0);
+  float scale = 3.0;
+  float speed = 0.05;
+
+  if      (layerIdx == 0)  { offset = vec2(0.12, 0.08);  scale = 3.2; speed = 0.050; }
+  else if (layerIdx == 1)  { offset = vec2(-0.09, 0.14); scale = 4.8; speed = 0.038; }
+  else if (layerIdx == 2)  { offset = vec2(0.05, -0.11); scale = 2.7; speed = 0.062; }
+  else if (layerIdx == 3)  { offset = vec2(-0.14,-0.07); scale = 5.5; speed = 0.030; }
+  else if (layerIdx == 4)  { offset = vec2(0.18, 0.03);  scale = 3.8; speed = 0.055; }
+  else if (layerIdx == 5)  { offset = vec2(-0.06, 0.19); scale = 2.4; speed = 0.070; }
+  else if (layerIdx == 6)  { offset = vec2(0.10, -0.16); scale = 6.2; speed = 0.028; }
+  else if (layerIdx == 7)  { offset = vec2(-0.17, 0.12); scale = 4.1; speed = 0.045; }
+  else if (layerIdx == 8)  { offset = vec2(0.07, 0.21);  scale = 3.0; speed = 0.058; }
+  else if (layerIdx == 9)  { offset = vec2(-0.13,-0.18); scale = 5.0; speed = 0.035; }
+  else if (layerIdx == 10) { offset = vec2(0.20, -0.09); scale = 2.2; speed = 0.075; }
+  else                     { offset = vec2(-0.04, 0.16); scale = 4.5; speed = 0.042; }
+
+  vec2 p = uv + offset + vec2(sin(t * speed), cos(t * speed * 0.7)) * 0.03;
+  float n = noise(p * scale + t * speed * 0.5);
+  // 縞模様的なパターン（スライドのような縦横の光の差）
+  float stripe = sin((uv.x + uv.y * 0.8 + offset.x * 3.0) * 6.28 * (2.0 + float(layerIdx) * 0.5) + t * speed) * 0.5 + 0.5;
+  return (n * 0.6 + stripe * 0.4) * 0.10; // 1枚あたり薄く
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+
+  // 紙の基本色（オフホワイト）
+  vec3 col = vec3(0.949, 0.945, 0.933);
+  // グラファイト色（暗化方向）
+  vec3 graphite = vec3(0.35, 0.33, 0.30);
+
+  // 各フィルター層を加算ブレンド（暗化のみ、色は変わらない）
+  float totalDark = 0.0;
+  for (int i = 0; i < 12; i++) {
+    float active = (i < u_layers) ? 1.0 : 0.0;
+    totalDark += filterDensity(i, uv, u_time) * active;
+  }
+  totalDark = min(totalDark, 0.65);
+  col = mix(col, graphite, totalDark);
+
+  // 周辺減光（ヴィネット）
+  vec2 vignUV = uv * 2.0 - 1.0;
+  float vign = 1.0 - dot(vignUV * vec2(0.45, 0.52), vignUV * vec2(0.45, 0.52));
+  vign = pow(max(vign, 0.0), 0.4);
+  col = mix(col, col * 0.88, 1.0 - vign);
+
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+// --- コンパイル ---
+function compile(src, type) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(vert, gl.VERTEX_SHADER));
+gl.attachShader(prog, compile(frag, gl.FRAGMENT_SHADER));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+// 四角形
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1,  1,-1,  -1,1,  1,1
+]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'u_res');
+const uTime  = gl.getUniformLocation(prog, 'u_time');
+const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+const uLayers = gl.getUniformLocation(prog, 'u_layers');
+
+gl.uniform2f(uRes, canvas.width, canvas.height);
+gl.uniform2f(uMouse, 0.5, 0.5);
+gl.uniform1i(uLayers, 3);  // 初期状態で3枚重ねて表示
+
+let layers = 3;
+const MAX_LAYERS = 12;
+
+document.addEventListener('keydown', () => {
+  layers = Math.min(layers + 1, MAX_LAYERS);
+  gl.uniform1i(uLayers, layers);
+});
+
+canvas.addEventListener('click', () => {
+  layers = 0;
+  gl.uniform1i(uLayers, layers);
+});
+
+canvas.addEventListener('mousemove', e => {
+  const mx = e.clientX / canvas.width;
+  const my = 1.0 - e.clientY / canvas.height;
+  gl.uniform2f(uMouse, mx, my);
+});
+
+let start = performance.now();
+function loop() {
+  requestAnimationFrame(loop);
+  const t = (performance.now() - start) / 1000;
+  gl.uniform1f(uTime, t);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+loop();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '278',
+  title: 'Slide',
+  detail: 'キーボードのどのキーでも押すたびに半透明のフィルターが1枚重なります（最大12枚）。重ねるほど光が変化します。クリックでリセット。プロジェクタースライドを光に透かすイメージで作りました。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
