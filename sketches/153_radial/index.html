@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>153 — Radial</title>
+  <meta name="description" content="中心から線を伸ばしたら、引力ができた。">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 7);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // 放射状の線：3D球面上の点から中心に向かう
+    const LINE_COUNT = 180;
+    const POINTS_PER_LINE = 20;
+
+    // フィボナッチ球で均等分布した方向を生成
+    function fibonacciSphere(n) {
+      const pts = [];
+      const phi = Math.PI * (3 - Math.sqrt(5)); // 黄金角
+      for (let i = 0; i < n; i++) {
+        const y = 1 - (i / (n - 1)) * 2;
+        const r = Math.sqrt(1 - y * y);
+        const theta = phi * i;
+        pts.push(new THREE.Vector3(Math.cos(theta) * r, y, Math.sin(theta) * r));
+      }
+      return pts;
+    }
+
+    const directions = fibonacciSphere(LINE_COUNT);
+    const lines = [];
+
+    directions.forEach((dir, i) => {
+      const positions = new Float32Array(POINTS_PER_LINE * 3);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const isAccent = i % 15 === 0;
+      const mat = new THREE.LineBasicMaterial({
+        color: isAccent ? 0x8A7055 : 0x2A2826,
+        transparent: true,
+        opacity: isAccent ? 0.65 : 0.2,
+      });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      lines.push({ line, positions, dir, index: i });
+    });
+
+    // マウス
+    const mouse = { x: 0, y: 0 };
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.008;
+
+      // マウス方向（引力点）
+      const attract = new THREE.Vector3(mouse.x * 2, mouse.y * 2, 0);
+
+      lines.forEach(({ line, positions, dir, index }) => {
+        const phaseOffset = index * 0.05;
+        // 各線の長さは時間とフェーズで変化
+        const len = 1.5 + Math.sin(time * 0.8 + phaseOffset) * 0.8;
+
+        for (let p = 0; p < POINTS_PER_LINE; p++) {
+          const t = p / (POINTS_PER_LINE - 1);
+          // 先端はマウス方向に引っ張られる
+          const pull = t * t; // 根元は動かず、先端ほど引力が強い
+          const x = dir.x * len * (1 - t * 0.1) + attract.x * pull * 0.25;
+          const y = dir.y * len * (1 - t * 0.1) + attract.y * pull * 0.25;
+          const z = dir.z * len * (1 - t * 0.1);
+
+          positions[p * 3]     = x * t;
+          positions[p * 3 + 1] = y * t;
+          positions[p * 3 + 2] = z * t;
+        }
+        line.geometry.attributes.position.needsUpdate = true;
+      });
+
+      // シーンをゆっくり回転
+      scene.rotation.y = time * 0.04;
+      scene.rotation.x = time * 0.02;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '153',
+    title: 'Radial',
+    detail: '180本の線が中心から球面全体に向かって伸びている。それぞれ違うリズムで長くなったり短くなったりする。マウスを動かすと線の先端がカーソルの方向に引き寄せられ、球が一方向に歪む。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
