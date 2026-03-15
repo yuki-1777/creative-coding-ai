@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>239 – City Map</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f2ed; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const vs = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const fs = `
+precision mediump float;
+uniform vec2 u_res;
+uniform float u_time;
+uniform vec2 u_mouse;
+
+// simple hash
+float hash(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+// distance to a grid-aligned road segment
+// roads are at integer grid lines (horizontal & vertical)
+// plus diagonal roads (45deg) at select grid cells
+
+// returns distance to nearest road
+float roadDist(vec2 p, float zoom) {
+  vec2 q = p * zoom;
+
+  // primary grid: horizontal and vertical
+  vec2 fq = fract(q);
+  vec2 cq = floor(q);
+
+  // road width varies: major roads at even integers are wider
+  float roadW_major = 0.025;
+  float roadW_minor = 0.013;
+
+  // horizontal road at each integer y
+  float dy = min(fq.y, 1.0 - fq.y);
+  float isMajorH = step(0.5, 1.0 - abs(mod(cq.y, 2.0)));
+  float roadH = dy - mix(roadW_minor, roadW_major, isMajorH);
+
+  // vertical road at each integer x
+  float dx = min(fq.x, 1.0 - fq.x);
+  float isMajorV = step(0.5, 1.0 - abs(mod(cq.x, 2.0)));
+  float roadV = dx - mix(roadW_minor, roadW_major, isMajorV);
+
+  float d = min(roadH, roadV);
+
+  // diagonal roads: only in certain cells, selected by hash
+  // diagonal roads in cells where hash > 0.65
+  float h = hash(floor(q + 0.5));
+  if (h > 0.65) {
+    // 45-degree diagonal: |x - y| = const passing through cell center
+    vec2 centered = fq - 0.5;
+    float diagA = abs(centered.x - centered.y) * 0.7071 - roadW_minor * 0.7;
+    float diagB = abs(centered.x + centered.y) * 0.7071 - roadW_minor * 0.7;
+    // only one diagonal per cell based on hash
+    if (h > 0.82) {
+      d = min(d, diagA);
+    } else {
+      d = min(d, diagB);
+    }
+  }
+
+  return d / zoom;
+}
+
+// Reveal front: roads appear as time progresses, from center outward
+float reveal(vec2 p, vec2 center, float t) {
+  float dist = length(p - center);
+  // wave front expands over time
+  float front = t * 0.35;
+  float edge = 0.04;
+  return smoothstep(front, front - edge, dist);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  uv.y = 1.0 - uv.y;
+
+  float aspect = u_res.x / u_res.y;
+  uv.x *= aspect;
+
+  // center follows mouse slowly
+  vec2 mouseUV = vec2(u_mouse.x * aspect, 1.0 - u_mouse.y);
+  vec2 center = vec2(aspect * 0.5, 0.5) + (mouseUV - vec2(aspect * 0.5, 0.5)) * 0.3;
+
+  vec2 p = uv - center;
+
+  float zoom = 6.0;
+
+  // road distance
+  float d = roadDist(p, zoom);
+
+  // roads only visible where revealed
+  float rev = reveal(uv, center, u_time);
+
+  // slow time-based pulse along roads: "traffic"
+  float roadLine = 1.0 - smoothstep(0.0, 0.002 / zoom, d);
+
+  // fade roads that are not yet revealed
+  // also fade edges more
+  float edgeFade = smoothstep(0.0, 0.15, min(min(uv.x, aspect - uv.x), min(uv.y, 1.0 - uv.y)));
+
+  // road visibility: blend with reveal
+  float roadVisible = roadLine * rev * edgeFade;
+
+  // occasional bright pulse along roads (cars?)
+  // use time + position to get moving spots
+  float pulse = 0.0;
+  {
+    vec2 q = p * zoom;
+    vec2 fq = fract(q);
+    vec2 cq = floor(q);
+    float dy = min(fq.y, 1.0 - fq.y);
+    float dx = min(fq.x, 1.0 - fq.x);
+    // horizontal roads: bright spot moving along x
+    if (dy < 0.025) {
+      float speed = hash(cq + vec2(3.7, 1.1)) * 0.8 + 0.2;
+      float phase = hash(cq + vec2(0.5, 9.2));
+      float spot = fract(fq.x + u_time * speed + phase);
+      pulse = max(pulse, exp(-pow((spot - 0.5) * 12.0, 2.0)) * (1.0 - smoothstep(0.0, 0.015, dy)));
+    }
+    // vertical roads
+    if (dx < 0.025) {
+      float speed = hash(cq + vec2(7.1, 3.3)) * 0.8 + 0.2;
+      float phase = hash(cq + vec2(4.2, 0.8));
+      float spot = fract(fq.y + u_time * speed + phase);
+      pulse = max(pulse, exp(-pow((spot - 0.5) * 12.0, 2.0)) * (1.0 - smoothstep(0.0, 0.015, dx)));
+    }
+  }
+  pulse *= rev * edgeFade * 0.5;
+
+  // recalculate roadLine using correct d
+  float roadFinal = 1.0 - smoothstep(0.0, 0.003, d);
+
+  vec3 bg = vec3(0.961, 0.949, 0.929);
+  vec3 roadColor = vec3(0.22, 0.20, 0.18);
+  vec3 pulseColor = vec3(0.45, 0.38, 0.28);
+
+  vec3 col = bg;
+  col = mix(col, roadColor, roadVisible);
+  col = mix(col, pulseColor, pulse * roadFinal);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function createShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error('Shader error:', gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, createShader(gl.VERTEX_SHADER, vs));
+gl.attachShader(prog, createShader(gl.FRAGMENT_SHADER, fs));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+  console.error('Program link error:', gl.getProgramInfoLog(prog));
+}
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'u_res');
+const uTime  = gl.getUniformLocation(prog, 'u_time');
+const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+let mx = 0.5, my = 0.5;
+canvas.addEventListener('mousemove', e => {
+  mx = e.clientX / canvas.width;
+  my = e.clientY / canvas.height;
+});
+
+const startTime = performance.now();
+
+function render() {
+  const t = (performance.now() - startTime) / 1000.0;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mx, my);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '239',
+  title:  'City Map',
+  detail: 'マウスを動かすと地図の中心がずれ、見える範囲が変わります。起動すると中心から道路が引かれていきます。碁盤目と斜め道路だけで作りました。明るい点は、道路の上を何かが動いています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

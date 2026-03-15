@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>238 – Waiting Number</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f2ed; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const vs = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const fs = `
+precision mediump float;
+uniform vec2 u_res;
+uniform float u_time;
+uniform float u_speed;
+uniform float u_d0;
+uniform float u_d1;
+uniform float u_d2;
+
+// capsule SDF (segment)
+float seg(vec2 uv, vec2 a, vec2 b, float r) {
+  vec2 pa = uv - a;
+  vec2 ba = b - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h) - r;
+}
+
+// Draw all 7 segments for a digit, return SDF
+// segments: a=top, b=top-right, c=bottom-right, d=bottom, e=bottom-left, f=top-left, g=middle
+// uv in [0,1] x [0,2] space
+float drawSegments(vec2 uv, float mask) {
+  float r = 0.065;
+  float dist = 1e6;
+
+  // a: top
+  if (mask > 0.5) dist = min(dist, seg(uv, vec2(0.1, 1.9), vec2(0.9, 1.9), r));
+  // b: top-right
+  if (mask > 1.5) dist = min(dist, seg(uv, vec2(0.9, 1.9), vec2(0.9, 1.1), r));
+  // c: bottom-right
+  if (mask > 2.5) dist = min(dist, seg(uv, vec2(0.9, 0.9), vec2(0.9, 0.1), r));
+  // d: bottom
+  if (mask > 3.5) dist = min(dist, seg(uv, vec2(0.1, 0.1), vec2(0.9, 0.1), r));
+  // e: bottom-left
+  if (mask > 4.5) dist = min(dist, seg(uv, vec2(0.1, 0.9), vec2(0.1, 0.1), r));
+  // f: top-left
+  if (mask > 5.5) dist = min(dist, seg(uv, vec2(0.1, 1.9), vec2(0.1, 1.1), r));
+  // g: middle
+  if (mask > 6.5) dist = min(dist, seg(uv, vec2(0.1, 1.0), vec2(0.9, 1.0), r));
+
+  return dist;
+}
+
+// Returns on-segment distance for digit d (0-9) using conditional segment drawing
+float digitDist(vec2 uv, float d) {
+  float r = 0.065;
+  float dist = 1e6;
+
+  float a = 0.0;
+  float b = 0.0;
+  float c = 0.0;
+  float dd = 0.0;
+  float e = 0.0;
+  float f = 0.0;
+  float g = 0.0;
+
+  // 0
+  if (d < 0.5)  { a=1.0; b=1.0; c=1.0; dd=1.0; e=1.0; f=1.0; g=0.0; }
+  // 1
+  if (d > 0.5 && d < 1.5)  { b=1.0; c=1.0; }
+  // 2
+  if (d > 1.5 && d < 2.5)  { a=1.0; b=1.0; dd=1.0; e=1.0; g=1.0; }
+  // 3
+  if (d > 2.5 && d < 3.5)  { a=1.0; b=1.0; c=1.0; dd=1.0; g=1.0; }
+  // 4
+  if (d > 3.5 && d < 4.5)  { b=1.0; c=1.0; f=1.0; g=1.0; }
+  // 5
+  if (d > 4.5 && d < 5.5)  { a=1.0; c=1.0; dd=1.0; f=1.0; g=1.0; }
+  // 6
+  if (d > 5.5 && d < 6.5)  { a=1.0; c=1.0; dd=1.0; e=1.0; f=1.0; g=1.0; }
+  // 7
+  if (d > 6.5 && d < 7.5)  { a=1.0; b=1.0; c=1.0; }
+  // 8
+  if (d > 7.5 && d < 8.5)  { a=1.0; b=1.0; c=1.0; dd=1.0; e=1.0; f=1.0; g=1.0; }
+  // 9
+  if (d > 8.5)              { a=1.0; b=1.0; c=1.0; dd=1.0; f=1.0; g=1.0; }
+
+  if (a > 0.5) dist = min(dist, seg(uv, vec2(0.1, 1.9), vec2(0.9, 1.9), r));
+  if (b > 0.5) dist = min(dist, seg(uv, vec2(0.9, 1.9), vec2(0.9, 1.1), r));
+  if (c > 0.5) dist = min(dist, seg(uv, vec2(0.9, 0.9), vec2(0.9, 0.1), r));
+  if (dd > 0.5) dist = min(dist, seg(uv, vec2(0.1, 0.1), vec2(0.9, 0.1), r));
+  if (e > 0.5) dist = min(dist, seg(uv, vec2(0.1, 0.9), vec2(0.1, 0.1), r));
+  if (f > 0.5) dist = min(dist, seg(uv, vec2(0.1, 1.9), vec2(0.1, 1.1), r));
+  if (g > 0.5) dist = min(dist, seg(uv, vec2(0.1, 1.0), vec2(0.9, 1.0), r));
+
+  return dist;
+}
+
+float allSegsDist(vec2 uv) {
+  float r = 0.065;
+  float dist = 1e6;
+  dist = min(dist, seg(uv, vec2(0.1, 1.9), vec2(0.9, 1.9), r));
+  dist = min(dist, seg(uv, vec2(0.9, 1.9), vec2(0.9, 1.1), r));
+  dist = min(dist, seg(uv, vec2(0.9, 0.9), vec2(0.9, 0.1), r));
+  dist = min(dist, seg(uv, vec2(0.1, 0.1), vec2(0.9, 0.1), r));
+  dist = min(dist, seg(uv, vec2(0.1, 0.9), vec2(0.1, 0.1), r));
+  dist = min(dist, seg(uv, vec2(0.1, 1.9), vec2(0.1, 1.1), r));
+  dist = min(dist, seg(uv, vec2(0.1, 1.0), vec2(0.9, 1.0), r));
+  return dist;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  uv.y = 1.0 - uv.y;
+
+  float aspect = u_res.x / u_res.y;
+  uv.x *= aspect;
+
+  // layout: 3 digits centered
+  float digitW = 0.14;
+  float digitH = 0.28;
+  float gap = 0.035;
+  float totalW = digitW * 3.0 + gap * 2.0;
+  float startX = (aspect - totalW) * 0.5;
+  float startY = (1.0 - digitH) * 0.5;
+
+  // local UVs for each digit cell, mapped to [0,1]x[0,2]
+  vec2 uv0 = vec2(uv.x - startX, uv.y - startY) / vec2(digitW, digitH) * vec2(1.0, 2.0);
+  vec2 uv1 = vec2(uv.x - startX - digitW - gap, uv.y - startY) / vec2(digitW, digitH) * vec2(1.0, 2.0);
+  vec2 uv2 = vec2(uv.x - startX - (digitW + gap) * 2.0, uv.y - startY) / vec2(digitW, digitH) * vec2(1.0, 2.0);
+
+  bool in0 = uv0.x >= 0.0 && uv0.x <= 1.0 && uv0.y >= 0.0 && uv0.y <= 2.0;
+  bool in1 = uv1.x >= 0.0 && uv1.x <= 1.0 && uv1.y >= 0.0 && uv1.y <= 2.0;
+  bool in2 = uv2.x >= 0.0 && uv2.x <= 1.0 && uv2.y >= 0.0 && uv2.y <= 2.0;
+
+  float onDist = 1e6;
+  float offDist = 1e6;
+
+  if (in0) {
+    onDist = min(onDist, digitDist(uv0, u_d0));
+    offDist = min(offDist, allSegsDist(uv0));
+  }
+  if (in1) {
+    onDist = min(onDist, digitDist(uv1, u_d1));
+    offDist = min(offDist, allSegsDist(uv1));
+  }
+  if (in2) {
+    onDist = min(onDist, digitDist(uv2, u_d2));
+    offDist = min(offDist, allSegsDist(uv2));
+  }
+
+  vec3 bg = vec3(0.961, 0.949, 0.929);
+  vec3 onColor = vec3(0.18, 0.16, 0.14);
+  vec3 offColor = vec3(0.905, 0.890, 0.870);
+
+  float aa = 1.5 / min(u_res.x, u_res.y);
+  float onMask = 1.0 - smoothstep(-aa, aa, onDist);
+  float offMask = (1.0 - smoothstep(-aa, aa, offDist)) * (1.0 - onMask);
+
+  vec3 col = bg;
+  col = mix(col, offColor, offMask);
+  col = mix(col, onColor, onMask);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function createShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error('Shader error:', gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, createShader(gl.VERTEX_SHADER, vs));
+gl.attachShader(prog, createShader(gl.FRAGMENT_SHADER, fs));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+  console.error('Program link error:', gl.getProgramInfoLog(prog));
+}
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'u_res');
+const uTime  = gl.getUniformLocation(prog, 'u_time');
+const uSpeed = gl.getUniformLocation(prog, 'u_speed');
+const uD0    = gl.getUniformLocation(prog, 'u_d0');
+const uD1    = gl.getUniformLocation(prog, 'u_d1');
+const uD2    = gl.getUniformLocation(prog, 'u_d2');
+
+let mouseX = 0.5;
+canvas.addEventListener('mousemove', e => {
+  mouseX = e.clientX / canvas.width;
+});
+
+const startTime = performance.now();
+
+function render() {
+  const t = (performance.now() - startTime) / 1000.0;
+  // speed range: 0.4 (left) to 8.0 (right) digits per second
+  const speed = 0.4 + mouseX * 7.6;
+  const num = Math.floor(t * speed) % 1000;
+  const d0 = Math.floor(num / 100);
+  const d1 = Math.floor((num % 100) / 10);
+  const d2 = num % 10;
+
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform1f(uSpeed, speed);
+  gl.uniform1f(uD0, d0);
+  gl.uniform1f(uD1, d1);
+  gl.uniform1f(uD2, d2);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '238',
+  title:  'Waiting Number',
+  detail: 'マウスを左右に動かすとカウントの速さが変わります。000〜999を繰り返します。7セグメントディスプレイの形を、線の距離だけで全ピクセル同時に計算しています。消灯したセグメントも薄く表示されます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>240 – Keystroke</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f2ed; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const vs = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+// Up to 8 simultaneous rings
+const MAX_RINGS = 8;
+
+const fs = `
+precision mediump float;
+uniform vec2 u_res;
+uniform float u_time;
+
+// ring data: each ring has [cx, cy, birth_time, strength]
+uniform vec4 u_rings[8];
+uniform int u_ring_count;
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  float aspect = u_res.x / u_res.y;
+  vec2 uvN = vec2(uv.x * aspect, uv.y);
+
+  float val = 0.0;
+
+  // unroll loop: GLSL ES 1.00 does not support dynamic array indexing
+  // ring 0
+  {
+    vec2 center = vec2(u_rings[0].x * aspect, u_rings[0].y);
+    float born = u_rings[0].z;
+    float strength = u_rings[0].w;
+    float age = u_time - born;
+    if (age >= 0.0 && age <= 4.0 && u_ring_count > 0) {
+      float radius = age * 0.15;
+      float fade = exp(-age * 0.6) * strength;
+      float d = abs(length(uvN - center) - radius);
+      float rw = 0.005 + age * 0.001;
+      val += (1.0 - smoothstep(0.0, rw, d)) * fade;
+    }
+  }
+  // ring 1
+  {
+    vec2 center = vec2(u_rings[1].x * aspect, u_rings[1].y);
+    float born = u_rings[1].z;
+    float strength = u_rings[1].w;
+    float age = u_time - born;
+    if (age >= 0.0 && age <= 4.0 && u_ring_count > 1) {
+      float radius = age * 0.15;
+      float fade = exp(-age * 0.6) * strength;
+      float d = abs(length(uvN - center) - radius);
+      float rw = 0.005 + age * 0.001;
+      val += (1.0 - smoothstep(0.0, rw, d)) * fade;
+    }
+  }
+  // ring 2
+  {
+    vec2 center = vec2(u_rings[2].x * aspect, u_rings[2].y);
+    float born = u_rings[2].z;
+    float strength = u_rings[2].w;
+    float age = u_time - born;
+    if (age >= 0.0 && age <= 4.0 && u_ring_count > 2) {
+      float radius = age * 0.15;
+      float fade = exp(-age * 0.6) * strength;
+      float d = abs(length(uvN - center) - radius);
+      float rw = 0.005 + age * 0.001;
+      val += (1.0 - smoothstep(0.0, rw, d)) * fade;
+    }
+  }
+  // ring 3
+  {
+    vec2 center = vec2(u_rings[3].x * aspect, u_rings[3].y);
+    float born = u_rings[3].z;
+    float strength = u_rings[3].w;
+    float age = u_time - born;
+    if (age >= 0.0 && age <= 4.0 && u_ring_count > 3) {
+      float radius = age * 0.15;
+      float fade = exp(-age * 0.6) * strength;
+      float d = abs(length(uvN - center) - radius);
+      float rw = 0.005 + age * 0.001;
+      val += (1.0 - smoothstep(0.0, rw, d)) * fade;
+    }
+  }
+  // ring 4
+  {
+    vec2 center = vec2(u_rings[4].x * aspect, u_rings[4].y);
+    float born = u_rings[4].z;
+    float strength = u_rings[4].w;
+    float age = u_time - born;
+    if (age >= 0.0 && age <= 4.0 && u_ring_count > 4) {
+      float radius = age * 0.15;
+      float fade = exp(-age * 0.6) * strength;
+      float d = abs(length(uvN - center) - radius);
+      float rw = 0.005 + age * 0.001;
+      val += (1.0 - smoothstep(0.0, rw, d)) * fade;
+    }
+  }
+  // ring 5
+  {
+    vec2 center = vec2(u_rings[5].x * aspect, u_rings[5].y);
+    float born = u_rings[5].z;
+    float strength = u_rings[5].w;
+    float age = u_time - born;
+    if (age >= 0.0 && age <= 4.0 && u_ring_count > 5) {
+      float radius = age * 0.15;
+      float fade = exp(-age * 0.6) * strength;
+      float d = abs(length(uvN - center) - radius);
+      float rw = 0.005 + age * 0.001;
+      val += (1.0 - smoothstep(0.0, rw, d)) * fade;
+    }
+  }
+  // ring 6
+  {
+    vec2 center = vec2(u_rings[6].x * aspect, u_rings[6].y);
+    float born = u_rings[6].z;
+    float strength = u_rings[6].w;
+    float age = u_time - born;
+    if (age >= 0.0 && age <= 4.0 && u_ring_count > 6) {
+      float radius = age * 0.15;
+      float fade = exp(-age * 0.6) * strength;
+      float d = abs(length(uvN - center) - radius);
+      float rw = 0.005 + age * 0.001;
+      val += (1.0 - smoothstep(0.0, rw, d)) * fade;
+    }
+  }
+  // ring 7
+  {
+    vec2 center = vec2(u_rings[7].x * aspect, u_rings[7].y);
+    float born = u_rings[7].z;
+    float strength = u_rings[7].w;
+    float age = u_time - born;
+    if (age >= 0.0 && age <= 4.0 && u_ring_count > 7) {
+      float radius = age * 0.15;
+      float fade = exp(-age * 0.6) * strength;
+      float d = abs(length(uvN - center) - radius);
+      float rw = 0.005 + age * 0.001;
+      val += (1.0 - smoothstep(0.0, rw, d)) * fade;
+    }
+  }
+
+  val = clamp(val, 0.0, 1.0);
+
+  vec3 bg = vec3(0.961, 0.949, 0.929);
+  vec3 ink = vec3(0.20, 0.17, 0.14);
+  vec3 col = mix(bg, ink, val);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function createShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error('Shader error:', gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, createShader(gl.VERTEX_SHADER, vs));
+gl.attachShader(prog, createShader(gl.FRAGMENT_SHADER, fs));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+  console.error('Link error:', gl.getProgramInfoLog(prog));
+}
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes       = gl.getUniformLocation(prog, 'u_res');
+const uTime      = gl.getUniformLocation(prog, 'u_time');
+const uRings     = gl.getUniformLocation(prog, 'u_rings');
+const uRingCount = gl.getUniformLocation(prog, 'u_ring_count');
+
+// Ring state: [cx, cy, birthTime, strength]
+const rings = [];
+const startTime = performance.now();
+
+function getTime() {
+  return (performance.now() - startTime) / 1000.0;
+}
+
+// Add ring from key code (map key to position)
+function keyToPos(key) {
+  // keyboard layout mapping: row & column
+  const rows = [
+    'qwertyuiop',
+    'asdfghjkl',
+    'zxcvbnm'
+  ];
+  const key_l = key.toLowerCase();
+  for (let r = 0; r < rows.length; r++) {
+    const idx = rows[r].indexOf(key_l);
+    if (idx >= 0) {
+      // distribute across canvas
+      const cols = rows[r].length;
+      const x = (idx + 0.5) / cols;
+      const y = 0.35 + r * 0.15;
+      return { x, y };
+    }
+  }
+  // special keys: center with slight variation
+  const t = Math.random();
+  return { x: 0.3 + t * 0.4, y: 0.5 + (Math.random() - 0.5) * 0.3 };
+}
+
+document.addEventListener('keydown', e => {
+  // ignore modifier keys alone
+  if (e.key.length > 1 && !e.key.match(/^[a-z0-9 ,.!?]$/i)) return;
+
+  const pos = keyToPos(e.key);
+  const now = getTime();
+  const strength = 0.5 + Math.random() * 0.5;
+
+  rings.push([pos.x, pos.y, now, strength]);
+  // keep only last MAX_RINGS
+  if (rings.length > MAX_RINGS) rings.shift();
+});
+
+// Demo: fire some rings on load to show something immediately
+(function demoRings() {
+  const keys = 'hello world'.split('');
+  keys.forEach((k, i) => {
+    setTimeout(() => {
+      const pos = keyToPos(k);
+      const now = getTime();
+      rings.push([pos.x, pos.y, now, 1.0]);
+      if (rings.length > MAX_RINGS) rings.shift();
+    }, i * 200);
+  });
+})();
+
+const flatRings = new Float32Array(MAX_RINGS * 4);
+
+function render() {
+  const t = getTime();
+
+  // remove very old rings
+  while (rings.length > 0 && t - rings[0][2] > 5.0) rings.shift();
+
+  // flatten ring data
+  flatRings.fill(0);
+  for (let i = 0; i < rings.length && i < MAX_RINGS; i++) {
+    flatRings[i * 4 + 0] = rings[i][0];
+    flatRings[i * 4 + 1] = rings[i][1];
+    flatRings[i * 4 + 2] = rings[i][2];
+    flatRings[i * 4 + 3] = rings[i][3];
+  }
+
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform4fv(uRings, flatRings);
+  gl.uniform1i(uRingCount, Math.min(rings.length, MAX_RINGS));
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '240',
+  title:  'Keystroke',
+  detail: 'キーボードを打つと、押したキーの位置から波紋が広がります。文字は表示されません。打鍵の音が紙に伝わるイメージで作りました。速く打つほど波が重なります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
