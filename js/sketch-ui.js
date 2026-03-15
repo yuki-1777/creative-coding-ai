@@ -70,9 +70,16 @@
       line-height: 1.75;
       color: rgba(42,42,42,0.7);
       letter-spacing: 0.02em;
-      display: none;
+      opacity: 0;
+      filter: blur(3px);
+      pointer-events: none;
+      transition: opacity 0.35s ease, filter 0.35s ease;
     }
-    #sketch-detail-panel.visible { display: block; }
+    #sketch-detail-panel.visible {
+      opacity: 1;
+      filter: blur(0);
+      pointer-events: auto;
+    }
 
     /* info カード */
     #sketch-overlay {
@@ -179,6 +186,7 @@
   if (hasDetail) {
     const panel = document.createElement('div');
     panel.id = 'sketch-detail-panel';
+    panel.style.display = 'none';
     panel.textContent = meta.detail;
     container.appendChild(panel);
   }
@@ -203,14 +211,25 @@
 
     detailBtn.addEventListener('click', e => {
       e.stopPropagation();
-      const isOpen = panel.classList.toggle('visible');
-      detailBtn.classList.toggle('active', isOpen);
+      if (panel.classList.contains('visible')) {
+        panel.classList.remove('visible');
+        detailBtn.classList.remove('active');
+        // フェードアウト後に非表示
+        setTimeout(() => { if (!panel.classList.contains('visible')) panel.style.display = 'none'; }, 350);
+      } else {
+        panel.style.display = 'block';
+        requestAnimationFrame(() => {
+          panel.classList.add('visible');
+          detailBtn.classList.add('active');
+        });
+      }
     });
 
     document.addEventListener('click', e => {
-      if (!container.contains(e.target)) {
+      if (!container.contains(e.target) && panel.classList.contains('visible')) {
         panel.classList.remove('visible');
         detailBtn.classList.remove('active');
+        setTimeout(() => { if (!panel.classList.contains('visible')) panel.style.display = 'none'; }, 350);
       }
     });
   }
