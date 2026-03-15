@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Capillary</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0eeea; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const W = window.innerWidth, H = window.innerHeight;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xf0eeea);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 100);
+  camera.position.set(0, 1.5, 12);
+  camera.lookAt(0, 0, 0);
+
+  // 毛細管のパラメータ
+  // 細いほど液面が高くなる（毛細管現象）
+  const TUBE_COUNT = 7;
+  const TUBE_HEIGHT = 5.0;
+  const BASE_Y = -2.5;          // 管の底（液体の入り口）
+  const SPACING = 1.3;
+
+  // 管の半径: 太い → 細い
+  const radii = [];
+  for (let i = 0; i < TUBE_COUNT; i++) {
+    radii.push(0.36 - i * 0.04); // 0.36, 0.32, ..., 0.12
+  }
+
+  // 毛細管の最大上昇高さ（半径に反比例）
+  function capHeight(r) {
+    const baseR = radii[0];
+    return (baseR / r) * 1.6; // 最も太い管を基準
+  }
+
+  const tubes = [];
+
+  // 管の描画
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x555550 });
+  const meniscusMat = new THREE.LineBasicMaterial({ color: 0x444440 });
+  const liquidEdgeMat = new THREE.LineBasicMaterial({ color: 0x888882, opacity: 0.7, transparent: true });
+
+  for (let i = 0; i < TUBE_COUNT; i++) {
+    const x = (i - (TUBE_COUNT - 1) / 2) * SPACING;
+    const r = radii[i];
+    const maxH = capHeight(r);
+    const group = new THREE.Group();
+    group.position.x = x;
+    scene.add(group);
+
+    // 管の左右の縦線
+    for (let side = -1; side <= 1; side += 2) {
+      const pts = [
+        new THREE.Vector3(side * r, BASE_Y, 0),
+        new THREE.Vector3(side * r, BASE_Y + TUBE_HEIGHT, 0)
+      ];
+      group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
+    }
+
+    // 管の上端のリング
+    const topPts = [];
+    for (let s = 0; s <= 32; s++) {
+      const a = (s / 32) * Math.PI * 2;
+      topPts.push(new THREE.Vector3(Math.cos(a) * r, BASE_Y + TUBE_HEIGHT, Math.sin(a) * r));
+    }
+    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(topPts), lineMat));
+
+    // 管の底のリング（液体の入り口）
+    const botPts = [];
+    for (let s = 0; s <= 32; s++) {
+      const a = (s / 32) * Math.PI * 2;
+      botPts.push(new THREE.Vector3(Math.cos(a) * r, BASE_Y, Math.sin(a) * r));
+    }
+    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(botPts), lineMat));
+
+    // メニスカス（液面の弧）— 動的に更新
+    const meniscusLine = new THREE.Line(new THREE.BufferGeometry(), meniscusMat);
+    group.add(meniscusLine);
+
+    // 液体の縦ライン（内部の細いライン、液体が充填されていることを示す）
+    const fillLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, BASE_Y, 0),
+        new THREE.Vector3(0, BASE_Y, 0)
+      ]),
+      liquidEdgeMat
+    );
+    group.add(fillLine);
+
+    tubes.push({
+      x, r, maxH,
+      currentH: 0,          // 現在の液面高さ
+      targetH: maxH,        // 目標高さ
+      speed: 0.015 / r,     // 細い管ほど速く上昇
+      group,
+      meniscusLine,
+      fillLine
+    });
+  }
+
+  // 液面のメニスカスを更新
+  function updateMeniscus(tube) {
+    const y = BASE_Y + tube.currentH;
+    const r = tube.r;
+    const pts = [];
+    const SEG = 32;
+    for (let s = 0; s <= SEG; s++) {
+      const a = (s / SEG) * Math.PI * 2;
+      // メニスカスの凹み（毛細管は凹メニスカス）
+      const meniscusDip = r * 0.3;
+      const radialT = Math.abs(Math.cos(a)); // 中心ほど深い
+      pts.push(new THREE.Vector3(
+        Math.cos(a) * r,
+        y - meniscusDip * (1 - radialT),
+        Math.sin(a) * r
+      ));
+    }
+    tube.meniscusLine.geometry.setFromPoints(pts);
+
+    // 液体の縦ライン（管の中心を通る縦線の液体部分）
+    tube.fillLine.geometry.setFromPoints([
+      new THREE.Vector3(0, BASE_Y, 0),
+      new THREE.Vector3(0, y, 0)
+    ]);
+  }
+
+  // スペースキーでリセット
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      for (const t of tubes) {
+        t.currentH = 0;
+        t.targetH = t.maxH;
+        updateMeniscus(t);
+      }
+    }
+  });
+
+  // マウスドラッグで視点回転
+  let isDragging = false;
+  let prevMX = 0, prevMY = 0;
+  let rotY = 0, rotX = 0;
+
+  renderer.domElement.addEventListener('mousedown', e => {
+    isDragging = true;
+    prevMX = e.clientX; prevMY = e.clientY;
+  });
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    rotY += (e.clientX - prevMX) * 0.005;
+    rotX += (e.clientY - prevMY) * 0.005;
+    rotX = Math.max(-0.6, Math.min(0.6, rotX));
+    prevMX = e.clientX; prevMY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+
+  // 全管のグループ（すでに個別に scene.add されているので取り除いて allTubes にまとめる）
+  const allTubes = new THREE.Group();
+  for (const t of tubes) {
+    scene.remove(t.group);
+    allTubes.add(t.group);
+  }
+  scene.add(allTubes);
+
+  // 液面ラベル（細い管の横に目盛り線）
+  const scaleMat = new THREE.LineBasicMaterial({ color: 0xaaaaaa });
+  for (let i = 0; i < TUBE_COUNT; i++) {
+    const maxH = capHeight(radii[i]);
+    const x = (i - (TUBE_COUNT - 1) / 2) * SPACING;
+    const pts = [
+      new THREE.Vector3(x + radii[i] + 0.05, BASE_Y + maxH, 0),
+      new THREE.Vector3(x + radii[i] + 0.2, BASE_Y + maxH, 0)
+    ];
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), scaleMat));
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+
+    allTubes.rotation.y = rotY;
+    allTubes.rotation.x = rotX;
+
+    // 各管の液面上昇
+    for (const t of tubes) {
+      if (t.currentH < t.targetH) {
+        // 液面が目標に近づくほど遅くなる（物理的な粘性）
+        const remaining = t.targetH - t.currentH;
+        const step = Math.min(t.speed, remaining * 0.03 + 0.001);
+        t.currentH += step;
+        updateMeniscus(t);
+      }
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  window.addEventListener('resize', () => {
+    const nW = window.innerWidth, nH = window.innerHeight;
+    renderer.setSize(nW, nH);
+    camera.aspect = nW / nH;
+    camera.updateProjectionMatrix();
+  });
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '273',
+  title:  'Capillary',
+  detail: '細い管ほど液面が高くなります（毛細管現象）。スペースキーで液体をリセットして再上昇させられます。ドラッグで視点を変えられます。液体そのものは描かず、液面の縁と中心線だけで表現しています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
