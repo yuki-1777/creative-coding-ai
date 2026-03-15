@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>306 – Screen</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeece8; overflow: hidden; transition: background 0.3s; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const W = window.innerWidth, H = window.innerHeight;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xeeece8);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 200);
+  camera.position.set(3, 2.5, 12);
+  camera.lookAt(0, 0, 0);
+
+  // Screen mesh parameters
+  const COLS = 32;
+  const ROWS = 32;
+  const MESH_W = 8;
+  const MESH_H = 8;
+
+  // Grid vertex positions
+  const positions = [];
+  const origPositions = [];
+
+  for (let r = 0; r <= ROWS; r++) {
+    const row = [];
+    const origRow = [];
+    for (let c = 0; c <= COLS; c++) {
+      const x = (c / COLS - 0.5) * MESH_W;
+      const y = (r / ROWS - 0.5) * MESH_H;
+      row.push(new THREE.Vector3(x, y, 0));
+      origRow.push(new THREE.Vector3(x, y, 0));
+    }
+    positions.push(row);
+    origPositions.push(origRow);
+  }
+
+  // Build line geometry for horizontal and vertical lines
+  const mat = new THREE.LineBasicMaterial({ color: 0x444444, transparent: true, opacity: 0.7 });
+
+  const lineObjects = [];
+
+  function buildLines() {
+    // Remove old
+    lineObjects.forEach(l => scene.remove(l));
+    lineObjects.length = 0;
+
+    // Horizontal lines
+    for (let r = 0; r <= ROWS; r++) {
+      const pts = [];
+      for (let c = 0; c <= COLS; c++) {
+        pts.push(positions[r][c].clone());
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      lineObjects.push(line);
+    }
+
+    // Vertical lines
+    for (let c = 0; c <= COLS; c++) {
+      const pts = [];
+      for (let r = 0; r <= ROWS; r++) {
+        pts.push(positions[r][c].clone());
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      lineObjects.push(line);
+    }
+  }
+
+  buildLines();
+
+  // Push-in state
+  // Press position (normalized -1 to 1)
+  let pressX = 0, pressY = 0;
+  let pressStrength = 0;     // 0 = no press, 1 = full press
+  let targetStrength = 0;
+  const MAX_DEPTH = 3.5;      // max Z displacement backward
+  const PRESS_RADIUS = 1.8;   // radius of influence
+
+  // Idle: gently breathe in the center
+  let idlePhase = 0;
+
+  // Update positions based on press
+  function updateMesh() {
+    for (let r = 0; r <= ROWS; r++) {
+      for (let c = 0; c <= COLS; c++) {
+        const ox = origPositions[r][c].x;
+        const oy = origPositions[r][c].y;
+        const px = pressX * MESH_W * 0.5;
+        const py = pressY * MESH_H * 0.5;
+        const dist = Math.sqrt((ox - px) ** 2 + (oy - py) ** 2);
+        const falloff = Math.max(0, 1 - dist / PRESS_RADIUS);
+        const depth = -pressStrength * MAX_DEPTH * falloff * falloff;
+        positions[r][c].set(ox, oy, depth);
+      }
+    }
+  }
+
+  function rebuildGeometry() {
+    let lineIdx = 0;
+    // Horizontal
+    for (let r = 0; r <= ROWS; r++) {
+      const pts = [];
+      for (let c = 0; c <= COLS; c++) {
+        pts.push(positions[r][c].clone());
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      lineObjects[lineIdx].geometry.dispose();
+      lineObjects[lineIdx].geometry = geo;
+      lineIdx++;
+    }
+    // Vertical
+    for (let c = 0; c <= COLS; c++) {
+      const pts = [];
+      for (let r = 0; r <= ROWS; r++) {
+        pts.push(positions[r][c].clone());
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      lineObjects[lineIdx].geometry.dispose();
+      lineObjects[lineIdx].geometry = geo;
+      lineIdx++;
+    }
+  }
+
+  // Mouse move updates press position
+  window.addEventListener('mousemove', e => {
+    pressX = (e.clientX / W - 0.5) * 2;
+    pressY = -(e.clientY / H - 0.5) * 2;
+  });
+
+  // Hold mouse button or space key to press
+  let pressing = false;
+  window.addEventListener('mousedown', () => { pressing = true; });
+  window.addEventListener('mouseup', () => { pressing = false; });
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space') { pressing = true; e.preventDefault(); }
+  });
+  window.addEventListener('keyup', e => {
+    if (e.code === 'Space') pressing = false;
+  });
+
+  // Touch support
+  window.addEventListener('touchstart', e => {
+    pressing = true;
+    const t = e.touches[0];
+    pressX = (t.clientX / W - 0.5) * 2;
+    pressY = -(t.clientY / H - 0.5) * 2;
+    e.preventDefault();
+  }, { passive: false });
+  window.addEventListener('touchmove', e => {
+    const t = e.touches[0];
+    pressX = (t.clientX / W - 0.5) * 2;
+    pressY = -(t.clientY / H - 0.5) * 2;
+    e.preventDefault();
+  }, { passive: false });
+  window.addEventListener('touchend', () => { pressing = false; });
+
+  // Camera slight tilt (subtle parallax when not pressing)
+  let camTargetX = 0, camTargetY = 0;
+
+  function animate() {
+    requestAnimationFrame(animate);
+
+    idlePhase += 0.018;
+
+    // Approach target press strength
+    // If user is not pressing, idle breathe (gentle push in center)
+    if (!pressing) {
+      const idlePush = (Math.sin(idlePhase) * 0.5 + 0.5) * 0.75;
+      pressX += (0 - pressX) * 0.02;
+      pressY += (0 - pressY) * 0.02;
+      targetStrength = idlePush;
+    } else {
+      targetStrength = 1;
+    }
+    pressStrength += (targetStrength - pressStrength) * 0.07;
+
+    // Background hint: darken slightly when pressing
+    const bg = Math.round(0xee - pressStrength * 14).toString(16).padStart(2, '0');
+    document.body.style.background = `#${bg}${bg}${Math.round(0xe8 - pressStrength * 10).toString(16).padStart(2, '0')}`;
+
+    updateMesh();
+    rebuildGeometry();
+
+    // Camera subtle rotation when not pressing
+    if (!pressing) {
+      camTargetX += (3 + pressX * 0.5 - camTargetX) * 0.03;
+      camTargetY += (2.5 + pressY * 0.3 - camTargetY) * 0.03;
+    } else {
+      camTargetX += (3 - camTargetX) * 0.05;
+      camTargetY += (2.5 - camTargetY) * 0.05;
+    }
+    camera.position.x = camTargetX;
+    camera.position.y = camTargetY;
+    camera.position.z = 12 - pressStrength * 1;
+    camera.lookAt(0, 0, -pressStrength * 0.5);
+
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  });
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '306',
+  title:  'Screen',
+  detail: '網戸のメッシュが張られている。クリックか長押しすると、マウスの位置にメッシュが押し込まれてへこむ。離すと元に戻る。指の形は見えない。押した跡の変形だけが残る。スペースキーでも押せる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
