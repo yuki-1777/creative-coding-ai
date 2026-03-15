@@ -1429,5 +1429,14 @@
     "path": "sketches/159_lace/",
     "description": "一本の曲線を6回折りたたんで描くと、レースみたいになった。マウスを左右に動かすと形が変わる。",
     "thumb": "img/thumb_159.png"
+  },
+  {
+    "num": "160",
+    "title": "Cloth",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/160_cloth/",
+    "description": "上端だけが固定された格子状の布が、重力でゆっくり垂れる。マウスを近づけると布が押しのけられる。",
+    "thumb": "img/thumb_160.png"
   }
 ]

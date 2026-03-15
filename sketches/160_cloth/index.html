@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>160 — Cloth</title>
+  <meta name="description" content="布が垂れている。マウスで触れると動く。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="160 — Cloth | Creative Coding">
+  <meta property="og:description" content="布が垂れている。マウスで触れると動く。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/160_cloth/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_160.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="160 — Cloth | Creative Coding">
+  <meta name="twitter:description" content="布が垂れている。マウスで触れると動く。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_160.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// Cloth simulation using Verlet integration on a grid of particles.
+// Top row is pinned. Gravity pulls the mesh down.
+// Mouse interaction: nearby particles are pushed away.
+// Rendered as a wireframe mesh.
+
+const COLS = 24;
+const ROWS = 18;
+const REST_LEN_BASE = 1.0;
+const GRAVITY = new THREE.Vector3(0, -0.012, 0);
+const DAMPING = 0.98;
+const CONSTRAINT_ITERS = 5;
+const MOUSE_RADIUS = 1.8;
+const MOUSE_FORCE = 0.18;
+
+// Renderer
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0xF5F3EE);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, -6, 28);
+camera.lookAt(0, -6, 0);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Cloth particles
+class Particle {
+  constructor(x, y, z, pinned) {
+    this.pos  = new THREE.Vector3(x, y, z);
+    this.prev = new THREE.Vector3(x, y, z);
+    this.acc  = new THREE.Vector3();
+    this.pinned = pinned;
+  }
+  update() {
+    if (this.pinned) return;
+    const vel = this.pos.clone().sub(this.prev).multiplyScalar(DAMPING);
+    this.prev.copy(this.pos);
+    this.pos.add(vel).add(this.acc);
+    this.acc.set(0, 0, 0);
+    // Soft floor
+    if (this.pos.y < -18) this.pos.y = -18;
+  }
+  applyForce(f) { this.acc.add(f); }
+}
+
+class Constraint {
+  constructor(a, b, restLen) { this.a = a; this.b = b; this.restLen = restLen; }
+  satisfy() {
+    const delta = this.b.pos.clone().sub(this.a.pos);
+    const dist  = delta.length();
+    if (dist === 0) return;
+    const diff  = (dist - this.restLen) / dist * 0.5;
+    const corr  = delta.multiplyScalar(diff);
+    if (!this.a.pinned) this.a.pos.add(corr);
+    if (!this.b.pinned) this.b.pos.sub(corr);
+  }
+}
+
+// Init particles
+const particles = [];
+for (let r = 0; r < ROWS; r++) {
+  const row = [];
+  for (let c = 0; c < COLS; c++) {
+    const x = (c / (COLS - 1) - 0.5) * (COLS - 1) * REST_LEN_BASE;
+    const y = -(r / (ROWS - 1)) * (ROWS - 1) * REST_LEN_BASE;
+    const z = (Math.random() - 0.5) * 0.1;
+    const pinned = r === 0; // top row pinned
+    row.push(new Particle(x, y, z, pinned));
+  }
+  particles.push(row);
+}
+
+// Init constraints
+const constraints = [];
+for (let r = 0; r < ROWS; r++) {
+  for (let c = 0; c < COLS; c++) {
+    if (c + 1 < COLS) constraints.push(new Constraint(particles[r][c], particles[r][c+1], REST_LEN_BASE));
+    if (r + 1 < ROWS) constraints.push(new Constraint(particles[r][c], particles[r+1][c], REST_LEN_BASE));
+    // Diagonal constraints for shear resistance
+    if (r + 1 < ROWS && c + 1 < COLS) {
+      const diagLen = Math.sqrt(2) * REST_LEN_BASE;
+      constraints.push(new Constraint(particles[r][c], particles[r+1][c+1], diagLen));
+      constraints.push(new Constraint(particles[r][c+1], particles[r+1][c], diagLen));
+    }
+  }
+}
+
+// Three.js geometry
+const positions = new Float32Array(COLS * ROWS * 3);
+const indices   = [];
+
+for (let r = 0; r < ROWS - 1; r++) {
+  for (let c = 0; c < COLS - 1; c++) {
+    const a = r * COLS + c;
+    const b = r * COLS + c + 1;
+    const d = (r + 1) * COLS + c;
+    const e = (r + 1) * COLS + c + 1;
+    indices.push(a, b, d);
+    indices.push(b, e, d);
+  }
+}
+
+const geo = new THREE.BufferGeometry();
+geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+geo.setIndex(indices);
+
+const wireMat = new THREE.MeshBasicMaterial({
+  color: 0x2a2a2a,
+  wireframe: true,
+  opacity: 0.55,
+  transparent: true,
+});
+const mesh = new THREE.Mesh(geo, wireMat);
+scene.add(mesh);
+
+// Mouse interaction
+const mouse3D = new THREE.Vector3();
+let mouseScreenX = -9999, mouseScreenY = -9999;
+
+function updateMouse3D() {
+  const nx = (mouseScreenX / window.innerWidth) * 2 - 1;
+  const ny = -(mouseScreenY / window.innerHeight) * 2 + 1;
+  const vec = new THREE.Vector3(nx, ny, 0.5);
+  vec.unproject(camera);
+  const dir = vec.sub(camera.position).normalize();
+  // Intersect with z=0 plane
+  const t = -camera.position.z / dir.z;
+  mouse3D.copy(camera.position).addScaledVector(dir, t);
+}
+
+renderer.domElement.addEventListener('mousemove', (e) => {
+  mouseScreenX = e.clientX;
+  mouseScreenY = e.clientY;
+});
+renderer.domElement.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  mouseScreenX = e.touches[0].clientX;
+  mouseScreenY = e.touches[0].clientY;
+}, { passive: false });
+
+function simulate() {
+  updateMouse3D();
+
+  // Apply gravity + mouse push
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const p = particles[r][c];
+      p.applyForce(GRAVITY);
+
+      // Mouse push
+      if (mouseScreenX !== -9999) {
+        const diff = p.pos.clone().sub(mouse3D);
+        const dist = diff.length();
+        if (dist < MOUSE_RADIUS && dist > 0) {
+          const force = diff.normalize().multiplyScalar(MOUSE_FORCE * (1 - dist / MOUSE_RADIUS));
+          p.applyForce(force);
+        }
+      }
+    }
+  }
+
+  // Update positions
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      particles[r][c].update();
+    }
+  }
+
+  // Satisfy constraints
+  for (let iter = 0; iter < CONSTRAINT_ITERS; iter++) {
+    for (const con of constraints) con.satisfy();
+  }
+
+  // Update geometry
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const idx = (r * COLS + c) * 3;
+      const p   = particles[r][c];
+      positions[idx]     = p.pos.x;
+      positions[idx + 1] = p.pos.y;
+      positions[idx + 2] = p.pos.z;
+    }
+  }
+  geo.attributes.position.needsUpdate = true;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  simulate();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '160',
+  title:  'Cloth',
+  detail: '上端だけが固定された布が重力で垂れている。マウスを近づけると布が押しのけられる。ワイヤーフレームで見ると、たるみや揺れが格子の変形として見える。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
