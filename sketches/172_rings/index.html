@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>172 – Growth Rings</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f4f1ec; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 年輪：スペースキーを押し続けると成長が加速する。リセットはない。
+
+let rings = [];       // 完成した年輪リスト
+let growR = 0;        // 現在成長中のリングの半径
+let ringNoiseOff = 0; // 成長中リングのノイズオフセット
+let spaceHeld = false;
+let growthRate = 0.15; // 通常成長速度
+let fastRate = 1.8;    // 加速時
+let ringThickness = 14; // 年輪1本の幅（太めにして見えやすく）
+let maxRadius;
+let yearCount = 0;
+let hintAlpha = 255;
+
+// 年輪ごとの色バリエーション（夏材・春材の濃淡）
+function getRingColor(idx) {
+  // 奇数: やや濃い（夏材）、偶数: やや薄い（春材）
+  if (idx % 2 === 0) return color(105, 90, 70, 200); // 薄め
+  return color(72, 58, 44, 220);                      // 濃い
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  noFill();
+  maxRadius = min(width, height) * 0.42;
+  growR = 0;
+  ringNoiseOff = random(1000);
+}
+
+function draw() {
+  background(244, 241, 236);
+
+  const cx = width / 2;
+  const cy = height / 2;
+
+  // 成長速度
+  const rate = spaceHeld ? fastRate : growthRate;
+  growR += rate;
+
+  // 年輪が1本完成したら rings に追加
+  if (growR >= ringThickness) {
+    rings.push({
+      r: rings.length > 0 ? rings[rings.length - 1].r + ringThickness : ringThickness,
+      noiseOff: ringNoiseOff,
+      idx: rings.length
+    });
+    yearCount++;
+    growR = growR - ringThickness;
+    ringNoiseOff = random(10000);
+  }
+
+  // 最大半径に達したら成長停止
+  const currentOuterR = rings.length > 0 ? rings[rings.length - 1].r + growR : growR;
+  if (currentOuterR >= maxRadius) {
+    growR = 0;
+    spaceHeld = false;
+  }
+
+  // 既存の年輪を描画
+  for (let i = 0; i < rings.length; i++) {
+    const rg = rings[i];
+    drawRing(cx, cy, rg.r, rg.noiseOff, rg.idx);
+  }
+
+  // 成長中の年輪（現在線）
+  if (currentOuterR < maxRadius && growR > 0) {
+    const currentR = (rings.length > 0 ? rings[rings.length - 1].r : 0) + growR;
+    drawGrowingRing(cx, cy, currentR, ringNoiseOff);
+  }
+
+  // 中心の芯
+  push();
+  fill(90, 75, 60, 180);
+  noStroke();
+  ellipse(cx, cy, 6, 6);
+  pop();
+
+  // ヒントテキスト
+  if (hintAlpha > 0 && yearCount < 3) {
+    fill(140, 128, 112, hintAlpha);
+    noStroke();
+    textSize(12);
+    textAlign(CENTER);
+    text('スペースキーを押し続けると成長が早くなる', cx, cy + maxRadius + 36);
+  } else {
+    hintAlpha -= 3;
+  }
+
+  // 年数表示
+  fill(155, 140, 120, 180);
+  noStroke();
+  textSize(11);
+  textAlign(LEFT);
+  text(yearCount + ' 年', cx - maxRadius + 2, cy + maxRadius + 20);
+}
+
+function drawRing(cx, cy, r, nOff, idx) {
+  const col = getRingColor(idx);
+  stroke(col);
+  strokeWeight(1.4);
+  noFill();
+
+  const steps = 180;
+  beginShape();
+  for (let i = 0; i <= steps; i++) {
+    const angle = TWO_PI * i / steps;
+    const n = noise(nOff + cos(angle) * 2.0, nOff + sin(angle) * 2.0);
+    const distortion = map(n, 0, 1, -r * 0.05, r * 0.05);
+    const rr = r + distortion;
+    vertex(cx + cos(angle) * rr, cy + sin(angle) * rr);
+  }
+  endShape(CLOSE);
+}
+
+function drawGrowingRing(cx, cy, r, nOff) {
+  stroke(100, 85, 68, 120);
+  strokeWeight(0.9);
+  noFill();
+
+  const steps = 180;
+  beginShape();
+  for (let i = 0; i <= steps; i++) {
+    const angle = TWO_PI * i / steps;
+    const n = noise(nOff + cos(angle) * 2.0, nOff + sin(angle) * 2.0);
+    const distortion = map(n, 0, 1, -r * 0.05, r * 0.05);
+    const rr = r + distortion;
+    vertex(cx + cos(angle) * rr, cy + sin(angle) * rr);
+  }
+  endShape(CLOSE);
+}
+
+function keyPressed() {
+  if (key === ' ') {
+    spaceHeld = true;
+    return false; // スクロール防止
+  }
+}
+
+function keyReleased() {
+  if (key === ' ') {
+    spaceHeld = false;
+    return false;
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  maxRadius = min(width, height) * 0.42;
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '172',
+  title: 'Growth Rings',
+  detail: 'スペースキーを押し続けると成長が加速する。放すとゆっくり戻る。リセットはない。ノイズ関数で各年輪に少しずつ違う歪みを加えている。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
