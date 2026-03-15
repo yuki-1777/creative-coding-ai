@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>130 — Shadow Lines</title>
+  <meta name="description" content="棒の影が動いている。形は変わらないのに、光が回ると別のものに見える。">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 6, 0);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    // 地面
+    const floorGeo = new THREE.PlaneGeometry(14, 14);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0xEDEBE5,
+      roughness: 1,
+      metalness: 0,
+    });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    // 棒を配置（不規則な高さ・位置）
+    const ROD_COUNT = 28;
+    const rods = [];
+    const rodMat = new THREE.MeshStandardMaterial({
+      color: 0x2A2826,
+      roughness: 0.8,
+    });
+
+    // グリッド状に配置（少しランダムさを加える）
+    const gridSize = 5;
+    const spacing = 1.6;
+    let idx = 0;
+    for (let row = -2; row <= 2; row++) {
+      for (let col = -2; col <= 2; col++) {
+        if (idx >= ROD_COUNT) break;
+        const h = 0.3 + Math.random() * 1.5;
+        const geo = new THREE.CylinderGeometry(0.04, 0.04, h, 8);
+        const mesh = new THREE.Mesh(geo, rodMat);
+        const ox = (Math.random() - 0.5) * 0.5;
+        const oz = (Math.random() - 0.5) * 0.5;
+        mesh.position.set(col * spacing + ox, h / 2, row * spacing + oz);
+        mesh.castShadow = true;
+        mesh.receiveShadow = false;
+        scene.add(mesh);
+        rods.push(mesh);
+        idx++;
+      }
+    }
+
+    // 環境光（やや強め）
+    const ambientLight = new THREE.AmbientLight(0xF5F3EE, 0.55);
+    scene.add(ambientLight);
+
+    // 指向性ライト（影を落とす）
+    const dirLight = new THREE.DirectionalLight(0xffeedd, 1.8);
+    dirLight.position.set(5, 6, 2);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 0.5;
+    dirLight.shadow.camera.far = 30;
+    dirLight.shadow.camera.left = -9;
+    dirLight.shadow.camera.right = 9;
+    dirLight.shadow.camera.top = 9;
+    dirLight.shadow.camera.bottom = -9;
+    dirLight.shadow.bias = -0.001;
+    scene.add(dirLight);
+
+    // マウスで光源の高度を操作
+    let mouseY = 0.5;
+    window.addEventListener('mousemove', e => {
+      mouseY = 1.0 - e.clientY / window.innerHeight;
+    });
+
+    let time = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.004;
+
+      // 光源を円軌道で移動（マウスYで仰角を変更）
+      const radius = 7;
+      const elevation = 1.5 + mouseY * 5;
+      dirLight.position.set(
+        Math.cos(time) * radius,
+        elevation,
+        Math.sin(time) * radius
+      );
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '130',
+    title: 'Shadow Lines',
+    desc:  '棒の影が動いている。形は変わらないのに、光が回ると別のものに見える。マウスを上下に動かすと光の高さが変わり、影の向きと長さが変わる。',
+    detail: '28本の棒を格子状に並べた。光源が円軌道を回ることで、影がゆっくり動く。マウスのY位置で光の仰角が変化し、影の長さが変わる。棒の高さはランダムに設定されている。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

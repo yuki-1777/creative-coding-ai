@@ -1114,5 +1114,104 @@
     "path": "sketches/124_tangle/",
     "description": "マウスで線を引くと、その線が生き物みたいに動き始める。引っ張ってもほどけない。",
     "thumb": "img/thumb_124.png"
+  },
+  {
+    "num": "135",
+    "title": "Erosion Ring",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/135_erosion_ring/",
+    "description": "7本の同心円に、侵食のルールを加えた。それぞれが少しずつ違う速さで歪み、完全な円には戻らない。マウスを置くと、そこから別の歪みが広がる。",
+    "thumb": "img/thumb_135.png"
+  },
+  {
+    "num": "125",
+    "title": "Scatter",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/125_scatter/",
+    "description": "クリックすると点が飛び散る。重力でゆっくり落ちて、紙の端に積もる。何度か跳ねてから、静かになる。",
+    "thumb": "img/thumb_125.png"
+  },
+  {
+    "num": "126",
+    "title": "Echo",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/126_echo/",
+    "description": "マウスの軌跡が、遅れてついてくる。6つの影が、時間差でついてくる。ゆっくり動くほど、よく見える。",
+    "thumb": "img/thumb_126.png"
+  },
+  {
+    "num": "127",
+    "title": "Grid Drift",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/127_grid_drift/",
+    "description": "整列した点が、じわじわとずれていく。どれが本来の位置かわからなくなる頃、クリックすると戻ってくる。",
+    "thumb": "img/thumb_127.png"
+  },
+  {
+    "num": "128",
+    "title": "Pendulum",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/128_pendulum/",
+    "description": "振り子が揺れながら、軌跡を残す。少しずつ弧が小さくなって、やがて止まる。クリックするとまた動き出す。",
+    "thumb": "img/thumb_128.png"
+  },
+  {
+    "num": "129",
+    "title": "Wander",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/129_wander/",
+    "description": "1本の線が画面を歩き続ける。制約がある。時計回りにしか曲がれない。その結果、いつも右へ右へと進んでいく。",
+    "thumb": "img/thumb_129.png"
+  },
+  {
+    "num": "130",
+    "title": "Shadow Lines",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/130_shadow_lines/",
+    "description": "棒の影が動いている。形は変わらないのに、光が回ると別のものに見える。マウスを上下に動かすと光の高さが変わり、影の向きと長さが変わる。",
+    "thumb": "img/thumb_130.png"
+  },
+  {
+    "num": "131",
+    "title": "Cocoon",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/131_cocoon/",
+    "description": "糸を巻いた。巻くほど内側が見えなくなる。でも、揺れているのはわかる。マウスで向きを変えられる。",
+    "thumb": "img/thumb_131.png"
+  },
+  {
+    "num": "132",
+    "title": "Surface Tension",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/132_surface_tension/",
+    "description": "水面に点を置いたら、互いに引き合いながら膜を作った。触れると張力が崩れる。",
+    "thumb": "img/thumb_132.png"
+  },
+  {
+    "num": "133",
+    "title": "Skeleton",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/133_skeleton/",
+    "description": "関節の繋がりだけ描いた。人の動きに似ているが、人ではない。マウスで向きを変えられる。",
+    "thumb": "img/thumb_133.png"
+  },
+  {
+    "num": "134",
+    "title": "Haze",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/134_haze/",
+    "description": "霧の中の格子。近いものは見えて、遠いものは消える。境界はどこにもない。マウスで向きを変えられる。",
+    "thumb": "img/thumb_134.png"
   }
 ]
