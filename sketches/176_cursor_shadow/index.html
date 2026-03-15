@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>176 – Cursor Shadow</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; overflow: hidden; cursor: none; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Cursor Shadow — 176
+// マウスが動くと、遅れて「影」が複数追いかけてくる。
+// 形は描かない。距離の関数だけで存在を示す。
+// インタラクション：マウス移動のみ。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// -------------------------------------------------------
+// Shader sources
+// -------------------------------------------------------
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+// 影の数は固定 8 個（タイムラグが異なる過去位置）
+const FS = `
+precision highp float;
+uniform vec2  u_res;
+uniform float u_time;
+
+// 過去のカーソル位置（8サンプル、インデックス0が最新）
+uniform vec2 u_trail[8];
+uniform int  u_active;  // 現在有効なサンプル数
+
+// ガウス型の柔らかい円
+float softCircle(vec2 uv, vec2 center, float radius, float softness) {
+  float d = length(uv - center);
+  return exp(-d * d / (2.0 * radius * radius));
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+
+  vec3 bg  = vec3(0.941, 0.929, 0.910);
+  vec3 ink = vec3(0.28, 0.27, 0.26);
+
+  // 各影の寄与を加算
+  float shadow = 0.0;
+
+  // インデックス0: 最新（カーソル本体）→ 濃く小さい
+  // インデックス7: 最古（一番遅れた影）→ 薄く大きい
+  float contrib0 = softCircle(uv, u_trail[0], 0.018, 1.0) * 0.90;
+  float contrib1 = softCircle(uv, u_trail[1], 0.022, 1.0) * 0.70;
+  float contrib2 = softCircle(uv, u_trail[2], 0.026, 1.0) * 0.52;
+  float contrib3 = softCircle(uv, u_trail[3], 0.030, 1.0) * 0.38;
+  float contrib4 = softCircle(uv, u_trail[4], 0.035, 1.0) * 0.27;
+  float contrib5 = softCircle(uv, u_trail[5], 0.040, 1.0) * 0.17;
+  float contrib6 = softCircle(uv, u_trail[6], 0.046, 1.0) * 0.10;
+  float contrib7 = softCircle(uv, u_trail[7], 0.054, 1.0) * 0.05;
+
+  // u_active の数だけ加算（未記録分はスキップしたいが、
+  // GLSL では動的インデックスNG のため全部加算して active 外は寄与0 に依存）
+  // u_trail の未記録分は vec2(0,-1) など画面外に設定してある
+  shadow = contrib0 + contrib1 + contrib2 + contrib3
+         + contrib4 + contrib5 + contrib6 + contrib7;
+
+  shadow = clamp(shadow, 0.0, 1.0);
+
+  // カーソルの輪郭（最新位置に細い円弧）
+  vec2 c0 = u_trail[0];
+  float ring = length(uv - c0);
+  float ringMark = smoothstep(0.015, 0.013, abs(ring - 0.016));
+
+  shadow = max(shadow, ringMark * 0.6);
+
+  vec3 col = mix(bg, ink, shadow * 0.8);
+
+  // 余白フェード
+  float margin = 0.04;
+  float fade = smoothstep(0.0, margin, uv.x)
+             * smoothstep(1.0, 1.0 - margin, uv.x)
+             * smoothstep(0.0, margin, uv.y)
+             * smoothstep(1.0, 1.0 - margin, uv.y);
+  col = mix(bg, col, fade);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+// -------------------------------------------------------
+// WebGL setup
+// -------------------------------------------------------
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const locPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(locPos);
+gl.vertexAttribPointer(locPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes    = gl.getUniformLocation(prog, 'u_res');
+const uTime   = gl.getUniformLocation(prog, 'u_time');
+const uActive = gl.getUniformLocation(prog, 'u_active');
+
+// 軌跡バッファのサイズ（定数を先に宣言）
+const TRAIL_SIZE = 8;
+
+// u_trail のロケーションを事前キャッシュ（毎フレーム getUniformLocation を呼ばない）
+const uTrail = [];
+for (let i = 0; i < TRAIL_SIZE; i++) {
+  uTrail.push(gl.getUniformLocation(prog, `u_trail[${i}]`));
+}
+// 各トレイルポイントは UV 座標（0〜1）。画面外 (0, -1) を初期値とする
+const trail = [];
+for (let i = 0; i < TRAIL_SIZE; i++) {
+  trail.push({ x: 0.5, y: -1.0 }); // 画面外
+}
+
+// 遅延サンプリング用の位置キュー（実際のマウス位置を時間差でサンプルする）
+const posHistory = [];
+const HISTORY_LEN = 150;  // 約2.5秒分 @ 60fps
+
+let mouseX = 0.5;
+let mouseY = 0.5; // 初期は中央
+let mouseActive = true; // 初期から表示
+
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX / window.innerWidth;
+  mouseY = 1.0 - e.clientY / window.innerHeight;
+  mouseActive = true;
+});
+
+canvas.addEventListener('mouseleave', () => {
+  mouseActive = false;
+});
+
+const startTime = performance.now();
+
+function render() {
+  const t = (performance.now() - startTime) / 1000;
+
+  // 現在位置を履歴に追加
+  posHistory.push({ x: mouseX, y: mouseActive ? mouseY : -1.0, t: t });
+  if (posHistory.length > HISTORY_LEN) {
+    posHistory.shift();
+  }
+
+  // 各トレイルポイントを、遅延時間に対応する過去位置からサンプル
+  // 遅延: index 0 → 0秒, index 7 → 0.7秒
+  for (let i = 0; i < TRAIL_SIZE; i++) {
+    const delay = i * 0.09; // 90ms ずつ遅延
+    const targetT = t - delay;
+    // 履歴から最も近い時刻を探す
+    let best = posHistory[0];
+    for (let j = posHistory.length - 1; j >= 0; j--) {
+      if (posHistory[j].t <= targetT) {
+        best = posHistory[j];
+        break;
+      }
+    }
+    trail[i].x = best.x;
+    trail[i].y = best.y;
+  }
+
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform1i(uActive, mouseActive ? TRAIL_SIZE : 0);
+
+  // u_trail を設定（事前キャッシュした uTrail を使用）
+  gl.uniform2f(uTrail[0], trail[0].x, trail[0].y);
+  gl.uniform2f(uTrail[1], trail[1].x, trail[1].y);
+  gl.uniform2f(uTrail[2], trail[2].x, trail[2].y);
+  gl.uniform2f(uTrail[3], trail[3].x, trail[3].y);
+  gl.uniform2f(uTrail[4], trail[4].x, trail[4].y);
+  gl.uniform2f(uTrail[5], trail[5].x, trail[5].y);
+  gl.uniform2f(uTrail[6], trail[6].x, trail[6].y);
+  gl.uniform2f(uTrail[7], trail[7].x, trail[7].y);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '176',
+  title:  'Cursor Shadow',
+  detail: 'マウスを動かすと影が追いかけてきます。形は描いていません。過去のカーソル位置8点を記録して、それぞれからの距離に応じた柔らかい濃淡だけで表現しています。遅れてにじむような影が、それが「あった」場所を教えてくれます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
