@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>178 — Ticker</title>
+  <meta name="description" content="時刻が流れていく。数字だけを延々と。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="178 — Ticker | Creative Coding">
+  <meta property="og:description" content="時刻が流れていく。数字だけを延々と。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/178_ticker/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_178.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="178 — Ticker | Creative Coding">
+  <meta name="twitter:description" content="時刻が流れていく。数字だけを延々と。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_178.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Ticker: Current time scrolls in dense rows across the canvas.
+// Constraint: only digits from the current time (HH:MM:SS.mmm) are drawn.
+// No color other than graphite. No decoration.
+// Space: pause/resume. Arrow Left/Right: change speed.
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Typography
+const FONT_SIZE = 13;
+const FONT = `${FONT_SIZE}px monospace`;
+const LINE_H = FONT_SIZE * 1.55;
+// One time token: "HH:MM:SS.mmm "
+const TOKEN_WIDTH = FONT_SIZE * 8.45; // approximate ch width × token length
+
+// Scroll state
+let scrollX = 0; // how far left the tape has scrolled
+let speedLevel = 0; // -3 to +3, 0 = default
+const SPEEDS = [0.4, 0.6, 0.9, 1.4, 2.2, 3.5, 5.5];
+let paused = false;
+
+function getSpeed() {
+  return SPEEDS[speedLevel + 3];
+}
+
+// Row offsets: each row is offset horizontally to avoid alignment
+let rowOffsets = [];
+
+function buildRows() {
+  rowOffsets = [];
+  const rowCount = Math.ceil(H / LINE_H) + 2;
+  for (let i = 0; i < rowCount; i++) {
+    // Each row is staggered by a fixed fraction of TOKEN_WIDTH
+    rowOffsets.push((i * TOKEN_WIDTH * 0.382) % TOKEN_WIDTH);
+  }
+}
+buildRows();
+window.addEventListener('resize', buildRows);
+
+// Generate a time string at a given Date offset
+function timeString(msOffset) {
+  const d = new Date(Date.now() + msOffset);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  const ms = String(d.getMilliseconds()).padStart(3, '0');
+  return `${hh}:${mm}:${ss}.${ms} `;
+}
+
+// Each row draws a long tape of repeating time strings.
+// The tape scrolls left. When a full token scrolls off-screen left,
+// the timestamp inside it advances accordingly.
+
+let lastTime = performance.now();
+
+function draw() {
+  requestAnimationFrame(draw);
+
+  const now = performance.now();
+  const dt = Math.min(now - lastTime, 100); // cap at 100ms to avoid jumps on tab switch
+  lastTime = now;
+
+  if (!paused) {
+    scrollX += getSpeed() * dt / 16.67; // speed in tokens/frame at 60fps → px/ms
+  }
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.font = FONT;
+  ctx.textBaseline = 'top';
+
+  const rowCount = Math.ceil(H / LINE_H) + 1;
+  // How many ms does TOKEN_WIDTH of scrolling represent?
+  // At default speed 1.4 px/frame (60fps) → ~84 px/s → TOKEN_WIDTH / 84 s per token
+  // But we want actual time to flow in the text, not match scroll speed.
+  // Strategy: each row uses a fixed time-per-pixel mapping so text content
+  // drifts with real time. The horizontal position maps to ms offset.
+  const MS_PER_PX = 40.0; // 40ms per pixel → each row shows a noticeably different second
+
+  for (let row = 0; row < rowCount; row++) {
+    const y = (row - 0.5) * LINE_H;
+    // Start x: offset by scrollX and row stagger
+    const rowOff = rowOffsets[row] || 0;
+    // We need to fill from left edge to right edge
+    const startX = -((scrollX + rowOff) % TOKEN_WIDTH);
+    // Alpha varies by row: alternating strong/faint creates visual rhythm
+    const isAlt = row % 2 === 0;
+    const alpha = isAlt ? 0.70 : 0.22;
+
+    // Draw tokens from startX leftward-enough to cover width
+    let x = startX;
+    while (x < W + TOKEN_WIDTH) {
+      // ms offset into time: x position → time offset
+      const msOffset = x * MS_PER_PX;
+      const token = timeString(msOffset);
+
+      ctx.fillStyle = `rgba(42,42,42,${alpha})`;
+      ctx.fillText(token, x, y);
+      x += TOKEN_WIDTH;
+    }
+  }
+
+  // Overlay hint (fades out)
+  const age = performance.now() / 1000;
+  if (age < 8) {
+    const hintAlpha = Math.max(0, 1 - age / 7) * 0.55;
+    ctx.fillStyle = `rgba(42,42,42,${hintAlpha.toFixed(2)})`;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('space — pause   ← → — speed', W - 18, H - 18);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = FONT;
+  }
+
+  // Speed indicator (subtle, only when not default)
+  if (speedLevel !== 0) {
+    const arrow = speedLevel > 0 ? '→'.repeat(Math.abs(speedLevel)) : '←'.repeat(Math.abs(speedLevel));
+    ctx.fillStyle = 'rgba(42,42,42,0.25)';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(arrow, 18, H - 18);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = FONT;
+  }
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    paused = !paused;
+  } else if (e.code === 'ArrowRight') {
+    speedLevel = Math.min(3, speedLevel + 1);
+  } else if (e.code === 'ArrowLeft') {
+    speedLevel = Math.max(-3, speedLevel - 1);
+  }
+});
+
+// Touch: tap to pause/resume
+canvas.addEventListener('click', () => {
+  paused = !paused;
+});
+
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '178',
+  title: 'Ticker',
+  detail: '現在時刻（時：分：秒．ミリ秒）がテープのように流れていく。行ごとに少しずつずらしてあるので、全体を眺めると模様に見えてくる。スペースキーで一時停止。左右キーで速度を変える。クリックでも一時停止できる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
