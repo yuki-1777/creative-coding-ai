@@ -85,24 +85,14 @@ function drawCandle() {
   const candleBottom = canvas.height * 0.85;
   const candleW = 28;
 
-  // Candle body
+  // Candle body — minimal outline
   ctx.beginPath();
   ctx.roundRect(cx - candleW / 2, candleTop, candleW, candleBottom - candleTop, 3);
-  ctx.fillStyle = waxColor;
+  ctx.fillStyle = 'rgba(220,216,208,0.5)';
   ctx.fill();
-  ctx.strokeStyle = waxDarkColor;
+  ctx.strokeStyle = '#8c8680';
   ctx.lineWidth = 1;
   ctx.stroke();
-
-  // Shadow on candle
-  const grad = ctx.createLinearGradient(cx - candleW / 2, 0, cx + candleW / 2, 0);
-  grad.addColorStop(0, 'rgba(100,90,80,0.12)');
-  grad.addColorStop(0.3, 'rgba(100,90,80,0.0)');
-  grad.addColorStop(1, 'rgba(100,90,80,0.10)');
-  ctx.beginPath();
-  ctx.roundRect(cx - candleW / 2, candleTop, candleW, candleBottom - candleTop, 3);
-  ctx.fillStyle = grad;
-  ctx.fill();
 
   // Wick
   ctx.beginPath();
@@ -114,7 +104,6 @@ function drawCandle() {
 }
 
 function drawDrips() {
-  const cx = canvas.width / 2;
   drips.forEach(d => {
     if (!d.stopped) {
       d.length += d.vy;
@@ -123,16 +112,13 @@ function drawDrips() {
         d.stopY = d.y + d.length;
       }
     }
+    const endY = d.stopped ? d.stopY : d.y + d.length;
     ctx.beginPath();
     ctx.moveTo(d.x, d.y);
-    const endY = d.stopped ? d.stopY : d.y + d.length;
-    // Draw rounded drip
-    ctx.lineTo(d.x, endY - d.width * 0.5);
-    ctx.arc(d.x, endY - d.width * 0.5, d.width * 0.5, 0, Math.PI * 2);
-    ctx.fillStyle = waxColor;
-    ctx.fill();
-    ctx.strokeStyle = waxDarkColor;
-    ctx.lineWidth = 0.5;
+    ctx.lineTo(d.x, endY);
+    ctx.strokeStyle = '#b0aca4';
+    ctx.lineWidth = d.width * 0.45;
+    ctx.lineCap = 'round';
     ctx.stroke();
   });
 }
@@ -159,47 +145,11 @@ function drawFlame() {
       ? progress / 0.3
       : 1 - (progress - 0.3) / 0.7;
 
-    // Color: inner = warm yellow, outer = dark
-    const heat = 1 - progress;
-    const r = Math.round(180 + heat * 50);
-    const g = Math.round(80 + heat * 100);
-    const b = Math.round(20 + heat * 10);
-
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.size * (1 + progress * 0.5), 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(${r},${g},${b},${alpha * 0.7})`;
+    ctx.fillStyle = `rgba(160,128,68,${(alpha * 0.65).toFixed(2)})`;
     ctx.fill();
   });
-
-  // Flame core glow
-  const glowR = 18 + Math.sin(t * 0.13) * 3 + windX * 5;
-  const glowH = 30 + Math.sin(t * 0.09) * 5;
-  const gx = cx + windX * 8;
-
-  const flameGrad = ctx.createRadialGradient(gx, wickTop - glowH * 0.3, 2, gx, wickTop, glowR);
-  flameGrad.addColorStop(0, 'rgba(255,230,120,0.9)');
-  flameGrad.addColorStop(0.3, 'rgba(255,140,30,0.6)');
-  flameGrad.addColorStop(0.7, 'rgba(180,60,10,0.3)');
-  flameGrad.addColorStop(1, 'rgba(100,20,0,0)');
-
-  ctx.beginPath();
-  // Flame shape: teardrop
-  ctx.save();
-  ctx.translate(gx, wickTop);
-  ctx.scale(1, 1.6);
-  ctx.arc(0, 0, glowR * 0.7, 0, Math.PI * 2);
-  ctx.restore();
-  ctx.fillStyle = flameGrad;
-  ctx.fill();
-
-  // Halo / ambient glow on candle
-  const halo = ctx.createRadialGradient(gx, wickTop, 0, gx, wickTop, 60);
-  halo.addColorStop(0, 'rgba(255,200,80,0.08)');
-  halo.addColorStop(1, 'rgba(255,200,80,0)');
-  ctx.beginPath();
-  ctx.arc(gx, wickTop, 60, 0, Math.PI * 2);
-  ctx.fillStyle = halo;
-  ctx.fill();
 }
 
 function draw() {

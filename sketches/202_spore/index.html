@@ -90,15 +90,26 @@
   // Auto-emit periodically
   let lastEmit = 0;
 
-  canvas.addEventListener('click', e => {
-    // Emit from closest cap
-    const mx = (e.clientX / W - 0.5) * 2 * aspect;
+  function nearestCap(clientX) {
+    const mx = (clientX / W - 0.5) * 2 * aspect;
     let bestCap = 0, bestDist = Infinity;
     caps.forEach((cap, i) => {
       const d = Math.abs(mx - cap.cx);
       if (d < bestDist) { bestDist = d; bestCap = i; }
     });
-    emit(bestCap, 40);
+    return bestCap;
+  }
+
+  canvas.addEventListener('click', e => {
+    emit(nearestCap(e.clientX), 80);
+  });
+
+  let lastMouseMoveEmit = -1;
+  canvas.addEventListener('mousemove', e => {
+    if (t - lastMouseMoveEmit > 0.2) {
+      emit(nearestCap(e.clientX), 5);
+      lastMouseMoveEmit = t;
+    }
   });
 
   function update(t) {
