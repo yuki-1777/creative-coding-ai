@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>303 — Skywave</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #f5f2ed; }
+    canvas { display: block; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// 303 — Skywave
+// 現在時刻が電離層の高度を決める。昼は低く、夜は高い。
+// 複数の角度で放射された電波が電離層で折れ曲がり、地表に落ちる。
+// 電波は折れ線のみ。送信機も受信機も描かない。
+// インプット：現在時刻。アウトプット：ビジュアル＋ページ背景の昼夜変化。
+// 制約：線分の折れ曲がりだけ。弧・曲線は一本も使わない。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+if (!gl) { document.body.textContent = 'WebGL not supported'; }
+
+// ----------------------------------------
+// 頂点シェーダー
+// ----------------------------------------
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+// ----------------------------------------
+// フラグメントシェーダー（背景＋電離層帯）
+// ----------------------------------------
+const FS_BG = `
+precision mediump float;
+uniform vec2 u_res;
+uniform float u_dayFrac; // 0=深夜, 0.5=正午, 1=深夜
+uniform float u_ionoY;   // 電離層のY座標(0..1, 地表=0, 上=1)
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+
+  // 背景色：昼(0.961 0.949 0.929) / 夜(0.88 0.88 0.89) でブレンド
+  float noon = 1.0 - abs(u_dayFrac * 2.0 - 1.0); // 0=夜, 1=正午
+  vec3 dayBg   = vec3(0.961, 0.949, 0.929);
+  vec3 nightBg = vec3(0.87, 0.87, 0.895);
+  vec3 bg = mix(nightBg, dayBg, noon * 0.6 + 0.4);
+
+  // 電離層帯：電離層Y付近に薄いグレー帯
+  float ionoBand = smoothstep(0.0, 0.012, abs(uv.y - u_ionoY)) ;
+  ionoBand = 1.0 - ionoBand;
+  // 昼は電離層をわずかに暗く、夜は薄く
+  float ionoAlpha = mix(0.06, 0.04, noon) * ionoBand;
+  vec3 ionoColor = vec3(0.55, 0.55, 0.58);
+  vec3 col = mix(bg, ionoColor, ionoAlpha);
+
+  // 地表ライン近傍に薄いグラデーション
+  float groundFade = 1.0 - smoothstep(0.0, 0.06, uv.y);
+  vec3 groundColor = vec3(0.82, 0.80, 0.78);
+  col = mix(col, groundColor, groundFade * 0.25);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+// ----------------------------------------
+// フラグメントシェーダー（電波経路の線分）
+// ----------------------------------------
+const FS_LINE = `
+precision mediump float;
+uniform vec4 u_color; // rgba
+void main() {
+  gl_FragColor = u_color;
+}
+`;
+
+// ----------------------------------------
+// シェーダー・プログラム構築ユーティリティ
+// ----------------------------------------
+function mkShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error('Shader error:', gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+
+function mkProg(vsSrc, fsSrc) {
+  const p = gl.createProgram();
+  gl.attachShader(p, mkShader(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(p, mkShader(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    console.error('Program error:', gl.getProgramInfoLog(p));
+  }
+  return p;
+}
+
+// 背景プログラム（フルスクリーン quad）
+const bgProg = mkProg(VS, FS_BG);
+
+// 電波経路プログラム（line segments）
+const lineProg = mkProg(VS, FS_LINE);
+
+// ----------------------------------------
+// フルスクリーン quad バッファ
+// ----------------------------------------
+const quadBuf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1,  1,-1,  -1,1,
+  -1, 1,  1,-1,   1,1
+]), gl.STATIC_DRAW);
+
+// ----------------------------------------
+// 電波経路の頂点バッファ（動的更新）
+// ----------------------------------------
+const lineBuf = gl.createBuffer();
+
+// ----------------------------------------
+// リサイズ
+// ----------------------------------------
+let W = 0, H = 0;
+function resize() {
+  W = canvas.clientWidth;
+  H = canvas.clientHeight;
+  canvas.width  = W;
+  canvas.height = H;
+  gl.viewport(0, 0, W, H);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ----------------------------------------
+// ページ背景の昼夜連動（CSS）
+// ----------------------------------------
+function updatePageBg(noon) {
+  // noon: 0=夜, 1=正午
+  // 夜:#ebebef, 昼:#f5f2ed
+  const r = Math.round(235 + (245 - 235) * noon);
+  const g = Math.round(235 + (242 - 235) * noon);
+  const b = Math.round(239 + (237 - 239) * noon);
+  document.body.style.background = `rgb(${r},${g},${b})`;
+}
+
+// ----------------------------------------
+// 電離層高度を時刻から計算
+//   昼（12時）: 低め → Y=0.52
+//   夜（0時）:  高め → Y=0.72
+//   実際の短波伝搬では昼のF層が低くなる傾向（UV照射で再結合も増えるが
+//   D層が吸収するため中・短波は昼不利）
+// ----------------------------------------
+function ionoFromTime() {
+  const now  = new Date();
+  const hour = now.getHours() + now.getMinutes() / 60;
+  // 0-24時を 0..1 に（0時=0, 12時=0.5）
+  const dayFrac = hour / 24;
+  // 昼(noon=1): ionoY=0.52, 夜(noon=0): ionoY=0.70
+  const noon = 1.0 - Math.abs(dayFrac * 2.0 - 1.0);
+  const ionoY = 0.52 + (1.0 - noon) * 0.18;
+  return { dayFrac, noon, ionoY };
+}
+
+// ----------------------------------------
+// 電波経路を計算して Float32Array を返す
+//   送信点：画面下端中央付近
+//   複数の仰角で電波を放射
+//   電離層高度で反射、地表まで戻す（1ホップ）
+//   戻った先からさらに反射（2ホップ）
+//
+// 座標系: NDC (-1..1) × (-1..1)
+//   地表 Y = -0.88（画面下端から少し上）
+//   電離層 Y = NDC に変換（0..1 → -1..1）
+//
+// 線分は [x0,y0, x1,y1, ...] のフラット配列
+// ----------------------------------------
+function buildRayPaths(ionoY) {
+  // ionoY は 0..1 (上=1)
+  // NDC に変換：y_ndc = ionoY * 2 - 1
+  const ionoNDC = ionoY * 2.0 - 1.0;
+  const groundNDC = -0.88; // 地表Y NDC
+
+  // 送信点：画面左端近く
+  const txX = -0.82;
+  const txY = groundNDC;
+
+  // 仰角（地表から電離層方向への傾き）を複数用意
+  // 角度が浅いほど遠くに届く（スキップゾーン）
+  // angle: 0=水平, 1=垂直
+  // 利用する仰角一覧（ラジアン）
+  // 電離層高度 ionoH の比率を考慮して画面内に収まるよう調整
+  // 画面幅 NDC=2.0（-1..1）、電離層高さ ionoH≈0.7〜0.9 NDC程度
+  // dx = ionoH/tanA で1ホップの幅が決まる
+  // ionoH≈0.78 として dx < 0.6 になるのは tanA > 1.3 → A > 52°
+  // 画面内で2〜3ホップ見せるには広い仰角帯が必要
+  const angles = [
+    Math.PI * 0.40,  // 72°
+    Math.PI * 0.33,  // 60°
+    Math.PI * 0.27,  // 48°
+    Math.PI * 0.22,  // 40°
+    Math.PI * 0.17,  // 30°
+    Math.PI * 0.12,  // 22°
+    Math.PI * 0.08,  // 14°
+  ];
+
+  const verts = [];
+
+  // 電離層の高さ差
+  const ionoH = ionoNDC - groundNDC; // > 0
+
+  angles.forEach((angle) => {
+    const tanA = Math.tan(angle);
+
+    // 送信点から電離層に当たるX変位
+    // dx = dy / tanA,  dy = ionoH
+    const dx1 = ionoH / tanA;
+    const x1  = txX + dx1;
+    const y1  = ionoNDC;
+
+    // 電離層で反射：仰角が鏡反射（Y反転） → 下向きに同角度
+    // 地表に当たる距離
+    const dx2 = ionoH / tanA;
+    const x2  = x1 + dx2;
+    const y2  = groundNDC;
+
+    // 1ホップ目の経路を追加
+    verts.push(txX, txY, x1, y1);  // 上昇
+    verts.push(x1,  y1,  x2, y2);  // 下降
+
+    // 2ホップ目（地表反射→電離層→地表）
+    const x3 = x2 + dx1;
+    const y3 = ionoNDC;
+    const x4 = x3 + dx2;
+    const y4 = groundNDC;
+
+    // 画面内に収まるものだけ追加
+    if (x3 <= 1.05) {
+      verts.push(x2, y2, x3, y3);
+      verts.push(x3, y3, x4, y4);
+    }
+
+    // 3ホップ目
+    const x5 = x4 + dx1;
+    const y5 = ionoNDC;
+    const x6 = x5 + dx2;
+    const y6 = groundNDC;
+    if (x5 <= 1.05) {
+      verts.push(x4, y4, x5, y5);
+      verts.push(x5, y5, x6, y6);
+    }
+  });
+
+  return new Float32Array(verts);
+}
+
+// ----------------------------------------
+// 地表の横線（グラウンドライン）
+// ----------------------------------------
+function buildGroundLine() {
+  const groundNDC = -0.88;
+  return new Float32Array([
+    -1.0, groundNDC,
+     1.0, groundNDC
+  ]);
+}
+
+// ----------------------------------------
+// 電離層の折れ線（破線風に細かい線分で）
+// ----------------------------------------
+function buildIonoLine(ionoY) {
+  const ionoNDC = ionoY * 2.0 - 1.0;
+  // 破線：短い線分を等間隔で並べる
+  const verts = [];
+  const dashLen = 0.025;
+  const gapLen  = 0.018;
+  const step    = dashLen + gapLen;
+  for (let x = -1.0; x < 1.0; x += step) {
+    const x0 = x;
+    const x1 = Math.min(x + dashLen, 1.0);
+    verts.push(x0, ionoNDC, x1, ionoNDC);
+  }
+  return new Float32Array(verts);
+}
+
+// ----------------------------------------
+// メインレンダリング
+// ----------------------------------------
+// アトリビュート位置をキャッシュ
+const bgPosLoc   = gl.getAttribLocation(bgProg,   'a_pos');
+const linePosLoc = gl.getAttribLocation(lineProg,  'a_pos');
+
+// Uniform ロケーション（背景）
+const bgResLoc     = gl.getUniformLocation(bgProg, 'u_res');
+const bgDayLoc     = gl.getUniformLocation(bgProg, 'u_dayFrac');
+const bgIonoLoc    = gl.getUniformLocation(bgProg, 'u_ionoY');
+
+// Uniform ロケーション（線）
+const lineColorLoc = gl.getUniformLocation(lineProg, 'u_color');
+
+// ブレンド設定
+gl.enable(gl.BLEND);
+gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+// 時刻は毎秒更新
+let ionoY   = 0.60;
+let dayFrac = 0.5;
+let noon    = 0.5;
+
+function updateTime() {
+  const res = ionoFromTime();
+  ionoY   = res.ionoY;
+  dayFrac = res.dayFrac;
+  noon    = res.noon;
+  updatePageBg(noon);
+}
+updateTime();
+setInterval(updateTime, 10000); // 10秒ごとに再計算
+
+function renderScene() {
+  requestAnimationFrame(renderScene);
+
+  gl.viewport(0, 0, W, H);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+
+  // ---- 背景描画 ----
+  gl.useProgram(bgProg);
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.enableVertexAttribArray(bgPosLoc);
+  gl.vertexAttribPointer(bgPosLoc, 2, gl.FLOAT, false, 0, 0);
+  gl.uniform2f(bgResLoc, W, H);
+  gl.uniform1f(bgDayLoc, dayFrac);
+  gl.uniform1f(bgIonoLoc, ionoY);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  // ---- 電波経路描画 ----
+  gl.useProgram(lineProg);
+  gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf);
+
+  // 地表ライン
+  const groundVerts = buildGroundLine();
+  gl.bufferData(gl.ARRAY_BUFFER, groundVerts, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(linePosLoc);
+  gl.vertexAttribPointer(linePosLoc, 2, gl.FLOAT, false, 0, 0);
+  // グラファイト系
+  gl.uniform4f(lineColorLoc, 0.22, 0.21, 0.20, 0.55);
+  gl.drawArrays(gl.LINES, 0, groundVerts.length / 2);
+
+  // 電離層破線
+  const ionoVerts = buildIonoLine(ionoY);
+  gl.bufferData(gl.ARRAY_BUFFER, ionoVerts, gl.DYNAMIC_DRAW);
+  gl.vertexAttribPointer(linePosLoc, 2, gl.FLOAT, false, 0, 0);
+  // 昼は薄め（電離層が低く安定）、夜は少し強め
+  const ionoAlpha = 0.20 + (1.0 - noon) * 0.18;
+  gl.uniform4f(lineColorLoc, 0.45, 0.45, 0.52, ionoAlpha);
+  gl.drawArrays(gl.LINES, 0, ionoVerts.length / 2);
+
+  // 電波経路（折れ線）
+  const rayVerts = buildRayPaths(ionoY);
+  gl.bufferData(gl.ARRAY_BUFFER, rayVerts, gl.DYNAMIC_DRAW);
+  gl.vertexAttribPointer(linePosLoc, 2, gl.FLOAT, false, 0, 0);
+  // 昼はわずかに薄め（D層吸収のイメージ）、夜は鮮明
+  const rayAlpha = 0.42 + (1.0 - noon) * 0.35;
+  gl.uniform4f(lineColorLoc, 0.22, 0.21, 0.20, rayAlpha);
+  gl.drawArrays(gl.LINES, 0, rayVerts.length / 2);
+
+  // 送信点（細い縦線）
+  const txX = -0.82;
+  const txY = -0.88;
+  const txVerts = new Float32Array([txX, txY - 0.04, txX, txY + 0.04]);
+  gl.bufferData(gl.ARRAY_BUFFER, txVerts, gl.DYNAMIC_DRAW);
+  gl.vertexAttribPointer(linePosLoc, 2, gl.FLOAT, false, 0, 0);
+  gl.uniform4f(lineColorLoc, 0.22, 0.21, 0.20, 0.70);
+  gl.drawArrays(gl.LINES, 0, 2);
+}
+
+renderScene();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '303',
+  title: 'Skywave',
+  detail: '現在時刻が電離層の高さを決めている。昼は電離層が低く、夜は高い。左の縦線から電波が放射され、電離層で折れ曲がって地表へ戻る。仰角が浅いほど遠くに届き、昼と夜で届く距離が変わる。電波の経路は折れ線のみ——曲線は一本も使っていない。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

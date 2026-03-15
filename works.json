@@ -2736,6 +2736,15 @@
     "thumb": "img/thumb_306.png"
   },
   {
+    "num": "303",
+    "title": "Skywave",
+    "tech": "glsl",
+    "date": "2026-03-16",
+    "path": "sketches/303_skywave/",
+    "description": "現在時刻を電離層の高度に変換した。昼は低く夜は高い。電波が折れ曲がって地表に戻るまでの跡だけ描いた。",
+    "thumb": "img/thumb_303.png"
+  },
+  {
     "num": "304",
     "title": "Solidify",
     "tech": "canvas",
