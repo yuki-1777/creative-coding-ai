@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>146 — Crystal</title>
+  <meta name="description" content="正八面体を並べたら、光が複雑になった。">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 0, 12);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // 正八面体のエッジのみのワイヤーフレームを格子状に配置
+    const baseGeo = new THREE.OctahedronGeometry(0.5, 0);
+    const edgesGeo = new THREE.EdgesGeometry(baseGeo);
+
+    const GRID = 5; // 5x5x5グリッド
+    const SPACING = 1.8;
+    const crystals = [];
+
+    const matMain = new THREE.LineBasicMaterial({
+      color: 0x2A2826,
+      transparent: true,
+      opacity: 0.4,
+    });
+    const matAccent = new THREE.LineBasicMaterial({
+      color: 0x8A7055,
+      transparent: true,
+      opacity: 0.55,
+    });
+
+    for (let x = 0; x < GRID; x++) {
+      for (let y = 0; y < GRID; y++) {
+        for (let z = 0; z < GRID; z++) {
+          const geo = edgesGeo.clone();
+          const isAccent = (x + y + z) % 3 === 0;
+          const mesh = new THREE.LineSegments(geo, isAccent ? matAccent : matMain);
+          mesh.position.set(
+            (x - (GRID - 1) / 2) * SPACING,
+            (y - (GRID - 1) / 2) * SPACING,
+            (z - (GRID - 1) / 2) * SPACING
+          );
+          // 各結晶に固有の回転速度
+          const speed = {
+            x: (Math.random() - 0.5) * 0.02,
+            y: (Math.random() - 0.5) * 0.02,
+            z: (Math.random() - 0.5) * 0.01,
+          };
+          crystals.push({ mesh, speed });
+          scene.add(mesh);
+        }
+      }
+    }
+
+    // マウス
+    const mouse = { x: 0, y: 0 };
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.005;
+
+      // 格子全体をゆっくり回転
+      scene.rotation.y = time * 0.08 + mouse.x * 0.4;
+      scene.rotation.x = time * 0.05 + mouse.y * 0.3;
+
+      // 各結晶も個別に回転
+      crystals.forEach(({ mesh, speed }, i) => {
+        mesh.rotation.x += speed.x;
+        mesh.rotation.y += speed.y;
+        mesh.rotation.z += speed.z;
+
+        // マウスに近い結晶を少し明るく
+        const dist = Math.abs(mesh.position.x / (GRID * SPACING) - mouse.x * 0.3)
+                   + Math.abs(mesh.position.y / (GRID * SPACING) - mouse.y * 0.3);
+        mesh.material.opacity = 0.15 + Math.max(0, 0.55 - dist * 0.4);
+      });
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '146',
+    title: 'Crystal',
+    detail: '正八面体が格子状に並んで、それぞれ違うリズムで回っている。マウスを動かすと格子全体が傾き、カーソルの近くにある結晶が少し明るく見える。どの方向から見るかで、全体の模様が変わる。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
