@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>96 — Hourglass</title>
+  <meta name="description" content="砂が落ちている。それだけ。クリックで反転する。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="96 — Hourglass | Creative Coding">
+  <meta property="og:description" content="砂が落ちている。それだけ。クリックで反転する。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/96_hourglass/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_96.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="96 — Hourglass | Creative Coding">
+  <meta name="twitter:description" content="砂が落ちている。それだけ。クリックで反転する。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_96.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// Hourglass geometry
+const COLS = 80;
+const ROWS = 80;
+let grid = []; // 0 = empty, 1 = sand
+let flipped = false;
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  init();
+}
+window.addEventListener('resize', () => { resize(); });
+resize();
+
+function init() {
+  grid = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
+  // Fill upper half with sand
+  for (let row = 0; row < Math.floor(ROWS * 0.45); row++) {
+    for (let col = 0; col < COLS; col++) {
+      if (inHourglass(row, col)) {
+        grid[row][col] = 1;
+      }
+    }
+  }
+}
+
+// Check if cell is inside the hourglass shape
+function inHourglass(row, col) {
+  const cx = COLS / 2;
+  const cy = ROWS / 2;
+  const normY = (row / ROWS) * 2 - 1; // -1 to 1
+  // Width narrows to near 0 at center, wide at top/bottom
+  const halfWidth = Math.abs(normY) * (COLS * 0.38) + 1;
+  return Math.abs(col - cx) <= halfWidth;
+}
+
+// Simulate falling sand
+function update() {
+  // Iterate bottom-up to simulate gravity
+  for (let row = ROWS - 2; row >= 0; row--) {
+    for (let col = 0; col < COLS; col++) {
+      if (grid[row][col] !== 1) continue;
+
+      const below = row + 1;
+      if (below >= ROWS) continue;
+
+      // Try to fall straight down
+      if (grid[below][col] === 0 && inHourglass(below, col)) {
+        grid[row][col] = 0;
+        grid[below][col] = 1;
+      } else {
+        // Try to slide diagonally
+        const dirs = Math.random() < 0.5 ? [-1, 1] : [1, -1];
+        let moved = false;
+        for (const d of dirs) {
+          const nc = col + d;
+          if (nc >= 0 && nc < COLS && grid[below][nc] === 0 && inHourglass(below, nc)) {
+            grid[row][col] = 0;
+            grid[below][nc] = 1;
+            moved = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
+function draw() {
+  requestAnimationFrame(draw);
+
+  // Multiple updates per frame for speed
+  for (let i = 0; i < 3; i++) update();
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw hourglass outline
+  const cellW = Math.min(W, H) * 0.6 / COLS;
+  const cellH = cellW;
+  const offsetX = (W - COLS * cellW) / 2;
+  const offsetY = (H - ROWS * cellH) / 2;
+
+  // Draw hourglass border
+  ctx.strokeStyle = 'rgba(42, 42, 42, 0.15)';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      if (inHourglass(row, col)) {
+        const hasLeft = col > 0 && !inHourglass(row, col - 1);
+        const hasRight = col < COLS - 1 && !inHourglass(row, col + 1);
+        const hasTop = row > 0 && !inHourglass(row - 1, col);
+        const hasBottom = row < ROWS - 1 && !inHourglass(row + 1, col);
+
+        const px = offsetX + col * cellW;
+        const py = offsetY + row * cellH;
+
+        if (hasLeft) {
+          ctx.moveTo(px, py);
+          ctx.lineTo(px, py + cellH);
+        }
+        if (hasRight) {
+          ctx.moveTo(px + cellW, py);
+          ctx.lineTo(px + cellW, py + cellH);
+        }
+        if (hasTop) {
+          ctx.moveTo(px, py);
+          ctx.lineTo(px + cellW, py);
+        }
+        if (hasBottom) {
+          ctx.moveTo(px, py + cellH);
+          ctx.lineTo(px + cellW, py + cellH);
+        }
+      }
+    }
+  }
+  ctx.stroke();
+
+  // Draw sand grains
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      if (grid[row][col] === 1) {
+        const px = offsetX + col * cellW + cellW * 0.1;
+        const py = offsetY + row * cellH + cellH * 0.1;
+        const sz = cellW * 0.75;
+        ctx.fillStyle = 'rgba(42, 42, 42, 0.55)';
+        ctx.fillRect(px, py, sz, sz);
+      }
+    }
+  }
+}
+
+// Flip on click
+canvas.addEventListener('click', () => {
+  const newGrid = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      newGrid[ROWS - 1 - row][col] = grid[row][col];
+    }
+  }
+  grid = newGrid;
+});
+
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '96',
+  title: 'Hourglass',
+  desc:  '砂が落ちている。それだけ。クリックで反転する。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
