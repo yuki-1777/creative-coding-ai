@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mirage</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ece4; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// 砂漠の熱気が光を曲げる。
+// 地平線の向こうにあるはずのものが、
+// 地面に映って見える——でも触れない。
+// マウスのY位置で熱さ（蜃気楼の強度）が変わる。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+         || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const vsSource = `
+attribute vec2 a_position;
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}
+`;
+
+const fsSource = `
+precision highp float;
+uniform vec2  u_resolution;
+uniform float u_time;
+uniform float u_heat;   // 熱強度 0〜1（マウスY: 下=熱い）
+uniform float u_horizX; // 地平線のX位置（マウスX）
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u2 = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i),               hash(i + vec2(1.0, 0.0)), u2.x),
+    mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), u2.x),
+    u2.y
+  );
+}
+float fbm(vec2 p) {
+  float v = 0.0; float a = 0.5;
+  for (int i = 0; i < 4; i++) { v += a * noise(p); p *= 2.2; a *= 0.5; }
+  return v;
+}
+
+// 空の模様（水平な帯状の縞）
+float skyPattern(vec2 uv, float t) {
+  // ゆっくり流れる水平縞
+  float stripe1 = sin((uv.y * 12.0 + uv.x * 0.5) * 3.14159) * 0.5 + 0.5;
+  float stripe2 = sin((uv.y * 19.0 - uv.x * 0.3 + t * 0.08) * 3.14159) * 0.5 + 0.5;
+  float stripe3 = sin((uv.y * 7.0 + t * 0.05) * 3.14159) * 0.5 + 0.5;
+  // ノイズで歪める
+  float n = fbm(uv * 3.0 + t * 0.04);
+  return (stripe1 * 0.4 + stripe2 * 0.35 + stripe3 * 0.25) * 0.6 + n * 0.4;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  float t = u_time;
+  float heat = u_heat;         // 0=涼しい, 1=灼熱
+  float horizX = u_horizX;     // 0〜1
+
+  // 地平線の高さ（中央やや下）
+  float horizY = 0.38;
+
+  // ---- 蜃気楼の歪み ----
+  // 地面付近（horizY以下）の空気が熱くゆらいでいる
+  // 地面に近いほど屈折が強い
+  float distFromGround = uv.y / max(horizY, 0.01);
+  float heatGradient = clamp(1.0 - distFromGround, 0.0, 1.0);
+  heatGradient = heatGradient * heatGradient; // 非線形: 地面付近で急激に強くなる
+
+  // 熱気のゆらぎ（時間・横方向のノイズ）
+  float shimmer = noise(vec2(uv.x * 5.0 + t * 0.22, uv.y * 3.0 + t * 0.15));
+  shimmer += noise(vec2(uv.x * 11.0 - t * 0.18, uv.y * 6.0)) * 0.5;
+
+  // 蜃気楼による垂直歪み量
+  float mirageDisp = heat * heatGradient * (shimmer - 0.5) * 0.08;
+
+  // ---- 空の像（通常の空 + 反転した空）----
+  // 地平線より上：通常の空のパターン
+  // 地平線より下：空を反転・歪めて「反射像」として表示
+
+  float skyUV_y_normal   = uv.y;
+  // 反転像: 地平線を軸に反転
+  float skyUV_y_mirror   = horizY * 2.0 - uv.y;
+
+  // 歪みを加える（地面付近ほど強い）
+  float dispX = mirageDisp * 0.5;
+  float dispY = mirageDisp;
+
+  float patternNormal = skyPattern(vec2(uv.x + dispX, skyUV_y_normal + dispY), t);
+  float patternMirror = skyPattern(vec2(uv.x - dispX, skyUV_y_mirror - dispY * 0.8), t);
+
+  // ---- 地面の線（水平な縞線）----
+  // 地面には地平線に平行な細い縞（砂漠の地面の質感）
+  float groundStripe = 0.0;
+  if (uv.y < horizY) {
+    // 地面に水平な縞
+    float gStripeFreq = 28.0;
+    float gPhase = uv.y * gStripeFreq;
+    groundStripe = smoothstep(0.45, 0.35, fract(gPhase));
+    // 地面ノイズ
+    float gNoise = noise(vec2(uv.x * 12.0, uv.y * 40.0));
+    groundStripe += (gNoise - 0.5) * 0.15;
+    groundStripe = clamp(groundStripe, 0.0, 1.0);
+  }
+
+  // ---- カラーリング ----
+  // 全体オフホワイト背景
+  vec3 bg      = vec3(0.94, 0.928, 0.908);
+  // 空パターンの濃淡（グラファイト薄め）
+  vec3 skyDark = vec3(0.60, 0.58, 0.55);
+  vec3 skyMid  = vec3(0.76, 0.74, 0.71);
+  // 地面色（少し暖かみのあるグレー）
+  vec3 groundCol = vec3(0.68, 0.65, 0.60);
+  // 蜃気楼の反射（ほんの少し明るく）
+  vec3 mirageCol = vec3(0.84, 0.82, 0.79);
+
+  vec3 col = bg;
+
+  if (uv.y >= horizY) {
+    // 空の領域
+    float skyIntensity = patternNormal * 0.45;
+    col = mix(col, skyDark, skyIntensity);
+  } else {
+    // 地面・蜃気楼の領域
+    // 地面の縞
+    col = mix(col, groundCol, groundStripe * 0.55);
+
+    // 蜃気楼の「映り込み」：地面に空が反転して映る
+    float mirageVisible = heat * heatGradient;
+    float mirageIntensity = patternMirror * mirageVisible * 0.6;
+    col = mix(col, mirageCol, mirageIntensity);
+
+    // 蜃気楼の揺らぎ（光の屈折ライン）
+    float refrLine = abs(fract(uv.y * 60.0 + shimmer * 2.0 + t * 0.1) - 0.5);
+    float refrMask = heat * heatGradient * smoothstep(0.48, 0.45, refrLine);
+    col = mix(col, mirageCol, refrMask * 0.35);
+  }
+
+  // 地平線ライン
+  float horizLine = smoothstep(0.003, 0.0, abs(uv.y - horizY));
+  col = mix(col, skyDark * 0.8, horizLine * 0.7);
+
+  // 蜃気楼と実像の境界（蜃気楼部分で更に揺らぐライン）
+  float mirageTop = horizY - heat * heatGradient * 0.02 + mirageDisp * 0.3;
+  float mirageBorder = smoothstep(0.005, 0.0, abs(uv.y - mirageTop))
+                     * (1.0 - step(uv.y, mirageTop - 0.01))
+                     * heat;
+  col = mix(col, skyMid, mirageBorder * 0.5);
+
+  // 紙テクスチャ
+  float grain = (noise(uv * 380.0) - 0.5) * 0.008;
+  col += grain;
+  col = clamp(col, 0.0, 1.0);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+    return null;
+  }
+  return shader;
+}
+
+const vs = compileShader(gl.VERTEX_SHADER, vsSource);
+const fs = compileShader(gl.FRAGMENT_SHADER, fsSource);
+const program = gl.createProgram();
+gl.attachShader(program, vs);
+gl.attachShader(program, fs);
+gl.linkProgram(program);
+
+if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+  console.error('Program link error:', gl.getProgramInfoLog(program));
+}
+
+gl.useProgram(program);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1,  -1, 1,
+  -1,  1,  1, -1,   1, 1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(program, 'a_position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uResolution = gl.getUniformLocation(program, 'u_resolution');
+const uTime       = gl.getUniformLocation(program, 'u_time');
+const uHeat       = gl.getUniformLocation(program, 'u_heat');
+const uHorizX     = gl.getUniformLocation(program, 'u_horizX');
+
+const startTime = Date.now();
+let targetHeat = 0.7;
+let currentHeat = 0.7;
+let mouseX = 0.5;
+
+canvas.addEventListener('mousemove', (e) => {
+  // 下にマウス → 熱い（地面に近い）
+  targetHeat = 1.0 - e.clientY / canvas.height;
+  targetHeat = Math.max(0.05, Math.min(1.0, targetHeat));
+  mouseX = e.clientX / canvas.width;
+});
+
+function render() {
+  requestAnimationFrame(render);
+
+  currentHeat += (targetHeat - currentHeat) * 0.03;
+
+  const elapsed = (Date.now() - startTime) / 1000;
+
+  gl.uniform2f(uResolution, canvas.width, canvas.height);
+  gl.uniform1f(uTime,   elapsed);
+  gl.uniform1f(uHeat,   currentHeat);
+  gl.uniform1f(uHorizX, mouseX);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '270',
+  title:  'Mirage',
+  detail: '砂漠の熱気が光を曲げて、地面に空を映す。マウスを画面下に動かすほど地表の熱が上がり、蜃気楼が強くなる。上に動かすと涼しくなり、揺らぎが静まっていく。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

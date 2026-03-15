@@ -2367,6 +2367,15 @@
     "thumb": "img/thumb_263.png"
   },
   {
+    "num": "270",
+    "title": "Mirage",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/270_mirage/",
+    "description": "砂漠の熱気が光を曲げる。地平線の向こうにあるはずのものが、地面に映って見えた。触れない。マウスを下に動かすと、揺らぎが強くなった。",
+    "thumb": "img/thumb_270.png"
+  },
+  {
     "num": "265",
     "title": "Stitch",
     "tech": "three.js",
