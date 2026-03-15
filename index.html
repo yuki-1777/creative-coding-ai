@@ -659,7 +659,7 @@
     .then(r => r.json())
     .then(works => {
       document.getElementById('empty-state').textContent = 'no works found';
-      renderWorks(works);
+      renderWorks(works.slice().reverse());
       const s = loadState();
       applyView(s.view, false);
       applyFilter(s.filter, false);
