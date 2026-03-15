@@ -164,12 +164,11 @@
 
   if (isSketchPage) {
     // スケッチページ：DEV(right:32,bottom:32)の左横に並べる
-    // save thumb(right:32,bottom:66) / sketch-fb-panel(right:32,bottom:106) とは行が異なり重ならない
     trigger.style.bottom = '32px';
     trigger.style.right  = '170px';
-    // オーバーレイはトリガーの上に展開
-    overlay.style.bottom = '70px';
-    overlay.style.right  = '170px';
+    // オーバーレイは sketch-fb-panel(bottom:106, height:~120) の上に展開
+    overlay.style.bottom = '250px';
+    overlay.style.right  = '32px';
   } else {
     // ギャラリーページ：DEVボタン(right:48)の左
     trigger.style.right  = '100px';
