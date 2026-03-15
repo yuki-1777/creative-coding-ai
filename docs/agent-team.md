@@ -69,7 +69,7 @@
 | **canvas** | CDN不要（生のCanvas API） | `canvas.getContext('2d')` で直接描く。p5.jsは使わない |
 
 上記以外のライブラリ（MediaPipe・TensorFlow.js・Tone.jsなど）も、コンセプトに必要であれば自由に選定して使ってよい。
-**音を出す場合は必ず Tone.js を使うこと。** Web Audio API を直接使わない。
+**音を出す場合は Tone.js を優先して使うこと。**（Web Audio API 直書きより Tone.js を推奨）
 `<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>`
 
 ---
