@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>152 — Coil</title>
+  <meta name="description" content="ばねを描いたら、伸び縮みが止まらなかった。">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // コイル（らせん）をダイナミックに生成
+    const COIL_TURNS = 12;
+    const POINTS_PER_TURN = 32;
+    const TOTAL_POINTS = COIL_TURNS * POINTS_PER_TURN + 1;
+
+    // 複数のコイルを重ねる
+    const COIL_COUNT = 4;
+    const coils = [];
+
+    const colors = [0x2A2826, 0x2A2826, 0x8A7055, 0x2A2826];
+    const opacities = [0.55, 0.35, 0.6, 0.25];
+    const radiusOffsets = [0, 0.08, -0.05, 0.13];
+    const phaseOffsets = [0, Math.PI * 0.5, Math.PI, Math.PI * 1.5];
+
+    for (let ci = 0; ci < COIL_COUNT; ci++) {
+      const positions = new Float32Array(TOTAL_POINTS * 3);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = new THREE.LineBasicMaterial({
+        color: colors[ci],
+        transparent: true,
+        opacity: opacities[ci],
+      });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      coils.push({ line, positions, radiusOff: radiusOffsets[ci], phaseOff: phaseOffsets[ci] });
+    }
+
+    // マウス
+    const mouse = { x: 0, y: 0 };
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+
+    function updateCoil(positions, radiusOff, phaseOff, t) {
+      // コイルの伸び縮み：yの範囲がtimeで変化
+      const stretch = 1.5 + Math.sin(t * 0.6) * 1.0 + mouse.y * 0.5;
+      const radius = 0.9 + radiusOff + Math.sin(t * 0.3) * 0.2;
+
+      for (let i = 0; i < TOTAL_POINTS; i++) {
+        const s = i / (TOTAL_POINTS - 1); // 0 to 1
+        const theta = s * Math.PI * 2 * COIL_TURNS + phaseOff;
+
+        // コイルの各巻きが少し違うリズムで伸びる（波動）
+        const yBase = (s - 0.5) * stretch * 2;
+        const yWave = Math.sin(s * Math.PI * 4 + t * 1.5) * 0.15;
+        const y = yBase + yWave;
+
+        // 半径も変化
+        const r = radius * (0.85 + 0.15 * Math.sin(s * Math.PI * COIL_TURNS * 0.5 + t));
+
+        positions[i * 3]     = Math.cos(theta) * r;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = Math.sin(theta) * r;
+      }
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.012;
+
+      coils.forEach(({ line, positions, radiusOff, phaseOff }) => {
+        updateCoil(positions, radiusOff, phaseOff, time);
+        line.geometry.attributes.position.needsUpdate = true;
+      });
+
+      // マウスで視点操作
+      scene.rotation.y = time * 0.06 + mouse.x * 0.5;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '152',
+    title: 'Coil',
+    detail: '4本のコイルが重なって、伸び縮みしながら回っている。外から見ると一本のばねのように見えるが、それぞれ違うリズムで動いている。マウスを上下に動かすとコイルが伸びたり縮んだりする。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
