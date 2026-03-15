@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>150 — Orbit</title>
+  <meta name="description" content="軌道を描いたら、惑星がいなかった。">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 4, 10);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // 複数の楕円軌道
+    const ORBIT_COUNT = 8;
+    const orbitData = [];
+
+    for (let i = 0; i < ORBIT_COUNT; i++) {
+      const a = 1.0 + i * 0.55; // 長半径
+      const b = a * (0.4 + Math.random() * 0.5); // 短半径
+      const tiltX = (Math.random() - 0.5) * Math.PI * 0.7;
+      const tiltY = (i / ORBIT_COUNT) * Math.PI;
+      const tiltZ = (Math.random() - 0.5) * Math.PI * 0.4;
+      const speed = 0.3 / (i * 0.4 + 1); // 外側ほど遅い（ケプラー的）
+      const isAccent = i === 0 || i === 3;
+      orbitData.push({ a, b, tiltX, tiltY, tiltZ, speed, isAccent });
+    }
+
+    // 軌道線（楕円）を描画
+    const orbitLines = [];
+    orbitData.forEach(({ a, b, tiltX, tiltY, tiltZ, isAccent }) => {
+      const SEGS = 128;
+      const positions = [];
+      for (let i = 0; i <= SEGS; i++) {
+        const theta = (i / SEGS) * Math.PI * 2;
+        positions.push(Math.cos(theta) * a, 0, Math.sin(theta) * b);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      const mat = new THREE.LineBasicMaterial({
+        color: isAccent ? 0x8A7055 : 0x2A2826,
+        transparent: true,
+        opacity: isAccent ? 0.4 : 0.2,
+      });
+      const line = new THREE.Line(geo, mat);
+      line.rotation.x = tiltX;
+      line.rotation.y = tiltY;
+      line.rotation.z = tiltZ;
+      scene.add(line);
+      orbitLines.push(line);
+    });
+
+    // 周回する「点」（小さな球 → テトラヘドロン）
+    const orbiters = [];
+    orbitData.forEach(({ a, b, tiltX, tiltY, tiltZ, speed, isAccent }, i) => {
+      const geo = new THREE.TetrahedronGeometry(0.06 + i * 0.008, 0);
+      const edges = new THREE.EdgesGeometry(geo);
+      const mat = new THREE.LineBasicMaterial({
+        color: isAccent ? 0x8A7055 : 0x2A2826,
+        opacity: 0.85,
+        transparent: true,
+      });
+      const mesh = new THREE.LineSegments(edges, mat);
+      // 軌道に対応するグループに入れる
+      const group = new THREE.Group();
+      group.rotation.x = tiltX;
+      group.rotation.y = tiltY;
+      group.rotation.z = tiltZ;
+      group.add(mesh);
+      scene.add(group);
+      orbiters.push({ mesh, group, a, b, speed, phase: (i / ORBIT_COUNT) * Math.PI * 2 });
+    });
+
+    // マウス
+    const mouse = { x: 0, y: 0 };
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.01;
+
+      // 各周回体を軌道上で動かす
+      orbiters.forEach(({ mesh, group, a, b, speed, phase }) => {
+        const theta = time * speed + phase;
+        mesh.position.x = Math.cos(theta) * a;
+        mesh.position.z = Math.sin(theta) * b;
+        mesh.rotation.x += 0.02;
+        mesh.rotation.y += 0.03;
+      });
+
+      // シーン全体をマウスで傾ける
+      scene.rotation.y = time * 0.04 + mouse.x * 0.5;
+      scene.rotation.x = mouse.y * 0.25;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '150',
+    title: 'Orbit',
+    detail: '8本の楕円軌道が傾いて重なっている。それぞれの軌道上に小さな四面体が回っていて、外側ほどゆっくり動く。マウスを動かすと全体が傾き、軌道が3D空間に重なっているのが見える。軌道だけで惑星系を描いた。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
