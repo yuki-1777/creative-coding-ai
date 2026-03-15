@@ -2754,6 +2754,15 @@
     "thumb": "img/thumb_304.png"
   },
   {
+    "num": "307",
+    "title": "Exposure",
+    "tech": "p5.js",
+    "date": "2026-03-16",
+    "path": "sketches/307_exposure/",
+    "description": "スペースキーを押し続けたら、粒子が感光し始めた。離すと現像が進んで像が浮かび上がり、しばらくして消えた。",
+    "thumb": "img/thumb_307.png"
+  },
+  {
     "num": "309",
     "title": "Tuning Fork",
     "tech": "glsl",
@@ -2761,5 +2770,32 @@
     "path": "sketches/309_tuning_fork/",
     "description": "音叉の振動を圧力波として書いたら、カーソルの周りに楕円の縞が浮かんだ。マイクに声を当てると縞が増え、静かになると消えた。",
     "thumb": "img/thumb_309.png"
+  },
+  {
+    "num": "311",
+    "title": "Tuning",
+    "tech": "p5.js",
+    "date": "2026-03-16",
+    "path": "sketches/311_tuning/",
+    "description": "ホイールを回してずれを詰めていったら、曲線がひとつの形に収まった。合わせた瞬間だけ、音がした。",
+    "thumb": "img/thumb_311.png"
+  },
+  {
+    "num": "308",
+    "title": "Platen",
+    "tech": "three.js",
+    "date": "2026-03-16",
+    "path": "sketches/308_platen/",
+    "description": "凸版の付いた円筒を紙の上で転がした。版が触れるたびにインクが移り、圧力で紙がわずかにへこんだ。",
+    "thumb": "img/thumb_308.png"
+  },
+  {
+    "num": "312",
+    "title": "Gauge",
+    "tech": "three.js",
+    "date": "2026-03-16",
+    "path": "sketches/312_gauge/",
+    "description": "フロートが潮の満ち引きに合わせて上下するアームを書いた。右端のペンが回転ドラムに波形を刻み続ける。タイトルバーに潮位が出た。",
+    "thumb": "img/thumb_312.png"
   }
 ]
