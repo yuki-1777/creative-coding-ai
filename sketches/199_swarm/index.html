@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Swarm</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xf5f4f0);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+  camera.position.set(0, 0, 5);
+
+  let W = window.innerWidth, H = window.innerHeight;
+  renderer.setSize(W, H);
+  let aspect = W / H;
+  camera.left = -aspect; camera.right = aspect;
+  camera.updateProjectionMatrix();
+
+  // Simple hash-based noise
+  function hash2(x, y) {
+    const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return (n - Math.floor(n));
+  }
+  function smoothNoise(x, y) {
+    const ix = Math.floor(x), iy = Math.floor(y);
+    const fx = x - ix, fy = y - iy;
+    const ux = fx * fx * (3 - 2 * fx);
+    const uy = fy * fy * (3 - 2 * fy);
+    const a = hash2(ix, iy), b = hash2(ix + 1, iy);
+    const c = hash2(ix, iy + 1), d = hash2(ix + 1, iy + 1);
+    return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+  }
+
+  const N = 300;
+  const px = new Float32Array(N);
+  const py = new Float32Array(N);
+  const vx = new Float32Array(N);
+  const vy = new Float32Array(N);
+  const typeA = new Uint8Array(N);
+
+  // Two clusters, well-separated
+  for (let i = 0; i < N; i++) {
+    typeA[i] = i < N / 2 ? 1 : 0;
+    const cx = typeA[i] ? -0.45 : 0.45;
+    px[i] = cx + (Math.random() - 0.5) * 0.6;
+    py[i] = (Math.random() - 0.5) * 0.9;
+    vx[i] = (Math.random() - 0.5) * 0.004;
+    vy[i] = (Math.random() - 0.5) * 0.004;
+  }
+
+  const posA = new Float32Array((N / 2) * 3);
+  const posB = new Float32Array((N / 2) * 3);
+  const geoA = new THREE.BufferGeometry();
+  const geoB = new THREE.BufferGeometry();
+  geoA.setAttribute('position', new THREE.BufferAttribute(posA, 3));
+  geoB.setAttribute('position', new THREE.BufferAttribute(posB, 3));
+  scene.add(new THREE.Points(geoA, new THREE.PointsMaterial({ color: 0x333330, size: 3, sizeAttenuation: false })));
+  scene.add(new THREE.Points(geoB, new THREE.PointsMaterial({ color: 0x777770, size: 3, sizeAttenuation: false })));
+
+  let flip = 1;
+  canvas.addEventListener('click', () => { flip *= -1; });
+
+  function update(t) {
+    // Two gravity centers that drift
+    const cAx = Math.cos(t * 0.4) * 0.45;
+    const cAy = Math.sin(t * 0.3) * 0.35;
+    const cBx = -cAx;
+    const cBy = -cAy;
+
+    let ai = 0, bi = 0;
+    for (let i = 0; i < N; i++) {
+      // Flow field: noise-based
+      const ns = smoothNoise(px[i] * 2.5 + t * 0.4, py[i] * 2.5) - 0.5;
+      const ns2 = smoothNoise(px[i] * 2.5 + 33.7, py[i] * 2.5 + t * 0.4) - 0.5;
+
+      // Gravity toward own cluster center
+      const myCx = ((typeA[i] === 1) === (flip > 0)) ? cAx : cBx;
+      const myCy = ((typeA[i] === 1) === (flip > 0)) ? cAy : cBy;
+      const gx = (myCx - px[i]) * 0.012;
+      const gy = (myCy - py[i]) * 0.012;
+
+      vx[i] = vx[i] * 0.96 + gx * 0.12 + ns * 0.004;
+      vy[i] = vy[i] * 0.96 + gy * 0.12 + ns2 * 0.004;
+
+      const spd = Math.sqrt(vx[i] * vx[i] + vy[i] * vy[i]);
+      const maxSpd = 0.015;
+      if (spd > maxSpd) { vx[i] *= maxSpd / spd; vy[i] *= maxSpd / spd; }
+
+      px[i] += vx[i]; py[i] += vy[i];
+
+      if (px[i] > aspect) px[i] -= 2 * aspect;
+      if (px[i] < -aspect) px[i] += 2 * aspect;
+      if (py[i] > 1) py[i] -= 2;
+      if (py[i] < -1) py[i] += 2;
+
+      if (typeA[i]) {
+        posA[ai * 3] = px[i]; posA[ai * 3 + 1] = py[i]; posA[ai * 3 + 2] = 0; ai++;
+      } else {
+        posB[bi * 3] = px[i]; posB[bi * 3 + 1] = py[i]; posB[bi * 3 + 2] = 0; bi++;
+      }
+    }
+    geoA.attributes.position.needsUpdate = true;
+    geoB.attributes.position.needsUpdate = true;
+  }
+
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    t += 0.016;
+    update(t);
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    W = window.innerWidth; H = window.innerHeight;
+    renderer.setSize(W, H);
+    aspect = W / H;
+    camera.left = -aspect; camera.right = aspect;
+    camera.updateProjectionMatrix();
+  });
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '199',
+  title:  'Swarm',
+  detail: 'クリックすると群れが入れ替わります。暗い点と薄い点の2種類の群れが、ノイズの流れに乗りながら引力源に集まっています。クリックすると引き寄せ先が交差し、群れが移動します。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
