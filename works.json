@@ -1530,6 +1530,24 @@
     "thumb": "img/thumb_170.png"
   },
   {
+    "num": "171",
+    "title": "Hourglass",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/171_hourglass/",
+    "description": "砂時計のくびれを通す計算をした。クリックするとひっくり返る。",
+    "thumb": "img/thumb_171.png"
+  },
+  {
+    "num": "172",
+    "title": "Growth Rings",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/172_rings/",
+    "description": "ノイズで歪んだ同心円を重ね続けた。一度増えた輪は消えない。",
+    "thumb": "img/thumb_172.png"
+  },
+  {
     "num": "173",
     "title": "Fold",
     "tech": "three.js",
@@ -1546,15 +1564,6 @@
     "path": "sketches/174_orbit/",
     "description": "引力の強さを変えながら軌跡を積み重ねた。線は消えない。",
     "thumb": "img/thumb_174.png"
-  },
-  {
-    "num": "171",
-    "title": "Hourglass",
-    "tech": "p5.js",
-    "date": "2026-03-15",
-    "path": "sketches/171_hourglass/",
-    "description": "砂時計のくびれを通す計算をした。クリックするとひっくり返る。",
-    "thumb": "img/thumb_171.png"
   },
   {
     "num": "175",
@@ -1591,15 +1600,6 @@
     "path": "sketches/178_ticker/",
     "description": "時刻の数字を流し続けたら、縞になった。",
     "thumb": "img/thumb_178.png"
-  },
-  {
-    "num": "172",
-    "title": "Growth Rings",
-    "tech": "p5.js",
-    "date": "2026-03-15",
-    "path": "sketches/172_rings/",
-    "description": "ノイズで歪んだ同心円を重ね続けた。一度増えた輪は消えない。",
-    "thumb": "img/thumb_172.png"
   },
   {
     "num": "179",
@@ -2106,15 +2106,6 @@
     "thumb": "img/thumb_234.png"
   },
   {
-    "num": "241",
-    "title": "Ballot",
-    "tech": "p5.js",
-    "date": "2026-03-15",
-    "path": "sketches/241_ballot/",
-    "description": "左右キーで賛否を投じる。ドットが落下して積み重なる。20票ごとに暫定結果が現れる。数字は出ない——積み上がった高さだけが結果を語る。",
-    "thumb": "img/thumb_241.png"
-  },
-  {
     "num": "235",
     "title": "Departures",
     "tech": "three.js",
@@ -2140,24 +2131,6 @@
     "path": "sketches/237_idle/",
     "description": "放っておくと棒が少しずつ傾いていく。マウスを近づけると起き上がろうとする。触っているあいだだけ、ちゃんと立っている。",
     "thumb": "img/thumb_237.png"
-  },
-  {
-    "num": "242",
-    "title": "Recursion",
-    "tech": "three.js",
-    "date": "2026-03-15",
-    "path": "sketches/242_recursion/",
-    "description": "7層の立方体フレームが入れ子になっている。それぞれ違う軸と速さで回転している。外から見ると秩序があるように見えて、内側では別のことが起きている。",
-    "thumb": "img/thumb_242.png"
-  },
-  {
-    "num": "243",
-    "title": "Focus",
-    "tech": "glsl",
-    "date": "2026-03-15",
-    "path": "sketches/243_focus/",
-    "description": "マウスを近づけると、その場所の模様が消えていく。見ようとするほど見えなくなる。視線の外にあるものだけが形を持つ。",
-    "thumb": "img/thumb_243.png"
   },
   {
     "num": "238",
@@ -2187,6 +2160,33 @@
     "thumb": "img/thumb_240.png"
   },
   {
+    "num": "241",
+    "title": "Ballot",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/241_ballot/",
+    "description": "左右キーで賛否を投じる。ドットが落下して積み重なる。20票ごとに暫定結果が現れる。数字は出ない——積み上がった高さだけが結果を語る。",
+    "thumb": "img/thumb_241.png"
+  },
+  {
+    "num": "242",
+    "title": "Recursion",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/242_recursion/",
+    "description": "7層の立方体フレームが入れ子になっている。それぞれ違う軸と速さで回転している。外から見ると秩序があるように見えて、内側では別のことが起きている。",
+    "thumb": "img/thumb_242.png"
+  },
+  {
+    "num": "243",
+    "title": "Focus",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/243_focus/",
+    "description": "マウスを近づけると、その場所の模様が消えていく。見ようとするほど見えなくなる。視線の外にあるものだけが形を持つ。",
+    "thumb": "img/thumb_243.png"
+  },
+  {
     "num": "244",
     "title": "Scar",
     "tech": "p5.js",
@@ -2212,60 +2212,6 @@
     "path": "sketches/246_stutter/",
     "description": "規則正しく流れていた線が、ときどき詰まった。詰まる前と後で、何も変わっていない。",
     "thumb": "img/thumb_246.png"
-  },
-  {
-    "num": "253",
-    "title": "Lobby",
-    "tech": "canvas",
-    "date": "2026-03-15",
-    "path": "sketches/253_lobby/",
-    "description": "待合室の椅子に人が来ては去っていく。誰かが席を立つと、別の誰かが来る。それだけのことが、ずっと続いている。",
-    "thumb": "img/thumb_253.png"
-  },
-  {
-    "num": "254",
-    "title": "Applause",
-    "tech": "p5.js",
-    "date": "2026-03-15",
-    "path": "sketches/254_applause/",
-    "description": "クリックすると、そこから拍手が広がった。隣へ、また隣へ。しばらくして、静かになった。",
-    "thumb": "img/thumb_254.png"
-  },
-  {
-    "num": "255",
-    "title": "Letterpress",
-    "tech": "glsl",
-    "date": "2026-03-15",
-    "path": "sketches/255_letterpress/",
-    "description": "版を押しつける圧力を計算したら、インクがにじんだ。文字は使っていない。圧力の形跡だけが残る。",
-    "thumb": "img/thumb_255.png"
-  },
-  {
-    "num": "250",
-    "title": "Glitch Stripe",
-    "tech": "glsl",
-    "date": "2026-03-15",
-    "path": "sketches/250_stutter/",
-    "description": "同じ縞を12行に分けてそれぞれ少しずつずらした。揃っているはずのものが、ずれることでまったく別のものになった。",
-    "thumb": "img/thumb_250.png"
-  },
-  {
-    "num": "251",
-    "title": "Threshold",
-    "tech": "glsl",
-    "date": "2026-03-15",
-    "path": "sketches/251_threshold/",
-    "description": "閾値を下げると形が現れ、上げると消える。現れかけているものと消えかけているものが、同時に画面にあった。",
-    "thumb": "img/thumb_251.png"
-  },
-  {
-    "num": "252",
-    "title": "Residue",
-    "tech": "glsl",
-    "date": "2026-03-15",
-    "path": "sketches/252_residue/",
-    "description": "マウスを動かすと跡が残る。消えていくが、完全には消えない。何度も通ったところが、少し濃くなっていた。",
-    "thumb": "img/thumb_252.png"
   },
   {
     "num": "247",
@@ -2295,6 +2241,78 @@
     "thumb": "img/thumb_249.png"
   },
   {
+    "num": "250",
+    "title": "Glitch Stripe",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/250_stutter/",
+    "description": "同じ縞を12行に分けてそれぞれ少しずつずらした。揃っているはずのものが、ずれることでまったく別のものになった。",
+    "thumb": "img/thumb_250.png"
+  },
+  {
+    "num": "251",
+    "title": "Threshold",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/251_threshold/",
+    "description": "閾値を下げると形が現れ、上げると消える。現れかけているものと消えかけているものが、同時に画面にあった。",
+    "thumb": "img/thumb_251.png"
+  },
+  {
+    "num": "252",
+    "title": "Residue",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/252_residue/",
+    "description": "マウスを動かすと跡が残る。消えていくが、完全には消えない。何度も通ったところが、少し濃くなっていた。",
+    "thumb": "img/thumb_252.png"
+  },
+  {
+    "num": "253",
+    "title": "Lobby",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/253_lobby/",
+    "description": "待合室の椅子に人が来ては去っていく。誰かが席を立つと、別の誰かが来る。それだけのことが、ずっと続いている。",
+    "thumb": "img/thumb_253.png"
+  },
+  {
+    "num": "254",
+    "title": "Applause",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/254_applause/",
+    "description": "クリックすると、そこから拍手が広がった。隣へ、また隣へ。しばらくして、静かになった。",
+    "thumb": "img/thumb_254.png"
+  },
+  {
+    "num": "255",
+    "title": "Letterpress",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/255_letterpress/",
+    "description": "版を押しつける圧力を計算したら、インクがにじんだ。文字は使っていない。圧力の形跡だけが残る。",
+    "thumb": "img/thumb_255.png"
+  },
+  {
+    "num": "256",
+    "title": "Earthworm",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/256_earthworm/",
+    "description": "ミミズに蠕動運動のルールだけ書いた。体節が伸び縮みしながら、土の中を勝手に歩き回っていた。",
+    "thumb": "img/thumb_256.png"
+  },
+  {
+    "num": "257",
+    "title": "Spirit Level",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/257_spirit_level/",
+    "description": "水準器の管を傾けたら、気泡が高い方へ移動した。水平を探している。",
+    "thumb": "img/thumb_257.png"
+  },
+  {
     "num": "258",
     "title": "Brood",
     "tech": "glsl",
@@ -2313,22 +2331,13 @@
     "thumb": "img/thumb_259.png"
   },
   {
-    "num": "257",
-    "title": "Spirit Level",
+    "num": "260",
+    "title": "Compass",
     "tech": "three.js",
     "date": "2026-03-15",
-    "path": "sketches/257_spirit_level/",
-    "description": "水準器の管を傾けたら、気泡が高い方へ移動した。水平を探している。",
-    "thumb": "img/thumb_257.png"
-  },
-  {
-    "num": "262",
-    "title": "Thermocline",
-    "tech": "glsl",
-    "date": "2026-03-15",
-    "path": "sketches/262_thermocline/",
-    "description": "上と下で流れが違う水域を描いた。境界に近いほど流れが乱れ、上層は速く右へ、下層はゆっくり左へ流れていた。",
-    "thumb": "img/thumb_262.png"
+    "path": "sketches/260_compass/",
+    "description": "磁針を280本並べて、マウスを磁極にしてみた。波が走った。",
+    "thumb": "img/thumb_260.png"
   },
   {
     "num": "261",
@@ -2340,22 +2349,13 @@
     "thumb": "img/thumb_261.png"
   },
   {
-    "num": "266",
-    "title": "Sediograph",
+    "num": "262",
+    "title": "Thermocline",
     "tech": "glsl",
     "date": "2026-03-15",
-    "path": "sketches/266_sediograph/",
-    "description": "泥水を静置した。大きい粒から先に沈み、細かい粒は長い時間をかけて底へ届いた。粒子は描かず、密度の変化だけで書いた。",
-    "thumb": "img/thumb_266.png"
-  },
-  {
-    "num": "256",
-    "title": "Earthworm",
-    "tech": "p5.js",
-    "date": "2026-03-15",
-    "path": "sketches/256_earthworm/",
-    "description": "ミミズに蠕動運動のルールだけ書いた。体節が伸び縮みしながら、土の中を勝手に歩き回っていた。",
-    "thumb": "img/thumb_256.png"
+    "path": "sketches/262_thermocline/",
+    "description": "上と下で流れが違う水域を描いた。境界に近いほど流れが乱れ、上層は速く右へ、下層はゆっくり左へ流れていた。",
+    "thumb": "img/thumb_262.png"
   },
   {
     "num": "263",
@@ -2367,13 +2367,13 @@
     "thumb": "img/thumb_263.png"
   },
   {
-    "num": "270",
-    "title": "Mirage",
+    "num": "264",
+    "title": "Rust",
     "tech": "glsl",
     "date": "2026-03-15",
-    "path": "sketches/270_mirage/",
-    "description": "砂漠の熱気が光を曲げる。地平線の向こうにあるはずのものが、地面に映って見えた。触れない。マウスを下に動かすと、揺らぎが強くなった。",
-    "thumb": "img/thumb_270.png"
+    "path": "sketches/264_rust/",
+    "description": "金属の表面に腐食のルールを書いたら、錆がじわじわ広がった。",
+    "thumb": "img/thumb_264.png"
   },
   {
     "num": "265",
@@ -2385,58 +2385,13 @@
     "thumb": "img/thumb_265.png"
   },
   {
-    "num": "260",
-    "title": "Compass",
-    "tech": "three.js",
-    "date": "2026-03-15",
-    "path": "sketches/260_compass/",
-    "description": "磁針を280本並べて、マウスを磁極にしてみた。波が走った。",
-    "thumb": "img/thumb_260.png"
-  },
-  {
-    "num": "274",
-    "title": "Kymograph",
+    "num": "266",
+    "title": "Sediograph",
     "tech": "glsl",
     "date": "2026-03-15",
-    "path": "sketches/274_kymograph/",
-    "description": "回転するドラムに紙を巻いて、針に波形を刻ませた。螺旋状に記録が積み重なり、どこが今かわからなくなった。",
-    "thumb": "img/thumb_274.png"
-  },
-  {
-    "num": "264",
-    "title": "Rust",
-    "tech": "glsl",
-    "date": "2026-03-15",
-    "path": "sketches/264_rust/",
-    "description": "金属の表面に腐食のルールを書いたら、錆がじわじわ広がった。",
-    "thumb": "img/thumb_264.png"
-  },
-  {
-    "num": "268",
-    "title": "Spindle",
-    "tech": "canvas",
-    "date": "2026-03-15",
-    "path": "sketches/268_spindle/",
-    "description": "スピンドルを回したら、糸が螺旋状に積み重なった。",
-    "thumb": "img/thumb_268.png"
-  },
-  {
-    "num": "272",
-    "title": "Barnacle",
-    "tech": "p5.js",
-    "date": "2026-03-15",
-    "path": "sketches/272_barnacle/",
-    "description": "固着するルールだけ書いたら、フジツボが岩を埋め尽くしていった。",
-    "thumb": "img/thumb_272.png"
-  },
-  {
-    "num": "269",
-    "title": "Silo",
-    "tech": "three.js",
-    "date": "2026-03-15",
-    "path": "sketches/269_silo/",
-    "description": "円筒の輪と縦線だけで描いた。面は一枚もない。上から覗くと空洞がある。",
-    "thumb": "img/thumb_269.png"
+    "path": "sketches/266_sediograph/",
+    "description": "泥水を静置した。大きい粒から先に沈み、細かい粒は長い時間をかけて底へ届いた。粒子は描かず、密度の変化だけで書いた。",
+    "thumb": "img/thumb_266.png"
   },
   {
     "num": "267",
@@ -2448,13 +2403,31 @@
     "thumb": "img/thumb_267.png"
   },
   {
-    "num": "273",
-    "title": "Capillary",
+    "num": "268",
+    "title": "Spindle",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/268_spindle/",
+    "description": "スピンドルを回したら、糸が螺旋状に積み重なった。",
+    "thumb": "img/thumb_268.png"
+  },
+  {
+    "num": "269",
+    "title": "Silo",
     "tech": "three.js",
     "date": "2026-03-15",
-    "path": "sketches/273_capillary/",
-    "description": "細さの違う7本の管を並べた。細いほど高く上がる。液体そのものは描かなかった。",
-    "thumb": "img/thumb_273.png"
+    "path": "sketches/269_silo/",
+    "description": "円筒の輪と縦線だけで描いた。面は一枚もない。上から覗くと空洞がある。",
+    "thumb": "img/thumb_269.png"
+  },
+  {
+    "num": "270",
+    "title": "Mirage",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/270_mirage/",
+    "description": "砂漠の熱気が光を曲げる。地平線の向こうにあるはずのものが、地面に映って見えた。触れない。マウスを下に動かすと、揺らぎが強くなった。",
+    "thumb": "img/thumb_270.png"
   },
   {
     "num": "271",
@@ -2464,6 +2437,33 @@
     "path": "sketches/271_thermometer/",
     "description": "5本の体温計を置いた。水銀がゆっくり上がって、それぞれ違う体温で止まった。高い体温ほど赤くなった。",
     "thumb": "img/thumb_271.png"
+  },
+  {
+    "num": "272",
+    "title": "Barnacle",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/272_barnacle/",
+    "description": "固着するルールだけ書いたら、フジツボが岩を埋め尽くしていった。",
+    "thumb": "img/thumb_272.png"
+  },
+  {
+    "num": "273",
+    "title": "Capillary",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/273_capillary/",
+    "description": "細さの違う7本の管を並べた。細いほど高く上がる。液体そのものは描かなかった。",
+    "thumb": "img/thumb_273.png"
+  },
+  {
+    "num": "274",
+    "title": "Kymograph",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/274_kymograph/",
+    "description": "回転するドラムに紙を巻いて、針に波形を刻ませた。螺旋状に記録が積み重なり、どこが今かわからなくなった。",
+    "thumb": "img/thumb_274.png"
   },
   {
     "num": "275",
