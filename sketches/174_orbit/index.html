@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>174 – Orbit</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; overflow: hidden; width: 100vw; height: 100vh; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// Orbit — 174
+// 重力源の周りを漂う物体の軌跡。
+// マウスを左右に動かすと重力の強さが変わり、軌道が変形する。
+// 軌跡は消えない。2000ステップ後に新しい軌道が始まる。
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0xf0ede8);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 0, 12);
+camera.lookAt(0, 0, 0);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// -------------------------------------------------------
+// 色定義
+// -------------------------------------------------------
+const GRAPHITE = new THREE.Color(0x3a3a3a);
+const ACCENT   = new THREE.Color(0x5a7a8a); // くすんだ青
+
+// -------------------------------------------------------
+// 重力源の表示（小さな点）
+// -------------------------------------------------------
+const centerGeo = new THREE.SphereGeometry(0.06, 8, 8);
+const centerMat = new THREE.MeshBasicMaterial({ color: GRAPHITE });
+const centerMesh = new THREE.Mesh(centerGeo, centerMat);
+scene.add(centerMesh);
+
+// -------------------------------------------------------
+// 軌道パラメータ
+// -------------------------------------------------------
+const MAX_STEPS = 2000;
+const DT = 0.016; // シミュレーション時間刻み
+
+// マウスX位置（0〜1）
+let mouseNormX = 0.5;
+document.addEventListener('mousemove', (e) => {
+  mouseNormX = e.clientX / window.innerWidth;
+});
+
+// 引力の強さをマウスXで変える
+// 0.0（左端）→ 弱い → 放物線的に飛んでいく
+// 1.0（右端）→ 強い → 螺旋的に吸い込まれる
+function getGravity() {
+  return 0.3 + mouseNormX * 2.5;
+}
+
+// -------------------------------------------------------
+// 軌道管理
+// -------------------------------------------------------
+// 過去軌跡を保持するLineオブジェクトの配列
+const trailLines = [];
+
+// 現在の軌道
+let pos  = new THREE.Vector3();
+let vel  = new THREE.Vector3();
+let step = 0;
+let currentPoints = [];
+
+// 軌道の色：古いものほど薄く
+let orbitIndex = 0;
+
+function resetOrbit() {
+  orbitIndex++;
+
+  // 初期条件をランダムに（再現性のためシードは使わない）
+  const angle = Math.random() * Math.PI * 2;
+  const radius = 2.0 + Math.random() * 1.5;
+  pos = new THREE.Vector3(
+    Math.cos(angle) * radius,
+    Math.sin(angle) * radius,
+    (Math.random() - 0.5) * 0.8
+  );
+
+  // 円軌道に近い初速（少しずらして楕円に）
+  const G = getGravity();
+  const speed = Math.sqrt(G / radius) * (0.85 + Math.random() * 0.3);
+  // 速度は位置ベクトルに垂直な方向
+  vel = new THREE.Vector3(-Math.sin(angle), Math.cos(angle), (Math.random() - 0.5) * 0.3)
+    .normalize()
+    .multiplyScalar(speed);
+
+  step = 0;
+  currentPoints = [pos.clone()];
+}
+
+resetOrbit();
+
+// -------------------------------------------------------
+// ラインを作って scene に追加
+// -------------------------------------------------------
+function commitTrail(points, index) {
+  if (points.length < 2) return;
+
+  const posArray = new Float32Array(points.length * 3);
+  for (let i = 0; i < points.length; i++) {
+    posArray[i * 3]     = points[i].x;
+    posArray[i * 3 + 1] = points[i].y;
+    posArray[i * 3 + 2] = points[i].z;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+
+  // 最初の軌跡はアクセントカラー、それ以降はグラファイト
+  const col = index === 1 ? ACCENT : GRAPHITE;
+  // 古い軌跡は薄く
+  const age = trailLines.length;
+  const opacity = Math.max(0.08, 1.0 - age * 0.15);
+
+  const mat = new THREE.LineBasicMaterial({
+    color: col,
+    transparent: true,
+    opacity: opacity,
+  });
+
+  const line = new THREE.Line(geo, mat);
+  scene.add(line);
+  trailLines.push(line);
+
+  // 古い軌跡の opacity を更新
+  for (let i = 0; i < trailLines.length - 1; i++) {
+    const a = Math.max(0.05, 1.0 - (trailLines.length - 1 - i) * 0.15);
+    trailLines[i].material.opacity = a;
+  }
+
+  // 最大8本を超えたら古いものを削除
+  if (trailLines.length > 8) {
+    const old = trailLines.shift();
+    scene.remove(old);
+    old.geometry.dispose();
+    old.material.dispose();
+  }
+}
+
+// -------------------------------------------------------
+// 現在軌道のライン（更新しながら表示）
+// -------------------------------------------------------
+const liveGeo = new THREE.BufferGeometry();
+// 最大2000ステップ分のバッファ
+const liveBuf = new Float32Array(MAX_STEPS * 3);
+liveGeo.setAttribute('position', new THREE.BufferAttribute(liveBuf, 3));
+liveGeo.setDrawRange(0, 1);
+const liveMat = new THREE.LineBasicMaterial({ color: GRAPHITE });
+const liveLine = new THREE.Line(liveGeo, liveMat);
+scene.add(liveLine);
+
+// -------------------------------------------------------
+// カメラの自動ゆっくり回転
+// -------------------------------------------------------
+const startTime = performance.now();
+
+// -------------------------------------------------------
+// シミュレーション1ステップ
+// -------------------------------------------------------
+function simulateStep() {
+  const G = getGravity();
+
+  // 中心への引力（重力）
+  const r2 = pos.lengthSq();
+  if (r2 < 0.01) {
+    // 中心に落ちすぎたらリセット
+    commitTrail(currentPoints, orbitIndex);
+    resetOrbit();
+    return;
+  }
+
+  const force = pos.clone().normalize().multiplyScalar(-G / r2);
+  vel.addScaledVector(force, DT);
+  pos.addScaledVector(vel, DT);
+
+  currentPoints.push(pos.clone());
+
+  // ライブラインを更新
+  const idx = step * 3;
+  liveBuf[idx]     = pos.x;
+  liveBuf[idx + 1] = pos.y;
+  liveBuf[idx + 2] = pos.z;
+  liveGeo.attributes.position.needsUpdate = true;
+  liveGeo.setDrawRange(0, step + 1);
+
+  step++;
+
+  // 逃げすぎたらリセット
+  if (pos.length() > 20) {
+    commitTrail(currentPoints, orbitIndex);
+    resetOrbit();
+    return;
+  }
+
+  // 2000ステップで次の軌道へ
+  if (step >= MAX_STEPS) {
+    commitTrail(currentPoints, orbitIndex);
+    resetOrbit();
+  }
+}
+
+// -------------------------------------------------------
+// アニメーションループ
+// -------------------------------------------------------
+const STEPS_PER_FRAME = 8; // 1フレームあたりのシミュレーション回数
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  for (let i = 0; i < STEPS_PER_FRAME; i++) {
+    simulateStep();
+  }
+
+  // カメラのゆっくり傾き（Y軸周り）
+  const elapsed = (performance.now() - startTime) / 1000;
+  const camAngle = elapsed * 0.04;
+  camera.position.x = Math.sin(camAngle) * 12;
+  camera.position.z = Math.cos(camAngle) * 12;
+  camera.position.y = Math.sin(elapsed * 0.06) * 2;
+  camera.lookAt(0, 0, 0);
+
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '174',
+  title:  'Orbit',
+  detail: 'マウスを左右に動かすと重力の強さが変わります。弱いと楕円軌道で飛んでいき、強いと螺旋を描いて吸い込まれます。軌跡は消えず、最大8本分が残ります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
