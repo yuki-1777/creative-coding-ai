@@ -2077,5 +2077,113 @@
     "path": "sketches/231_eraser/",
     "description": "ドラッグすると消しゴムが「WAIT」の文字を消す。手を離すと、少しずつ戻ってくる。消えたところに紙のざらつきが残る。",
     "thumb": "img/thumb_231.png"
+  },
+  {
+    "num": "232",
+    "title": "Hum",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/232_hum/",
+    "description": "マイクに声を吹き込んだら、1本の線になった。音があると揺れ、黙ると水平に戻る。記録は左へ流れていく。",
+    "thumb": "img/thumb_232.png"
+  },
+  {
+    "num": "233",
+    "title": "Fold Line",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/233_fold_line/",
+    "description": "クリックするたびに折り目が入る。折り線は1/2・1/4・1/8の位置にスナップされ、交差した場所に小さな印が残る。",
+    "thumb": "img/thumb_233.png"
+  },
+  {
+    "num": "234",
+    "title": "Marginalia",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/234_marginalia/",
+    "description": "行の上にマウスを乗せると傍線が育つ。クリックすると線が残り、読んだ跡として定着する。テキストそのものは描かれていない。",
+    "thumb": "img/thumb_234.png"
+  },
+  {
+    "num": "241",
+    "title": "Ballot",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/241_ballot/",
+    "description": "左右キーで賛否を投じる。ドットが落下して積み重なる。20票ごとに暫定結果が現れる。数字は出ない——積み上がった高さだけが結果を語る。",
+    "thumb": "img/thumb_241.png"
+  },
+  {
+    "num": "235",
+    "title": "Departures",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/235_departures/",
+    "description": "矩形のフラップが波のように一斉にめくれて、また別の面を見せる。駅の出発案内板を書いていたら、文字が要らないことに気づいた。",
+    "thumb": "img/thumb_235.png"
+  },
+  {
+    "num": "236",
+    "title": "Scaffold",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/236_scaffold/",
+    "description": "細いパイプが下から順に組み上がっていく。斜め補強はランダムに入る。完成したのか、それとも工事中なのか、判断がつかない。",
+    "thumb": "img/thumb_236.png"
+  },
+  {
+    "num": "237",
+    "title": "Idle",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/237_idle/",
+    "description": "放っておくと棒が少しずつ傾いていく。マウスを近づけると起き上がろうとする。触っているあいだだけ、ちゃんと立っている。",
+    "thumb": "img/thumb_237.png"
+  },
+  {
+    "num": "242",
+    "title": "Recursion",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/242_recursion/",
+    "description": "7層の立方体フレームが入れ子になっている。それぞれ違う軸と速さで回転している。外から見ると秩序があるように見えて、内側では別のことが起きている。",
+    "thumb": "img/thumb_242.png"
+  },
+  {
+    "num": "243",
+    "title": "Focus",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/243_focus/",
+    "description": "マウスを近づけると、その場所の模様が消えていく。見ようとするほど見えなくなる。視線の外にあるものだけが形を持つ。",
+    "thumb": "img/thumb_243.png"
+  },
+  {
+    "num": "238",
+    "title": "Waiting Number",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/238_waiting_number/",
+    "description": "000から999まで順番に増えていく。7セグメントの表示盤を、消灯セグメントごと距離関数だけで書いた。マウスで速くできる。",
+    "thumb": "img/thumb_238.png"
+  },
+  {
+    "num": "239",
+    "title": "City Map",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/239_city_map/",
+    "description": "起動すると中心から道路が引かれていく。碁盤目に、ときどき斜め道路が交わる。明るい点は、何かが走っている。マウスで中心がずれる。",
+    "thumb": "img/thumb_239.png"
+  },
+  {
+    "num": "240",
+    "title": "Keystroke",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/240_keystroke/",
+    "description": "キーを打つと、そのキーの位置から波紋が広がる。文字は出ない。打鍵の振動が紙に伝わるイメージで書いた。",
+    "thumb": "img/thumb_240.png"
   }
 ]
