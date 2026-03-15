@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>68 — Meridian</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+
+#define PI 3.14159265358979323846
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float aspect = uResolution.x / uResolution.y;
+
+  // 中心を画面中央に
+  vec2 p = uv * 2.0 - 1.0;
+  p.x *= aspect;
+
+  float t = uTime * 0.12;
+
+  // 球の半径（わずかにノイズで揺らす）
+  float sphereR = 0.7;
+
+  // 球の外は紙のまま
+  float dist = length(p);
+  float onSphere = smoothstep(sphereR + 0.01, sphereR - 0.01, dist);
+
+  if (onSphere < 0.001) {
+    gl_FragColor = vec4(vec3(0.960, 0.953, 0.933), 1.0);
+    return;
+  }
+
+  // 球面上の点の3D座標（正射影）
+  float z = sqrt(max(0.0, sphereR * sphereR - dist * dist));
+  vec3 pos = normalize(vec3(p, z));
+
+  // マウスで回転軸を傾ける
+  vec2 m = uMouse;
+  float rotY = (m.x - 0.5) * PI * 0.8 + t * 0.6;
+  float rotX = (m.y - 0.5) * PI * 0.5;
+
+  // Y軸回転
+  float cy = cos(rotY), sy = sin(rotY);
+  pos = vec3(cy * pos.x + sy * pos.z, pos.y, -sy * pos.x + cy * pos.z);
+
+  // X軸回転
+  float cx = cos(rotX), sx = sin(rotX);
+  pos = vec3(pos.x, cx * pos.y - sx * pos.z, sx * pos.y + cx * pos.z);
+
+  // 球面座標に変換
+  float lat = asin(clamp(pos.y, -1.0, 1.0));       // -PI/2 〜 PI/2
+  float lon = atan(pos.z, pos.x);                    // -PI 〜 PI
+
+  // 経線の数（緯線と経線）
+  float meridianN  = 18.0;
+  float parallelN  = 10.0;
+
+  float mLine = abs(sin(lon * meridianN * 0.5));
+  float pLine = abs(sin(lat * parallelN));
+
+  float meridian  = smoothstep(0.98, 1.0, mLine);
+  float parallel  = smoothstep(0.97, 1.0, pLine);
+
+  // わずかなノイズで線をかすれさせる
+  float grain = noise(vec2(lon * 20.0, lat * 20.0) + vec2(t * 0.2));
+  float scratch = smoothstep(0.4, 0.6, grain) * 0.3;
+
+  float lines = clamp(meridian + parallel * 0.7 + scratch * 0.15, 0.0, 1.0);
+
+  // 球の縁をフェードアウト
+  float edgeFade = smoothstep(sphereR, sphereR * 0.75, dist);
+  lines *= edgeFade;
+
+  float density = lines * 0.6;
+
+  vec3 paper    = vec3(0.960, 0.953, 0.933);
+  vec3 graphite = vec3(0.165, 0.165, 0.165);
+
+  gl_FragColor = vec4(mix(paper, graphite, density), 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = [0.5, 0.5];
+canvas.addEventListener('mousemove', e => {
+  mouse = [e.clientX / window.innerWidth, 1.0 - e.clientY / window.innerHeight];
+});
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+let start = performance.now();
+function render() {
+  const t = (performance.now() - start) / 1000;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse[0], mouse[1]);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '68',
+  title: 'Meridian',
+  desc:  '球に経線と緯線を引いた。線は少しかすれている。マウスで回転する。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

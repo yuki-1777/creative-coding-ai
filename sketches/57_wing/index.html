@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>57 — Wing</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 1.5, 7);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // NACA 4412 翼型の近似（正規化された断面）
+    function nacaProfile(t, m, p, thick) {
+      // t: 0→1 (上面), 1→2 (下面に折り返し)
+      let x, yt, yc, dycdx;
+      if (t <= 1) {
+        x = t;
+      } else {
+        x = 2 - t;
+      }
+      // 翼厚分布
+      yt = thick / 0.2 * (0.2969 * Math.sqrt(x) - 0.126 * x - 0.3516 * x*x + 0.2843 * x*x*x - 0.1015 * x*x*x*x);
+      // キャンバーライン
+      if (x < p) {
+        yc = m / (p*p) * (2*p*x - x*x);
+        dycdx = 2*m / (p*p) * (p - x);
+      } else {
+        yc = m / ((1-p)*(1-p)) * (1 - 2*p + 2*p*x - x*x);
+        dycdx = 2*m / ((1-p)*(1-p)) * (p - x);
+      }
+      const theta = Math.atan(dycdx);
+      let px, py;
+      if (t <= 1) {
+        px = x - yt * Math.sin(theta);
+        py = yc + yt * Math.cos(theta);
+      } else {
+        px = x + yt * Math.sin(theta);
+        py = yc - yt * Math.cos(theta);
+      }
+      return { x: px - 0.5, y: py }; // 中心を0に
+    }
+
+    const NUM_SECTIONS = 20; // 断面の枚数
+    const PROFILE_STEPS = 60;
+    const wingGroup = new THREE.Group();
+    scene.add(wingGroup);
+
+    for (let si = 0; si < NUM_SECTIONS; si++) {
+      const spanPos = (si / (NUM_SECTIONS - 1) - 0.5) * 3; // -1.5 〜 1.5
+      const chord = 1.0 - Math.abs(spanPos / 1.5) * 0.4; // 翼端細く
+      const twist = -spanPos * 0.08; // 翼端ひねり
+
+      const pts = [];
+      for (let i = 0; i <= PROFILE_STEPS; i++) {
+        const t = i / PROFILE_STEPS * 2; // 0→2
+        const { x, y } = nacaProfile(t, 0.04, 0.4, 0.12);
+        const rx = x * chord;
+        const ry = (y * chord) * Math.cos(twist) - 0 * Math.sin(twist);
+        const rz = (y * chord) * Math.sin(twist) + 0 * Math.cos(twist);
+        pts.push(new THREE.Vector3(rx, ry, rz));
+      }
+      pts.push(pts[0].clone()); // 閉じる
+
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const isAccent = si === Math.floor(NUM_SECTIONS / 2); // 中心断面だけアクセント
+      const mat = new THREE.LineBasicMaterial({
+        color: isAccent ? 0x8A7055 : 0x2A2826,
+        transparent: true,
+        opacity: isAccent ? 0.65 : 0.35,
+      });
+      const line = new THREE.Line(geo, mat);
+      line.position.z = spanPos;
+
+      wingGroup.add(line);
+    }
+
+    // スパン方向の線（前縁・後縁）
+    const lePoints = [];
+    const tePoints = [];
+    for (let si = 0; si < NUM_SECTIONS; si++) {
+      const spanPos = (si / (NUM_SECTIONS - 1) - 0.5) * 3;
+      const chord = 1.0 - Math.abs(spanPos / 1.5) * 0.4;
+      lePoints.push(new THREE.Vector3(-0.5 * chord, 0, spanPos)); // 前縁
+      tePoints.push(new THREE.Vector3(0.5 * chord, 0, spanPos)); // 後縁
+    }
+    const leGeo = new THREE.BufferGeometry().setFromPoints(lePoints);
+    const teGeo = new THREE.BufferGeometry().setFromPoints(tePoints);
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0x2A2826, transparent: true, opacity: 0.5 });
+    wingGroup.add(new THREE.Line(leGeo, edgeMat));
+    wingGroup.add(new THREE.Line(teGeo, edgeMat.clone()));
+
+    // マウス
+    const mouse = new THREE.Vector2(0, 0);
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.005;
+
+      // ゆっくりと迎角を変化させる
+      wingGroup.rotation.z = Math.sin(time * 0.4) * 0.12;
+      wingGroup.rotation.y = mouse.x * 0.6;
+      wingGroup.rotation.x = mouse.y * 0.3 + 0.2;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '57',
+    title: 'Wing',
+    desc:  '翼型断面を20枚並べた。マウスで角度を変えると、断面が風を受け始める気がした。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

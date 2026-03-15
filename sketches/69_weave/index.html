@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>69 — Weave</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float aspect = uResolution.x / uResolution.y;
+  vec2 p = uv;
+  p.x *= aspect;
+
+  float t = uTime * 0.1;
+
+  // マウスで密度を変える
+  vec2 m = uMouse;
+  m.x *= aspect;
+  float md = length(p - m);
+  float mInfluence = smoothstep(0.5, 0.0, md);
+
+  // 織りの周波数（マウスで局所的に密度UP）
+  float freq = 35.0 + mInfluence * 20.0;
+
+  // ノイズで糸の波打ちを作る（経糸：縦）
+  float warpNoise  = noise(vec2(p.x * 3.0, p.y * 0.5) + vec2(t * 0.3, 0.0));
+  float weftNoise  = noise(vec2(p.x * 0.5, p.y * 3.0) + vec2(0.0, t * 0.25));
+
+  // 経糸（縦糸）：x座標が周期的
+  float warpX = p.x + warpNoise * 0.03;
+  float warp  = abs(fract(warpX * freq) * 2.0 - 1.0);
+
+  // 緯糸（横糸）：y座標が周期的
+  float weftY = p.y + weftNoise * 0.03;
+  float weft  = abs(fract(weftY * freq) * 2.0 - 1.0);
+
+  // 交差パターン：どちらが上かを交互に決める
+  float cellX = floor(warpX * freq);
+  float cellY = floor(weftY * freq);
+  float isOver = mod(cellX + cellY, 2.0); // 0か1で交互
+
+  float lineWidth = 0.6;
+
+  // 経糸の線
+  float warpLine = smoothstep(lineWidth, lineWidth + 0.1, warp);
+  // 緯糸の線
+  float weftLine = smoothstep(lineWidth, lineWidth + 0.1, weft);
+
+  // 上側にある糸が影を落とす（奥の糸はわずかに薄く）
+  float shadow = 0.15;
+  float density;
+  float crossW = smoothstep(0.5, 0.4, warp);
+  float crossF = smoothstep(0.5, 0.4, weft);
+
+  // 上の糸：濃く、下の糸：やや薄く
+  float warpD = warpLine * (isOver > 0.5 ? 1.0 : 1.0 - shadow * crossF);
+  float weftD = weftLine * (isOver < 0.5 ? 1.0 : 1.0 - shadow * crossW);
+
+  density = (warpD + weftD) * 0.55;
+  density = clamp(density, 0.0, 0.75);
+
+  vec3 paper    = vec3(0.960, 0.953, 0.933);
+  vec3 graphite = vec3(0.165, 0.165, 0.165);
+
+  gl_FragColor = vec4(mix(paper, graphite, density), 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = [0.5, 0.5];
+canvas.addEventListener('mousemove', e => {
+  mouse = [e.clientX / window.innerWidth, 1.0 - e.clientY / window.innerHeight];
+});
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+let start = performance.now();
+function render() {
+  const t = (performance.now() - start) / 1000;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse[0] * (canvas.width / canvas.height), mouse[1]);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '69',
+  title: 'Weave',
+  desc:  '縦糸と横糸を交互に重ねた。どちらが上かで、わずかに色が違う。糸は少し波打っている。マウスを当てると目が詰まる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

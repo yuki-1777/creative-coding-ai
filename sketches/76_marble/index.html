@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>76 — Marble</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+
+// Marble pattern using layered sine distortion
+// Uses Canvas 2D path drawing (not ImageData, to keep it performant)
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  generateMarble();
+}
+window.addEventListener('resize', resize);
+
+let mx = W / 2 || 400, my = H / 2 || 300;
+canvas.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+
+canvas.addEventListener('click', () => {
+  generateMarble();
+});
+
+let marbleSeed = 0;
+let veins = [];
+
+function seededNoise(x, y, seed) {
+  // Simple smooth noise approximation
+  const n = Math.sin(x * 127.1 + y * 311.7 + seed) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+function smoothNoise(x, y, seed) {
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  const fx = x - ix;
+  const fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
+
+  const a = seededNoise(ix, iy, seed);
+  const b = seededNoise(ix + 1, iy, seed);
+  const c = seededNoise(ix, iy + 1, seed);
+  const d = seededNoise(ix + 1, iy + 1, seed);
+
+  return a + (b - a) * ux + (c - a) * uy + (d - a + a - b - c + b + c - d) * ux * uy;
+}
+
+function fbm(x, y, seed, octaves = 4) {
+  let val = 0, amp = 0.5, freq = 1;
+  for (let o = 0; o < octaves; o++) {
+    val += smoothNoise(x * freq, y * freq, seed + o * 100) * amp;
+    amp *= 0.5;
+    freq *= 2;
+  }
+  return val;
+}
+
+function generateMarble() {
+  marbleSeed = Math.random() * 1000;
+  veins = [];
+
+  // Generate marble veins as contour lines of a distorted field
+  const numVeins = 35 + Math.floor(Math.random() * 20);
+  const scale = 0.003 + Math.random() * 0.002;
+  const distortAmt = 2 + Math.random() * 3;
+
+  for (let v = 0; v < numVeins; v++) {
+    const threshold = v / numVeins;
+    const points = [];
+    const rows = 60;
+    const cols = 80;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = (c / cols) * W;
+        const y = (r / rows) * H;
+        const nx = x * scale;
+        const ny = y * scale;
+
+        // Distort coordinates
+        const dx = fbm(nx + 1.7, ny + 9.2, marbleSeed) * distortAmt;
+        const dy = fbm(nx + 8.3, ny + 2.8, marbleSeed + 50) * distortAmt;
+
+        const val = fbm(nx + dx, ny + dy, marbleSeed + 200);
+
+        // Sine-based marble pattern
+        const marble = Math.sin((nx + dx * 2) * 6 + val * 8);
+        const normalized = (marble + 1) / 2;
+
+        if (Math.abs(normalized - threshold) < 0.025) {
+          points.push({ x, y, val: normalized });
+        }
+      }
+    }
+
+    if (points.length > 3) {
+      veins.push({ points, threshold, alpha: 0.08 + (1 - threshold) * 0.12 });
+    }
+  }
+}
+
+let t = 0;
+
+function draw() {
+  requestAnimationFrame(draw);
+  t++;
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle mouse influence
+  const inflX = (mx / W - 0.5) * 20;
+  const inflY = (my / H - 0.5) * 10;
+
+  // Draw veins
+  for (const vein of veins) {
+    const pts = vein.points;
+    if (pts.length < 2) continue;
+
+    // Sort points by x for smoother curves
+    const sorted = [...pts].sort((a, b) => a.x - b.x || a.y - b.y);
+
+    ctx.beginPath();
+    ctx.moveTo(sorted[0].x + inflX * sorted[0].val, sorted[0].y + inflY * sorted[0].val);
+    for (let i = 1; i < sorted.length; i++) {
+      const p = sorted[i];
+      ctx.lineTo(p.x + inflX * p.val, p.y + inflY * p.val);
+    }
+    ctx.strokeStyle = `rgba(42, 42, 42, ${vein.alpha})`;
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+  }
+}
+
+resize();
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '76',
+  title: 'Marble',
+  desc:  '正弦関数をねじって等値線を引いたら、大理石みたいな模様になった。クリックで新しい石。マウスで石が少しだけ動く。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

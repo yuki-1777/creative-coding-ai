@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>79 — Ripple Grid</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+let mx = W / 2, my = H / 2;
+canvas.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+
+// Ripple sources
+const ripples = [];
+
+canvas.addEventListener('click', e => {
+  ripples.push({ x: e.clientX, y: e.clientY, t: 0, maxT: 180 });
+  if (ripples.length > 6) ripples.shift();
+});
+
+// Auto ripple
+let autoTimer = 0;
+function autoRipple() {
+  const margin = 100;
+  ripples.push({
+    x: margin + Math.random() * (W - margin * 2),
+    y: margin + Math.random() * (H - margin * 2),
+    t: 0, maxT: 200
+  });
+  if (ripples.length > 6) ripples.shift();
+}
+
+// Grid parameters
+const CELL = 36;
+
+function getDisplacement(gx, gy) {
+  let dx = 0, dy = 0;
+
+  for (const r of ripples) {
+    const dist = Math.sqrt((gx - r.x) ** 2 + (gy - r.y) ** 2);
+    const waveSpeed = 3.5;
+    const waveFront = r.t * waveSpeed;
+    const waveWidth = 60;
+    const distFromFront = dist - waveFront;
+
+    if (Math.abs(distFromFront) < waveWidth) {
+      const wave = Math.sin((distFromFront / waveWidth) * Math.PI) *
+                   Math.exp(-r.t / 80) * 8;
+      const angle = Math.atan2(gy - r.y, gx - r.x);
+      dx += Math.cos(angle) * wave;
+      dy += Math.sin(angle) * wave;
+    }
+  }
+
+  // Mouse proximity disturbance
+  const mdist = Math.sqrt((gx - mx) ** 2 + (gy - my) ** 2);
+  if (mdist < 80) {
+    const strength = (1 - mdist / 80) * 4;
+    const angle = Math.atan2(gy - my, gx - mx);
+    dx += Math.cos(angle) * strength;
+    dy += Math.sin(angle) * strength;
+  }
+
+  return { dx, dy };
+}
+
+let frame = 0;
+
+function draw() {
+  requestAnimationFrame(draw);
+  frame++;
+
+  ctx.fillStyle = 'rgba(245, 243, 238, 0.6)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Advance ripples
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    ripples[i].t++;
+    if (ripples[i].t > ripples[i].maxT) ripples.splice(i, 1);
+  }
+
+  // Auto generate
+  autoTimer++;
+  if (autoTimer % 90 === 0) autoRipple();
+
+  const startX = CELL / 2;
+  const startY = CELL / 2;
+
+  // Draw grid dots with displacement
+  for (let y = startY; y < H + CELL; y += CELL) {
+    for (let x = startX; x < W + CELL; x += CELL) {
+      const { dx, dy } = getDisplacement(x, y);
+      const px = x + dx;
+      const py = y + dy;
+      const mag = Math.sqrt(dx * dx + dy * dy);
+      const alpha = 0.12 + Math.min(mag / 8, 0.25);
+
+      ctx.beginPath();
+      ctx.arc(px, py, 0.8, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(42, 42, 42, ${alpha})`;
+      ctx.fill();
+    }
+  }
+
+  // Draw grid lines (subtle)
+  ctx.globalAlpha = 0.06;
+  // Horizontal lines
+  for (let y = startY; y < H + CELL; y += CELL) {
+    ctx.beginPath();
+    for (let x = startX; x < W + CELL; x += CELL) {
+      const { dx, dy } = getDisplacement(x, y);
+      const px = x + dx;
+      const py = y + dy;
+      if (x === startX) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = 'rgba(42, 42, 42, 1)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+  // Vertical lines
+  for (let x = startX; x < W + CELL; x += CELL) {
+    ctx.beginPath();
+    for (let y = startY; y < H + CELL; y += CELL) {
+      const { dx, dy } = getDisplacement(x, y);
+      const px = x + dx;
+      const py = y + dy;
+      if (y === startY) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = 'rgba(42, 42, 42, 1)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Initial ripple
+autoRipple();
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '79',
+  title: 'Ripple Grid',
+  desc:  '格子に波紋を通したら、格子が波打った。クリックした場所から波が広がる。マウスを近づけると格子が押しのける。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

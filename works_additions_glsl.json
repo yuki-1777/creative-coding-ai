@@ -1,0 +1,12 @@
+[
+  { "num": "61", "title": "Warp",     "tech": "glsl", "date": "2026-03-15", "path": "sketches/61_warp/",     "thumb": "img/thumb_61.png", "description": "ノイズでノイズを歪めた。何度重ねても、霧の奥に霧がある。マウスを動かすと、空間がそちらに引っ張られる。" },
+  { "num": "62", "title": "Lattice",  "tech": "glsl", "date": "2026-03-15", "path": "sketches/62_lattice/",  "thumb": "img/thumb_62.png", "description": "2枚の格子をわずかにずらして重ねた。ずれのせいで縞が現れる。マウスを近づけると、そこだけ格子が伸びる。" },
+  { "num": "63", "title": "Erosion",  "tech": "glsl", "date": "2026-03-15", "path": "sketches/63_erosion/",  "thumb": "img/thumb_63.png", "description": "存在しない地形に水を流した。勾配を下る経路が溝になった。マウスを当てると、そこに向かって水が引き寄せられる。" },
+  { "num": "64", "title": "Fiber",    "tech": "glsl", "date": "2026-03-15", "path": "sketches/64_fiber/",    "thumb": "img/thumb_64.png", "description": "方向場を作って、そこに細い線を沿わせた。紙の繊維みたいに見えてきた。マウスを当てると、そこだけ繊維の向きが変わる。" },
+  { "num": "65", "title": "Pulse",    "tech": "glsl", "date": "2026-03-15", "path": "sketches/65_pulse/",    "thumb": "img/thumb_65.png", "description": "7本のリングが、それぞれ違うリズムで広がっている。マウスを動かすと中心が追いかけてくる。" },
+  { "num": "66", "title": "Crystal",  "tech": "glsl", "date": "2026-03-15", "path": "sketches/66_crystal/",  "thumb": "img/thumb_66.png", "description": "六角形のセルをふたつの尺度で重ねた。それぞれが独自のリズムで息をしている。マウスを当てると拡大する。" },
+  { "num": "67", "title": "Smoke",    "tech": "glsl", "date": "2026-03-15", "path": "sketches/67_smoke/",    "thumb": "img/thumb_67.png", "description": "煙を上昇させようとしたら、紙に染みを垂らしたみたいになった。マウスで煙源が動く。" },
+  { "num": "68", "title": "Meridian", "tech": "glsl", "date": "2026-03-15", "path": "sketches/68_meridian/", "thumb": "img/thumb_68.png", "description": "球に経線と緯線を引いた。線は少しかすれている。マウスで回転する。" },
+  { "num": "69", "title": "Weave",    "tech": "glsl", "date": "2026-03-15", "path": "sketches/69_weave/",    "thumb": "img/thumb_69.png", "description": "縦糸と横糸を交互に重ねた。どちらが上かで、わずかに色が違う。糸は少し波打っている。マウスを当てると目が詰まる。" },
+  { "num": "70", "title": "Static",   "tech": "glsl", "date": "2026-03-15", "path": "sketches/70_static/",   "thumb": "img/thumb_70.png", "description": "紙に帯電させようとした。触れると、そこから放電の筋が広がる。静止しているのに、ざわついている。" }
+]

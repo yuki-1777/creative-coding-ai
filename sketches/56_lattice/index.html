@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>56 — Lattice</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(3, 2.5, 5);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // 3D格子の格点
+    const N = 10; // 一辺の格子数
+    const spacing = 0.4;
+    const half = (N - 1) * spacing / 2;
+
+    const positions = [];
+    const basePositions = []; // 元の位置を保存
+
+    for (let ix = 0; ix < N; ix++) {
+      for (let iy = 0; iy < N; iy++) {
+        for (let iz = 0; iz < N; iz++) {
+          const x = ix * spacing - half;
+          const y = iy * spacing - half;
+          const z = iz * spacing - half;
+          positions.push(x, y, z);
+          basePositions.push(x, y, z);
+        }
+      }
+    }
+
+    // エッジ（隣接格子点を接続）
+    const indices = [];
+    const idx = (ix, iy, iz) => ix * N * N + iy * N + iz;
+
+    for (let ix = 0; ix < N; ix++) {
+      for (let iy = 0; iy < N; iy++) {
+        for (let iz = 0; iz < N; iz++) {
+          if (ix + 1 < N) { indices.push(idx(ix, iy, iz), idx(ix+1, iy, iz)); }
+          if (iy + 1 < N) { indices.push(idx(ix, iy, iz), idx(ix, iy+1, iz)); }
+          if (iz + 1 < N) { indices.push(idx(ix, iy, iz), idx(ix, iy, iz+1)); }
+        }
+      }
+    }
+
+    const posArr = new Float32Array(positions);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+    geo.setIndex(indices);
+
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x2A2826,
+      transparent: true,
+      opacity: 0.22,
+    });
+    const lattice = new THREE.LineSegments(geo, mat);
+    scene.add(lattice);
+
+    // 格子点の球（ノードの強調）
+    const dotGeo = new THREE.BufferGeometry();
+    const dotPositions = new Float32Array(positions.length);
+    dotGeo.setAttribute('position', new THREE.BufferAttribute(dotPositions, 3));
+    const dotMat = new THREE.PointsMaterial({
+      color: 0x2A2826,
+      size: 0.035,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.45,
+    });
+    const dots = new THREE.Points(dotGeo, dotMat);
+    scene.add(dots);
+
+    // マウス
+    const mouse = new THREE.Vector2(0, 0);
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+
+    function noise3(x, y, z, t) {
+      return Math.sin(x * 1.2 + t * 0.7)
+           * Math.cos(y * 0.9 + t * 0.5)
+           * Math.sin(z * 1.0 + t * 0.8)
+           * 0.12;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.006;
+
+      const pos = geo.attributes.position;
+      const dpos = dotGeo.attributes.position;
+
+      let vi = 0;
+      for (let ix = 0; ix < N; ix++) {
+        for (let iy = 0; iy < N; iy++) {
+          for (let iz = 0; iz < N; iz++) {
+            const bx = basePositions[vi * 3 + 0];
+            const by = basePositions[vi * 3 + 1];
+            const bz = basePositions[vi * 3 + 2];
+
+            const dx = noise3(bx, by, bz, time);
+            const dy = noise3(by, bz, bx, time + 1.1);
+            const dz = noise3(bz, bx, by, time + 2.2);
+
+            pos.setXYZ(vi, bx + dx, by + dy, bz + dz);
+            dpos.setXYZ(vi, bx + dx, by + dy, bz + dz);
+            vi++;
+          }
+        }
+      }
+
+      pos.needsUpdate = true;
+      dpos.needsUpdate = true;
+
+      // ゆるやかに回転
+      lattice.rotation.y = time * 0.04 + mouse.x * 0.4;
+      lattice.rotation.x = -0.3 + mouse.y * 0.3;
+      dots.rotation.copy(lattice.rotation);
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '56',
+    title: 'Lattice',
+    desc:  '10×10×10の格子にノイズを通した。整然としていたものが、少しだけ息をし始めた。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

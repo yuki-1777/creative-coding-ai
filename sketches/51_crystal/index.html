@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>51 — Crystal Growth</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    const graphiteColor = 0x2A2826;
+    const accentColor = 0x8B7355; // 温かみのあるブラウン系
+
+    // 結晶の「枝」を管理する構造
+    const branches = [];
+    const lines = [];
+
+    // 六方晶系の方向（60度ずつ）
+    const HEX_DIRS_3D = [
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(0.5, Math.sqrt(3)/2, 0),
+      new THREE.Vector3(-0.5, Math.sqrt(3)/2, 0),
+      new THREE.Vector3(-1, 0, 0),
+      new THREE.Vector3(-0.5, -Math.sqrt(3)/2, 0),
+      new THREE.Vector3(0.5, -Math.sqrt(3)/2, 0),
+    ];
+
+    // 3D方向のバリエーション（奥行きも含む）
+    const ALL_DIRS = [
+      ...HEX_DIRS_3D,
+      new THREE.Vector3(0.5, 0.3, 0.7).normalize(),
+      new THREE.Vector3(-0.5, 0.3, 0.7).normalize(),
+      new THREE.Vector3(0.3, -0.5, 0.7).normalize(),
+      new THREE.Vector3(0, 0.7, 0.7).normalize(),
+      new THREE.Vector3(0.5, 0.3, -0.7).normalize(),
+      new THREE.Vector3(-0.5, 0.3, -0.7).normalize(),
+    ];
+
+    function addBranch(start, direction, depth, isAccent) {
+      if (depth <= 0) return;
+      const length = 0.3 + Math.random() * 0.3;
+      const end = start.clone().addScaledVector(direction, length);
+
+      // ラインを追加
+      const geo = new THREE.BufferGeometry().setFromPoints([start, end]);
+      const mat = new THREE.LineBasicMaterial({
+        color: isAccent ? accentColor : graphiteColor,
+        transparent: true,
+        opacity: isAccent ? 0.6 : 0.75,
+      });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      lines.push(line);
+
+      // 次の枝の候補
+      branches.push({ pos: end, dir: direction, depth: depth - 1, isAccent });
+
+      // 枝分かれ（確率的）
+      if (Math.random() < 0.35) {
+        const perpIdx = Math.floor(Math.random() * ALL_DIRS.length);
+        const perpDir = ALL_DIRS[perpIdx].clone();
+        branches.push({ pos: end, dir: perpDir, depth: depth - 2, isAccent: false });
+      }
+    }
+
+    // 初期枝を6方向に配置（結晶核）
+    HEX_DIRS_3D.forEach((dir, i) => {
+      branches.push({
+        pos: new THREE.Vector3(0, 0, 0),
+        dir: dir.clone(),
+        depth: 7,
+        isAccent: i === 0 // 1本だけアクセントカラー
+      });
+    });
+
+    // 少し奥行き方向にも
+    branches.push({ pos: new THREE.Vector3(0,0,0), dir: new THREE.Vector3(0,0,1), depth: 5, isAccent: false });
+    branches.push({ pos: new THREE.Vector3(0,0,0), dir: new THREE.Vector3(0,0,-1), depth: 5, isAccent: false });
+
+    // マウス追跡
+    const mouse = new THREE.Vector2(0, 0);
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+    let growStep = 0;
+    const GROW_INTERVAL = 4; // フレームごとに1枝成長
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.005;
+
+      // ゆっくり成長
+      growStep++;
+      if (growStep % GROW_INTERVAL === 0 && branches.length > 0) {
+        const idx = Math.floor(Math.random() * branches.length);
+        const b = branches.splice(idx, 1)[0];
+        if (b.depth > 0) {
+          addBranch(b.pos, b.dir, b.depth, b.isAccent);
+        }
+      }
+
+      // 全体をゆっくり回転（マウスで傾き）
+      scene.rotation.y = time * 0.08 + mouse.x * 0.3;
+      scene.rotation.x = mouse.y * 0.2;
+
+      // ラインが多くなりすぎたら古いものを削除
+      if (lines.length > 600) {
+        const old = lines.splice(0, 10);
+        old.forEach(l => {
+          scene.remove(l);
+          l.geometry.dispose();
+          l.material.dispose();
+        });
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '51',
+    title: 'Crystal Growth',
+    desc:  '核ひとつから枝が伸びる。六方向に、また六方向に。雪の結晶がどうして六角形なのか、動かしてみると少しわかった気がした。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

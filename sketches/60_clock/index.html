@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>60 — Clock</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 6);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // 同心円（文字盤の代わり）
+    for (let r = 0.5; r <= 2.0; r += 0.5) {
+      const segs = Math.floor(r * 40);
+      const pts = [];
+      for (let i = 0; i <= segs; i++) {
+        const a = (i / segs) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, 0));
+      }
+      const cg = new THREE.BufferGeometry().setFromPoints(pts);
+      const cm = new THREE.LineBasicMaterial({
+        color: 0x2A2826,
+        transparent: true,
+        opacity: r === 2.0 ? 0.25 : 0.1,
+      });
+      scene.add(new THREE.Line(cg, cm));
+    }
+
+    // 目盛り（12本）
+    for (let i = 0; i < 60; i++) {
+      const a = (i / 60) * Math.PI * 2;
+      const isMajor = i % 5 === 0;
+      const inner = isMajor ? 1.85 : 1.92;
+      const pts = [
+        new THREE.Vector3(Math.cos(a) * inner, Math.sin(a) * inner, 0),
+        new THREE.Vector3(Math.cos(a) * 2.0, Math.sin(a) * 2.0, 0),
+      ];
+      const g = new THREE.BufferGeometry().setFromPoints(pts);
+      const m = new THREE.LineBasicMaterial({
+        color: 0x2A2826,
+        transparent: true,
+        opacity: isMajor ? 0.45 : 0.15,
+      });
+      scene.add(new THREE.Line(g, m));
+    }
+
+    // 針（時・分・秒）
+    function makeHand(length, width, color, opacity) {
+      const pts = [
+        new THREE.Vector3(0, -length * 0.15, 0.01),
+        new THREE.Vector3(0, length, 0.01),
+      ];
+      const g = new THREE.BufferGeometry().setFromPoints(pts);
+      const m = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+      return new THREE.Line(g, m);
+    }
+
+    const hourHand = makeHand(1.1, 0x2A2826, 0.8);
+    const minuteHand = makeHand(1.55, 0x2A2826, 0.7);
+    const secondHand = makeHand(1.8, 0x8A7055, 0.85); // アクセントカラー
+
+    scene.add(hourHand);
+    scene.add(minuteHand);
+    scene.add(secondHand);
+
+    // 中心ドット
+    const cdGeo = new THREE.CircleGeometry(0.05, 8);
+    const cdMat = new THREE.MeshBasicMaterial({ color: 0x2A2826 });
+    scene.add(new THREE.Mesh(cdGeo, cdMat));
+
+    // 秒針の軌跡（トレイル）
+    const TRAIL_LEN = 40;
+    const trailPositions = new Float32Array(TRAIL_LEN * 3);
+    const trailGeo = new THREE.BufferGeometry();
+    trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+    trailGeo.setDrawRange(0, 0);
+    const trailMat = new THREE.LineBasicMaterial({
+      color: 0x8A7055,
+      transparent: true,
+      opacity: 0.3,
+    });
+    scene.add(new THREE.Line(trailGeo, trailMat));
+
+    let trailIdx = 0;
+    let trailCount = 0;
+
+    // マウス
+    const mouse = new THREE.Vector2(0, 0);
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const now = new Date();
+      const ms = now.getMilliseconds() / 1000;
+      const sec = now.getSeconds() + ms; // スムーズ秒針
+      const min = now.getMinutes() + sec / 60;
+      const hour = (now.getHours() % 12) + min / 60;
+
+      // 角度（12時方向が0、時計回り）
+      const secAngle = -(sec / 60) * Math.PI * 2 + Math.PI / 2;
+      const minAngle = -(min / 60) * Math.PI * 2 + Math.PI / 2;
+      const hourAngle = -(hour / 12) * Math.PI * 2 + Math.PI / 2;
+
+      secondHand.rotation.z = secAngle - Math.PI / 2;
+      minuteHand.rotation.z = minAngle - Math.PI / 2;
+      hourHand.rotation.z = hourAngle - Math.PI / 2;
+
+      // 秒針の先端位置をトレイルに記録
+      const tipLen = 1.8;
+      const tx = Math.cos(secAngle) * tipLen;
+      const ty = Math.sin(secAngle) * tipLen;
+
+      trailPositions[trailIdx * 3 + 0] = tx;
+      trailPositions[trailIdx * 3 + 1] = ty;
+      trailPositions[trailIdx * 3 + 2] = 0;
+      trailIdx = (trailIdx + 1) % TRAIL_LEN;
+      trailCount = Math.min(trailCount + 1, TRAIL_LEN);
+      trailGeo.attributes.position.needsUpdate = true;
+      trailGeo.setDrawRange(0, trailCount);
+
+      // マウスで傾き
+      scene.rotation.x = mouse.y * 0.15;
+      scene.rotation.y = mouse.x * 0.15;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '60',
+    title: 'Clock',
+    desc:  '実際の時刻で動いている。秒針が通った場所に跡が残る。時計を描くのに手は要らなかった。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

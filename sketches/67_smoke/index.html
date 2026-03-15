@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>67 — Smoke</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+// 煙らしい渦を作るためのスウィールノイズ
+float smokeNoise(vec2 p, float t) {
+  float v = 0.0;
+  float a = 0.5;
+  vec2 q = p;
+  for (int i = 0; i < 5; i++) {
+    // 時間と共に上昇するオフセット
+    float offset = float(i) * 0.3;
+    v += a * noise(q + vec2(sin(t * 0.3 + offset) * 0.3, -t * 0.18 + offset));
+    q = q * 2.05 + vec2(1.7, 9.2);
+    a *= 0.5;
+  }
+  return v;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float aspect = uResolution.x / uResolution.y;
+  vec2 p = uv;
+  p.x *= aspect;
+
+  float t = uTime;
+
+  // 煙源：下から中央あたり
+  vec2 source = vec2(0.5 * aspect, 0.15);
+
+  // マウスで煙源を動かす
+  vec2 m = uMouse;
+  m.x *= aspect;
+  source = mix(source, vec2(m.x, 0.15), 0.5);
+
+  // 煙源からの距離（縦に引き伸ばす）
+  vec2 fromSource = p - source;
+  fromSource.y *= 0.5; // 縦に広がりやすくする
+  float baseDist = length(fromSource);
+
+  // 高さで密度を下げる（上に行くほど薄くなる）
+  float heightFade = smoothstep(1.1, 0.1, p.y) * smoothstep(-0.1, 0.15, p.y);
+
+  // 距離で基本的な広がり
+  float distFade = smoothstep(0.55, 0.0, baseDist);
+
+  // ノイズで煙らしい揺らぎ
+  float n = smokeNoise(p * 2.5 + vec2(0.0, t * 0.1), t);
+  float n2 = smokeNoise(p * 5.0 + vec2(3.3, t * 0.07), t * 1.2);
+
+  // 密度場の合成
+  float density = distFade * heightFade;
+  density *= (0.6 + 0.4 * n);
+  density *= (0.7 + 0.3 * n2);
+
+  // 煙のエッジを柔らかく
+  density = smoothstep(0.0, 0.5, density);
+  density *= 0.55;
+  density = clamp(density, 0.0, 0.55);
+
+  vec3 paper    = vec3(0.960, 0.953, 0.933);
+  vec3 graphite = vec3(0.165, 0.165, 0.165);
+
+  gl_FragColor = vec4(mix(paper, graphite, density), 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = [0.5, 0.5];
+canvas.addEventListener('mousemove', e => {
+  mouse = [e.clientX / window.innerWidth, 1.0 - e.clientY / window.innerHeight];
+});
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+let start = performance.now();
+function render() {
+  const t = (performance.now() - start) / 1000;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse[0] * (canvas.width / canvas.height), mouse[1]);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '67',
+  title: 'Smoke',
+  desc:  '煙を上昇させようとしたら、紙に染みを垂らしたみたいになった。マウスで煙源が動く。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

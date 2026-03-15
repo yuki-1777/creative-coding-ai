@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>59 — Fold</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(2, 2, 5);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // 正方形グリッドを折り線ごとに変形
+    const GRID = 30;
+    const SIZE = 3;
+
+    // 複数の折り線（origami風）
+    // 折り線: 方向ベクトルと通過点で定義
+    const foldLines = [
+      { nx: 1, ny: 0, px: 0.2, py: 0 },  // ほぼ垂直
+      { nx: 0, ny: 1, px: 0, py: -0.3 }, // ほぼ水平
+      { nx: 0.7, ny: 0.7, px: 0.1, py: 0.1 }, // 斜め
+    ];
+
+    const geo = new THREE.PlaneGeometry(SIZE, SIZE, GRID, GRID);
+    const posAttr = geo.attributes.position;
+    const count = posAttr.count;
+    const baseX = new Float32Array(count);
+    const baseY = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      baseX[i] = posAttr.getX(i);
+      baseY[i] = posAttr.getY(i);
+    }
+
+    const edges = new THREE.EdgesGeometry(geo);
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x2A2826,
+      transparent: true,
+      opacity: 0.4,
+    });
+    const mesh = new THREE.LineSegments(edges, mat);
+    scene.add(mesh);
+
+    // アクセント：折り線を描画
+    foldLines.forEach((fl, fi) => {
+      if (fi !== 0) return; // 1本だけ
+      const dir = new THREE.Vector2(-fl.ny, fl.nx).normalize();
+      const p1 = new THREE.Vector3(fl.px + dir.x * SIZE, fl.py + dir.y * SIZE, 0.01);
+      const p2 = new THREE.Vector3(fl.px - dir.x * SIZE, fl.py - dir.y * SIZE, 0.01);
+      const lg = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+      const lm = new THREE.LineBasicMaterial({ color: 0x8A7055, transparent: true, opacity: 0.5 });
+      scene.add(new THREE.Line(lg, lm));
+    });
+
+    // EdgesGeometryをPlaneGeometryから再同期するヘルパー
+    const edgePos = edges.attributes.position;
+
+    // マウス
+    const mouse = new THREE.Vector2(0, 0);
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+
+    function applyFold(x, y, nx, ny, px, py, angle) {
+      // 折り線に対して符号付き距離
+      const d = (x - px) * nx + (y - py) * ny;
+      if (d > 0) {
+        // 折り線より「正側」の点を回転
+        // 折り線方向ベクトル（法線の垂直）
+        const tx = -ny, ty = nx;
+        // 折り線上の最近接点
+        const t = (x - px) * tx + (y - py) * ty;
+        const closestX = px + tx * t;
+        const closestY = py + ty * t;
+        // 折り線からの距離
+        const relX = x - closestX;
+        const relY = y - closestY;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const newRelX = relX * cos;
+        const newRelZ = relX * sin;
+        return { x: closestX + newRelX, y: closestY + relY, z: newRelZ };
+      }
+      return { x, y, z: 0 };
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.006;
+
+      // 各折り線の折り角を時間変化
+      const angles = foldLines.map((fl, i) =>
+        Math.sin(time * 0.5 + i * 1.3) * Math.PI * 0.6
+      );
+
+      for (let i = 0; i < count; i++) {
+        let x = baseX[i];
+        let y = baseY[i];
+        let z = 0;
+
+        // 複数の折りを順番に適用
+        foldLines.forEach((fl, fi) => {
+          const result = applyFold(x, y, fl.nx, fl.ny, fl.px, fl.py, angles[fi]);
+          x = result.x;
+          y = result.y;
+          z += result.z;
+        });
+
+        posAttr.setXYZ(i, x, y, z);
+      }
+      posAttr.needsUpdate = true;
+
+      // EdgesGeometryを再同期
+      const src = geo.attributes.position;
+      const idx = edges.index;
+      if (idx) {
+        for (let i = 0; i < idx.count; i++) {
+          const vi = idx.getX(i);
+          edgePos.setXYZ(i, src.getX(vi), src.getY(vi), src.getZ(vi));
+        }
+        edgePos.needsUpdate = true;
+      }
+
+      mesh.rotation.y = time * 0.04 + mouse.x * 0.5;
+      mesh.rotation.x = -0.3 + mouse.y * 0.3;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '59',
+    title: 'Fold',
+    desc:  '一枚の格子に折り線を入れて折り畳んだ。開いたり閉じたりを繰り返している。折り紙には手が必要だと思っていた。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

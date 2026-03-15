@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>64 — Fiber</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i),              hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+// 繊維の方向場：ノイズで方向角を決める
+float directionNoise(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  vec2 q = p;
+  for (int i = 0; i < 4; i++) {
+    v += a * noise(q);
+    q  = q * 2.1 + vec2(3.7, 1.9);
+    a *= 0.5;
+  }
+  return v;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float aspect = uResolution.x / uResolution.y;
+  vec2 p = uv;
+  p.x *= aspect;
+
+  float t = uTime * 0.08;
+
+  // マウス影響
+  vec2 m = uMouse;
+  m.x *= aspect;
+  float md = length(p - m);
+  float mInfluence = smoothstep(0.45, 0.0, md);
+
+  // 方向場（0〜π）
+  float angle = directionNoise(p * 1.8 + vec2(t * 0.2)) * 3.14159;
+  // マウスが近いと方向を引き寄せる
+  float targetAngle = atan(m.y - p.y, m.x - p.x);
+  angle = mix(angle, targetAngle, mInfluence * 0.5);
+
+  vec2 dir = vec2(cos(angle), sin(angle));
+
+  // 方向に垂直な成分で繊維の位置を決める
+  vec2 perp = vec2(-dir.y, dir.x);
+  float fiberCoord = dot(p, perp);
+
+  // 細かい繊維ラインの周期
+  float fiberFreq = 120.0;
+  float fiberPhase = fiberCoord * fiberFreq + directionNoise(p * 0.5) * 6.28;
+  float fiber = sin(fiberPhase);
+
+  // 繊維の途切れ：沿方向のノイズで密度変化
+  float along = dot(p, dir);
+  float breakNoise = noise(vec2(along * 8.0 + t * 0.5, fiberCoord * 40.0));
+  float opacity = smoothstep(0.3, 0.7, breakNoise);
+
+  // 線を抽出
+  float lineWidth = 0.78;
+  float line = smoothstep(lineWidth, 1.0, abs(fiber)) * opacity;
+
+  vec3 paper    = vec3(0.960, 0.953, 0.933);
+  vec3 graphite = vec3(0.165, 0.165, 0.165);
+
+  float density = line * 0.55;
+  gl_FragColor = vec4(mix(paper, graphite, density), 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = [0.5, 0.5];
+canvas.addEventListener('mousemove', e => {
+  mouse = [e.clientX / window.innerWidth, 1.0 - e.clientY / window.innerHeight];
+});
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+let start = performance.now();
+function render() {
+  const t = (performance.now() - start) / 1000;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse[0] * (canvas.width / canvas.height), mouse[1]);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '64',
+  title: 'Fiber',
+  desc:  '方向場を作って、そこに細い線を沿わせた。紙の繊維みたいに見えてきた。マウスを当てると、そこだけ繊維の向きが変わる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

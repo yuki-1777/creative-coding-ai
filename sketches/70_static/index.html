@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>70 — Static</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const vert = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+const frag = `
+precision highp float;
+uniform vec2 uResolution;
+uniform float uTime;
+uniform vec2 uMouse;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float hash3(vec3 p) {
+  return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+// 静電気のような粒状ノイズ
+float grain(vec2 p, float t) {
+  // 時間で変化するハッシュ
+  float frame = floor(t * 24.0); // 24fps相当
+  return hash3(vec3(floor(p * 800.0), frame));
+}
+
+// 放電の筋（ライヒェンバッハ様）
+float discharge(vec2 p, vec2 center, float t) {
+  vec2 diff = p - center;
+  float r = length(diff);
+  float a = atan(diff.y, diff.x);
+
+  // 放電は複数の分岐を持つ
+  float v = 0.0;
+  for (int i = 0; i < 6; i++) {
+    float fi = float(i);
+    float branchAngle = a + noise(vec2(r * 4.0 + fi * 1.7, t * 0.5)) * 1.2 - 0.6;
+    float branchDist = abs(fract(branchAngle / 3.14159 * 3.0 + fi * 0.3) - 0.5);
+    float branch = smoothstep(0.08, 0.0, branchDist) * smoothstep(0.7, 0.0, r) * (1.0 - fi * 0.1);
+    v += branch;
+  }
+  return clamp(v, 0.0, 1.0);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+  float aspect = uResolution.x / uResolution.y;
+  vec2 p = uv;
+  p.x *= aspect;
+
+  float t = uTime;
+
+  // マウス位置が放電の中心
+  vec2 m = uMouse;
+  m.x *= aspect;
+  // デフォルトの中心は画面中央
+  vec2 center = mix(vec2(0.5 * aspect, 0.5), m, 0.8);
+
+  // 背景のグレイン（静電気ノイズ）
+  float g = grain(uv, t);
+  float bgNoise = noise(p * 15.0 + vec2(t * 0.08)) * 0.5
+                + noise(p * 40.0 + vec2(t * 0.13)) * 0.3;
+
+  // 放電の筋
+  float spark = discharge(p, center, t);
+
+  // 全体の距離に応じた強度
+  float distFromCenter = length(p - center);
+  float field = smoothstep(0.9, 0.0, distFromCenter) * 0.6;
+
+  // 粒状ノイズ：中心付近で密度が上がる
+  float grainDensity = g * field * (bgNoise * 0.5 + 0.5);
+
+  // 小さな縦横の筋（静電気放電のライン）
+  float lineH = smoothstep(0.96, 1.0, abs(sin(uv.y * 600.0 + noise(vec2(t * 2.0, uv.y * 5.0)) * 2.0)));
+  float lineV = smoothstep(0.97, 1.0, abs(sin(uv.x * 400.0 + noise(vec2(uv.x * 5.0, t * 1.5)) * 2.0)));
+  float lines = (lineH + lineV) * field * 0.25;
+
+  float density = grainDensity * 0.4 + spark * 0.6 + lines;
+  density = clamp(density, 0.0, 0.75);
+
+  vec3 paper    = vec3(0.960, 0.953, 0.933);
+  vec3 graphite = vec3(0.165, 0.165, 0.165);
+
+  gl_FragColor = vec4(mix(paper, graphite, density), 1.0);
+}
+`;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+        || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'uResolution');
+const uTime  = gl.getUniformLocation(prog, 'uTime');
+const uMouse = gl.getUniformLocation(prog, 'uMouse');
+
+let mouse = [0.5, 0.5];
+canvas.addEventListener('mousemove', e => {
+  mouse = [e.clientX / window.innerWidth, 1.0 - e.clientY / window.innerHeight];
+});
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+let start = performance.now();
+function render() {
+  const t = (performance.now() - start) / 1000;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouse[0] * (canvas.width / canvas.height), mouse[1]);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '70',
+  title: 'Static',
+  desc:  '紙に帯電させようとした。触れると、そこから放電の筋が広がる。静止しているのに、ざわついている。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>75 — Spiral Web</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+let mx = W / 2, my = H / 2;
+let targetCX = W / 2, targetCY = H / 2;
+let cx = W / 2, cy = H / 2;
+
+canvas.addEventListener('mousemove', e => {
+  mx = e.clientX;
+  my = e.clientY;
+  targetCX = mx;
+  targetCY = my;
+});
+
+canvas.addEventListener('click', e => {
+  // Ripple effect: disturb threads
+  for (const t of threads) {
+    const dx = t.cx - e.clientX;
+    const dy = t.cy - e.clientY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 200) {
+      t.vibration += (1 - dist / 200) * 3;
+    }
+  }
+});
+
+// Spiral threads radiating from center
+const NUM_THREADS = 28;
+const threads = [];
+
+for (let i = 0; i < NUM_THREADS; i++) {
+  const angle = (i / NUM_THREADS) * Math.PI * 2;
+  threads.push({
+    angle,
+    cx: W / 2,
+    cy: H / 2,
+    phase: Math.random() * Math.PI * 2,
+    vibration: 0,
+    length: Math.min(W, H) * 0.44,
+  });
+}
+
+// Spiral ring parameters
+const NUM_RINGS = 22;
+
+let t = 0;
+
+function drawWeb() {
+  const size = Math.min(W, H) * 0.44;
+
+  // Draw radial threads
+  for (let i = 0; i < threads.length; i++) {
+    const th = threads[i];
+    th.vibration *= 0.92;
+    const wobble = Math.sin(t * 0.04 + th.phase) * 0.5 + th.vibration;
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+
+    // Bezier thread with slight curve
+    const midAngle = th.angle + wobble * 0.04;
+    const midDist = size * 0.5;
+    const mx2 = cx + Math.cos(midAngle) * midDist;
+    const my2 = cy + Math.sin(midAngle) * midDist;
+    const ex = cx + Math.cos(th.angle) * size;
+    const ey = cy + Math.sin(th.angle) * size;
+
+    ctx.quadraticCurveTo(mx2, my2, ex, ey);
+    ctx.strokeStyle = `rgba(42, 42, 42, 0.18)`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  // Draw concentric spiral arcs connecting threads
+  for (let r = 0; r < NUM_RINGS; r++) {
+    const radius = (size / NUM_RINGS) * (r + 0.5);
+    const spiralOffset = (r / NUM_RINGS) * Math.PI * 0.15; // spiral shift
+    const pulseR = radius + Math.sin(t * 0.025 + r * 0.4) * 2;
+    const alpha = 0.08 + (1 - r / NUM_RINGS) * 0.12;
+
+    ctx.beginPath();
+    for (let i = 0; i <= NUM_THREADS; i++) {
+      const idx = i % NUM_THREADS;
+      const th = threads[idx];
+      const angle = th.angle + spiralOffset;
+      const vibW = Math.sin(t * 0.04 + th.phase) * th.vibration * 0.02;
+      const px = cx + Math.cos(angle + vibW) * pulseR;
+      const py = cy + Math.sin(angle + vibW) * pulseR;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = `rgba(42, 42, 42, ${alpha})`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+}
+
+function draw() {
+  requestAnimationFrame(draw);
+  t++;
+
+  // Smooth center follow
+  cx += (targetCX - cx) * 0.04;
+  cy += (targetCY - cy) * 0.04;
+
+  // Update thread angles/origins
+  for (const th of threads) {
+    th.cx = cx;
+    th.cy = cy;
+  }
+
+  ctx.fillStyle = 'rgba(245, 243, 238, 0.55)';
+  ctx.fillRect(0, 0, W, H);
+
+  drawWeb();
+}
+
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '75',
+  title: 'Spiral Web',
+  desc:  '放射状の糸と同心円の糸が交差して、蜘蛛の巣のようになった。マウスで中心が動く。クリックで糸が震える。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

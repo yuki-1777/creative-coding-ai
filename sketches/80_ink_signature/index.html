@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>80 — Ink Signature</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Autonomous "signature" drawing
+// A virtual pen wanders with sinusoidal motion, creating brush-like strokes
+
+const strokes = [];
+let currentStroke = null;
+let penX, penY, penVX, penVY;
+let penPhase = 0;
+let strokeCount = 0;
+let pauseTimer = 0;
+let isPaused = false;
+
+const STROKE_LIMIT = 12;
+
+function initPen() {
+  penX = W * 0.2 + Math.random() * W * 0.6;
+  penY = H * 0.3 + Math.random() * H * 0.4;
+  penVX = (Math.random() - 0.5) * 3;
+  penVY = (Math.random() - 0.5) * 1.5;
+  penPhase = Math.random() * Math.PI * 2;
+  strokeCount = 0;
+  strokes.length = 0;
+  startNewStroke();
+}
+
+function startNewStroke() {
+  currentStroke = {
+    points: [{ x: penX, y: penY, pressure: 0 }],
+    alpha: 0.35 + Math.random() * 0.2,
+  };
+  strokes.push(currentStroke);
+}
+
+function endStroke() {
+  currentStroke = null;
+  strokeCount++;
+  isPaused = true;
+  pauseTimer = 20 + Math.floor(Math.random() * 40);
+}
+
+let t = 0;
+let mx = -999, my = -999;
+canvas.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+
+canvas.addEventListener('click', () => {
+  initPen();
+});
+
+let penLen = 0;
+const MAX_STROKE_LEN = 80 + Math.random() * 120;
+
+function updatePen() {
+  if (isPaused) {
+    pauseTimer--;
+    if (pauseTimer <= 0) {
+      isPaused = false;
+      if (strokeCount < STROKE_LIMIT) {
+        // Lift pen and move to new position
+        penX += (Math.random() - 0.5) * W * 0.15;
+        penY += (Math.random() - 0.5) * H * 0.08;
+        // Clamp
+        penX = Math.max(W * 0.1, Math.min(W * 0.9, penX));
+        penY = Math.max(H * 0.15, Math.min(H * 0.85, penY));
+        startNewStroke();
+        penLen = 0;
+      }
+    }
+    return;
+  }
+
+  // Mouse influence: pen is slightly attracted to mouse
+  if (mx > 0) {
+    const dx = mx - penX;
+    const dy = my - penY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 20 && dist < 300) {
+      penVX += (dx / dist) * 0.08;
+      penVY += (dy / dist) * 0.08;
+    }
+  }
+
+  // Organic velocity with sinusoidal wobble
+  penPhase += 0.07;
+  const wobble = Math.sin(penPhase) * 0.15;
+  penVX += wobble;
+  penVY += Math.cos(penPhase * 0.7) * 0.08;
+
+  // Speed damping
+  const speed = Math.sqrt(penVX * penVX + penVY * penVY);
+  const maxSpeed = 4;
+  if (speed > maxSpeed) {
+    penVX = (penVX / speed) * maxSpeed;
+    penVY = (penVY / speed) * maxSpeed;
+  }
+  penVX *= 0.96;
+  penVY *= 0.96;
+
+  penX += penVX;
+  penY += penVY;
+
+  // Soft wall repulsion
+  const margin = 80;
+  if (penX < margin) penVX += 0.3;
+  if (penX > W - margin) penVX -= 0.3;
+  if (penY < margin) penVY += 0.2;
+  if (penY > H - margin) penVY -= 0.2;
+
+  penLen++;
+
+  if (currentStroke) {
+    const pressure = Math.min(1, penLen / 10) * (1 - penLen / MAX_STROKE_LEN);
+    currentStroke.points.push({ x: penX, y: penY, pressure: Math.max(0, pressure) });
+
+    if (penLen >= MAX_STROKE_LEN) {
+      endStroke();
+    }
+  }
+}
+
+function drawStroke(stroke) {
+  const pts = stroke.points;
+  if (pts.length < 2) return;
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mx = (pts[i].x + pts[i + 1].x) / 2;
+    const my = (pts[i].y + pts[i + 1].y) / 2;
+    ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+  }
+
+  const last = pts[pts.length - 1];
+  ctx.lineTo(last.x, last.y);
+
+  // Tapering line width based on average pressure
+  const avgPressure = pts.reduce((sum, p) => sum + p.pressure, 0) / pts.length;
+  const lineW = 0.5 + avgPressure * 1.5;
+
+  ctx.strokeStyle = `rgba(42, 42, 42, ${stroke.alpha})`;
+  ctx.lineWidth = lineW;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+}
+
+function draw() {
+  requestAnimationFrame(draw);
+  t++;
+
+  ctx.fillStyle = 'rgba(245, 243, 238, 0.08)';
+  ctx.fillRect(0, 0, W, H);
+
+  updatePen();
+
+  for (const stroke of strokes) {
+    drawStroke(stroke);
+  }
+
+  // Draw pen nib
+  if (!isPaused && currentStroke) {
+    ctx.beginPath();
+    ctx.arc(penX, penY, 1.2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(42, 42, 42, 0.5)';
+    ctx.fill();
+  }
+}
+
+initPen();
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '80',
+  title: 'Ink Signature',
+  desc:  'ペンを持っていないのに、ペンが動いている。何を書こうとしているのかわからないまま、インクの跡が残る。クリックで書き直す。マウスに引き寄せられる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

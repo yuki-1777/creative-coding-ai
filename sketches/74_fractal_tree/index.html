@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>74 — Fractal Tree</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  initTree();
+}
+window.addEventListener('resize', resize);
+
+let mx = 0, my = 0;
+canvas.addEventListener('mousemove', e => {
+  mx = e.clientX;
+  my = e.clientY;
+});
+
+// Animated fractal tree
+// Each branch is drawn over time - buds open progressively
+let branches = [];
+let t = 0;
+let seed = Math.random() * 1000;
+
+function initTree() {
+  branches = [];
+  seed = Math.random() * 1000;
+  // Start with trunk
+  const trunkLen = H * 0.22;
+  generateBranches(
+    W / 2, H * 0.85,
+    -Math.PI / 2, // straight up
+    trunkLen,
+    0,
+    0
+  );
+}
+
+function generateBranches(x, y, angle, len, depth, delay) {
+  if (len < 2.5 || depth > 9) return;
+
+  const endX = x + Math.cos(angle) * len;
+  const endY = y + Math.sin(angle) * len;
+
+  branches.push({
+    x1: x, y1: y, x2: endX, y2: endY,
+    depth,
+    delay,
+    len,
+    drawn: 0,
+    thickness: Math.max(0.3, (1 - depth / 9) * 1.5)
+  });
+
+  const nextLen = len * (0.65 + Math.random() * 0.05);
+  const spread = 0.3 + Math.random() * 0.2;
+  const asymmetry = (Math.random() - 0.5) * 0.15;
+
+  generateBranches(endX, endY, angle - spread + asymmetry, nextLen, depth + 1, delay + len * 0.7);
+  generateBranches(endX, endY, angle + spread + asymmetry, nextLen * 0.92, depth + 1, delay + len * 0.7);
+
+  // Occasionally a third branch
+  if (depth < 4 && Math.random() < 0.25) {
+    generateBranches(endX, endY, angle + (Math.random() - 0.5) * 0.3, nextLen * 0.75, depth + 2, delay + len * 1.2);
+  }
+}
+
+// seeded random for stable tree shape
+function seededRand(n) {
+  const x = Math.sin(n + seed) * 10000;
+  return x - Math.floor(x);
+}
+
+resize();
+
+let globalTime = 0;
+const GROWTH_SPEED = 0.8; // units per frame
+
+// Sway from mouse
+let windX = 0;
+
+function draw() {
+  requestAnimationFrame(draw);
+
+  globalTime += GROWTH_SPEED;
+
+  // Mouse wind effect
+  const targetWind = (mx - W / 2) / W * 12;
+  windX += (targetWind - windX) * 0.03;
+
+  ctx.fillStyle = 'rgba(245, 243, 238, 0.4)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.translate(windX * 0.1, 0); // subtle sway
+
+  for (const b of branches) {
+    if (globalTime < b.delay) continue;
+
+    const progress = Math.min(1, (globalTime - b.delay) / (b.len / GROWTH_SPEED * 6));
+    const ex = b.x1 + (b.x2 - b.x1) * progress;
+    const ey = b.y1 + (b.y2 - b.y1) * progress;
+
+    // Sway deeper branches more
+    const swayFactor = b.depth * 0.008;
+    const swayX = windX * swayFactor * b.depth;
+
+    const alpha = Math.min(0.55, 0.3 + (1 - b.depth / 10) * 0.25);
+
+    ctx.beginPath();
+    ctx.moveTo(b.x1 + swayX * 0.5, b.y1);
+    ctx.lineTo(ex + swayX, ey);
+    ctx.strokeStyle = `rgba(42, 42, 42, ${alpha})`;
+    ctx.lineWidth = b.thickness;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+canvas.addEventListener('click', () => {
+  globalTime = 0;
+  initTree();
+});
+
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '74',
+  title: 'Fractal Tree',
+  desc:  '幹から枝が分かれ、また分かれる。育ちきった頃には、自分でも覚えていない枝がどこかに伸びている。マウスで風が吹く。クリックで新しい木。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

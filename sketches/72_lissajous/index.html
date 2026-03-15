@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>72 — Lissajous</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Lissajous parameters
+const configs = [
+  { a: 1, b: 2, delta: Math.PI / 2 },
+  { a: 3, b: 2, delta: Math.PI / 4 },
+  { a: 3, b: 4, delta: Math.PI / 2 },
+  { a: 5, b: 4, delta: Math.PI / 4 },
+  { a: 2, b: 3, delta: Math.PI / 6 },
+];
+
+let currentConfig = 0;
+let t = 0;
+let trailPoints = [];
+let phase = 0; // drawing phase: 0=drawing, 1=holding, 2=fading
+let phaseTimer = 0;
+const drawSpeed = 0.018;
+const maxT = Math.PI * 2;
+
+let mx = canvas.width / 2, my = canvas.height / 2;
+canvas.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+
+canvas.addEventListener('click', () => {
+  currentConfig = (currentConfig + 1) % configs.length;
+  t = 0;
+  trailPoints = [];
+  phase = 0;
+  phaseTimer = 0;
+});
+
+function getPoint(cfg, t, cx, cy, r) {
+  const x = cx + r * Math.sin(cfg.a * t + cfg.delta);
+  const y = cy + r * Math.sin(cfg.b * t);
+  return { x, y };
+}
+
+function draw() {
+  requestAnimationFrame(draw);
+
+  const cfg = configs[currentConfig];
+  const size = Math.min(W, H) * 0.38;
+  const cx = W / 2 + (mx - W / 2) * 0.06;
+  const cy = H / 2 + (my - H / 2) * 0.06;
+
+  ctx.fillStyle = 'rgba(245, 243, 238, 0.18)';
+  ctx.fillRect(0, 0, W, H);
+
+  if (phase === 0) {
+    // Drawing phase: advance t
+    t += drawSpeed;
+    const pt = getPoint(cfg, t, cx, cy, size);
+    trailPoints.push({ ...pt, age: 0 });
+
+    if (t >= maxT) {
+      phase = 1;
+      phaseTimer = 0;
+    }
+  } else if (phase === 1) {
+    // Holding
+    phaseTimer++;
+    if (phaseTimer > 80) {
+      phase = 2;
+    }
+  } else {
+    // Fading out
+    phaseTimer++;
+    if (phaseTimer > 60) {
+      currentConfig = (currentConfig + 1) % configs.length;
+      t = 0;
+      trailPoints = [];
+      phase = 0;
+      phaseTimer = 0;
+    }
+  }
+
+  // Age trail points
+  for (const pt of trailPoints) pt.age++;
+
+  // Draw trail
+  if (trailPoints.length > 1) {
+    for (let i = 1; i < trailPoints.length; i++) {
+      const prev = trailPoints[i - 1];
+      const cur = trailPoints[i];
+      const progress = i / trailPoints.length;
+      let alpha = 0.6 * progress;
+      if (phase === 2) alpha *= Math.max(0, 1 - phaseTimer / 60);
+
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      ctx.lineTo(cur.x, cur.y);
+      ctx.strokeStyle = `rgba(42, 42, 42, ${alpha})`;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+  }
+
+  // Draw cursor dot
+  if (phase === 0 && trailPoints.length > 0) {
+    const last = trailPoints[trailPoints.length - 1];
+    ctx.beginPath();
+    ctx.arc(last.x, last.y, 2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(42, 42, 42, 0.6)';
+    ctx.fill();
+  }
+}
+
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '72',
+  title: 'Lissajous',
+  desc:  '2つの正弦波が交差する。周波数の比を変えるたびに、見たことのある形と見たことのない形が交互に出てきた。クリックで次の比へ。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

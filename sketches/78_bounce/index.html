@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>78 — Bounce</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  floor = H * 0.75;
+  init();
+}
+window.addEventListener('resize', resize);
+
+let floor;
+let balls = [];
+let trails = [];
+
+function init() {
+  balls = [];
+  trails = [];
+
+  const words = ['code', 'line', 'draw', 'loop', 'time', 'run', 'wait'];
+  const word = words[Math.floor(Math.random() * words.length)];
+  const chars = word.split('');
+  const spacing = Math.min(W / (chars.length + 2), 90);
+  const startX = (W - spacing * (chars.length - 1)) / 2;
+
+  chars.forEach((ch, i) => {
+    const x = startX + i * spacing;
+    balls.push({
+      ch,
+      x,
+      y: H * 0.1 + Math.random() * H * 0.2,
+      vy: 1 + Math.random() * 2,
+      vx: (Math.random() - 0.5) * 0.5,
+      bounce: 0.65 + Math.random() * 0.1,
+      size: 18 + Math.random() * 14,
+      phase: i * 0.3,
+      onFloor: false,
+      floorCount: 0,
+    });
+  });
+}
+
+canvas.addEventListener('click', e => {
+  // Launch all balls upward
+  for (const b of balls) {
+    const dx = b.x - e.clientX;
+    const dy = b.y - e.clientY;
+    const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+    b.vy = -(4 + Math.random() * 5);
+    b.vx = (dx / dist) * (1 + Math.random() * 2);
+    b.onFloor = false;
+    b.floorCount = 0;
+  }
+  trails = [];
+});
+
+let t = 0;
+
+function draw() {
+  requestAnimationFrame(draw);
+  t++;
+
+  ctx.fillStyle = 'rgba(245, 243, 238, 0.35)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Floor line
+  ctx.beginPath();
+  ctx.moveTo(0, floor);
+  ctx.lineTo(W, floor);
+  ctx.strokeStyle = 'rgba(42, 42, 42, 0.12)';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+
+  for (const b of balls) {
+    // Physics
+    b.vy += 0.22; // gravity
+    b.x += b.vx;
+    b.y += b.vy;
+
+    // Wall bounce
+    if (b.x < 30) { b.x = 30; b.vx = Math.abs(b.vx) * 0.8; }
+    if (b.x > W - 30) { b.x = W - 30; b.vx = -Math.abs(b.vx) * 0.8; }
+
+    // Floor bounce
+    if (b.y >= floor) {
+      b.y = floor;
+      b.vy = -Math.abs(b.vy) * b.bounce;
+      b.vx *= 0.85;
+      b.floorCount++;
+
+      // Record trail point at bounce
+      trails.push({ x: b.x, y: floor, age: 0, ch: b.ch, size: b.size * 0.4 });
+
+      // Stop bouncing if energy too low
+      if (Math.abs(b.vy) < 0.5) {
+        b.vy = 0;
+        b.y = floor;
+        b.onFloor = true;
+      }
+    }
+
+    // Slight wobble when bouncing
+    const squash = b.onFloor ? 1 : 1 + Math.sin(t * 0.2 + b.phase) * 0.03;
+
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.scale(squash, 1 / squash);
+
+    // Shadow
+    ctx.font = `${b.size}px monospace`;
+    ctx.fillStyle = 'rgba(42, 42, 42, 0.08)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(b.ch, 2, 2);
+
+    // Character
+    ctx.fillStyle = 'rgba(42, 42, 42, 0.65)';
+    ctx.fillText(b.ch, 0, 0);
+
+    ctx.restore();
+  }
+
+  // Age and draw trails
+  for (let i = trails.length - 1; i >= 0; i--) {
+    const tr = trails[i];
+    tr.age++;
+    if (tr.age > 120) { trails.splice(i, 1); continue; }
+    const alpha = 0.08 * (1 - tr.age / 120);
+    ctx.font = `${tr.size}px monospace`;
+    ctx.fillStyle = `rgba(42, 42, 42, ${alpha})`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(tr.ch, tr.x, tr.y);
+  }
+}
+
+resize();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '78',
+  title: 'Bounce',
+  desc:  '文字にバウンドさせてみた。コードが走るたびに別の言葉が落ちてくる。跳ねた跡が薄く残る。クリックで蹴散らせる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

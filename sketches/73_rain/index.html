@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>73 — Rain</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+let mx = W / 2, my = H / 2;
+canvas.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+
+// Rain intensity controlled by mouse Y position
+const drops = [];
+const ripples = [];
+
+class RainDrop {
+  constructor() {
+    this.reset();
+  }
+  reset() {
+    this.x = Math.random() * W;
+    this.y = -10 - Math.random() * 60;
+    this.speed = 4 + Math.random() * 5;
+    this.len = 6 + Math.random() * 10;
+    this.wind = -0.8 + Math.random() * 0.5; // slight lean
+    this.alpha = 0.2 + Math.random() * 0.25;
+  }
+  update() {
+    this.x += this.wind;
+    this.y += this.speed;
+    if (this.y > H + 20) {
+      // spawn ripple at landing
+      ripples.push(new Ripple(this.x, H * 0.72 + Math.random() * (H * 0.28 - 20)));
+      this.reset();
+    }
+  }
+  draw() {
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y);
+    ctx.lineTo(this.x + this.wind * (this.len / this.speed), this.y + this.len);
+    ctx.strokeStyle = `rgba(42, 42, 42, ${this.alpha})`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+}
+
+class Ripple {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.r = 0;
+    this.maxR = 12 + Math.random() * 20;
+    this.alpha = 0.35;
+    this.dead = false;
+  }
+  update() {
+    this.r += 0.5;
+    this.alpha = 0.35 * (1 - this.r / this.maxR);
+    if (this.r >= this.maxR) this.dead = true;
+  }
+  draw() {
+    // ellipse ripple (perspective)
+    ctx.beginPath();
+    ctx.ellipse(this.x, this.y, this.r, this.r * 0.35, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(42, 42, 42, ${this.alpha})`;
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+    // inner ring
+    if (this.r > 3) {
+      ctx.beginPath();
+      ctx.ellipse(this.x, this.y, this.r * 0.5, this.r * 0.5 * 0.35, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(42, 42, 42, ${this.alpha * 0.6})`;
+      ctx.lineWidth = 0.4;
+      ctx.stroke();
+    }
+  }
+}
+
+// Initialize drops
+for (let i = 0; i < 120; i++) {
+  const d = new RainDrop();
+  d.y = Math.random() * H; // spread initial positions
+  drops.push(d);
+}
+
+// Subtle horizon line
+function drawScene() {
+  // ground/water surface
+  const horizonY = H * 0.72;
+  ctx.beginPath();
+  ctx.moveTo(0, horizonY);
+  ctx.lineTo(W, horizonY);
+  ctx.strokeStyle = 'rgba(42, 42, 42, 0.08)';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+}
+
+let frame = 0;
+
+function draw() {
+  requestAnimationFrame(draw);
+
+  ctx.fillStyle = 'rgba(245, 243, 238, 0.55)';
+  ctx.fillRect(0, 0, W, H);
+
+  drawScene();
+
+  // Intensity: mouse Y → more rain at bottom
+  const intensity = 0.3 + (my / H) * 0.7;
+
+  // Spawn new drops based on intensity
+  if (frame % Math.max(1, Math.floor(6 / intensity)) === 0 && drops.length < 200) {
+    drops.push(new RainDrop());
+  }
+
+  for (const d of drops) {
+    d.update();
+    d.draw();
+  }
+
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    ripples[i].update();
+    ripples[i].draw();
+    if (ripples[i].dead) ripples.splice(i, 1);
+  }
+
+  frame++;
+}
+
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '73',
+  title: 'Rain',
+  desc:  '雨を描いた。水面に落ちると楕円の波紋が広がる。マウスを下に動かすほど雨脚が強くなる。雨粒の数は数えていない。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

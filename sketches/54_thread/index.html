@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>54 — Thread</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 6);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // 糸の数と各糸の点数
+    const NUM_THREADS = 12;
+    const POINTS_PER_THREAD = 80;
+
+    const threadGroup = new THREE.Group();
+    scene.add(threadGroup);
+
+    const threads = [];
+
+    for (let t = 0; t < NUM_THREADS; t++) {
+      const pts = [];
+      const phaseOffset = (t / NUM_THREADS) * Math.PI * 2;
+      const radiusOffset = 0.6 + Math.random() * 0.6;
+      const tiltAngle = (Math.random() - 0.5) * Math.PI * 0.4;
+
+      for (let i = 0; i < POINTS_PER_THREAD; i++) {
+        pts.push(new THREE.Vector3(0, 0, 0));
+      }
+
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const isAccent = t === 0;
+      const mat = new THREE.LineBasicMaterial({
+        color: isAccent ? 0x7A6045 : 0x2A2826,
+        transparent: true,
+        opacity: isAccent ? 0.55 : 0.4,
+      });
+      const line = new THREE.Line(geo, mat);
+      threadGroup.add(line);
+
+      threads.push({
+        geo,
+        phaseOffset,
+        radiusOffset,
+        tiltAngle,
+        speedMult: 0.7 + Math.random() * 0.6,
+        isAccent,
+      });
+    }
+
+    // マウス
+    const mouse = new THREE.Vector2(0, 0);
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.006;
+
+      threads.forEach(th => {
+        const { geo, phaseOffset, radiusOffset, tiltAngle, speedMult } = th;
+        const pos = geo.attributes.position;
+        const t2 = time * speedMult;
+
+        for (let i = 0; i < POINTS_PER_THREAD; i++) {
+          const s = i / (POINTS_PER_THREAD - 1); // 0→1
+          // らせん軌道
+          const angle = phaseOffset + s * Math.PI * 6 + t2;
+          const r = radiusOffset * (0.3 + s * 0.7);
+          const x = Math.cos(angle) * r;
+          const y = Math.sin(angle) * r * Math.cos(tiltAngle);
+          const z = Math.sin(angle) * r * Math.sin(tiltAngle)
+                  + s * 0.5 - 0.25
+                  + Math.sin(t2 * 0.5 + phaseOffset) * 0.1;
+
+          // ノイズで揺れを加える
+          const drift = Math.sin(t2 * 0.3 + s * 4 + phaseOffset) * 0.04;
+          pos.setXYZ(i, x + drift, y + drift * 0.5, z);
+        }
+        pos.needsUpdate = true;
+        geo.computeBoundingSphere();
+      });
+
+      // マウスで全体を傾ける
+      threadGroup.rotation.y = mouse.x * 0.5 + time * 0.05;
+      threadGroup.rotation.x = mouse.y * 0.25;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '54',
+    title: 'Thread',
+    desc:  '12本の糸が空間を巻いている。絡まっているようで、触れていない。回転させると別の形に見えた。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
