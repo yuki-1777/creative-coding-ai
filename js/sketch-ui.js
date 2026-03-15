@@ -84,22 +84,22 @@
     /* ? ボタン：タイトル横 */
     #sketch-detail-btn {
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
-      font-weight: 300;
-      font-size: 0.75rem;
-      letter-spacing: 0.1em;
+      font-weight: 400;
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
       background: transparent;
-      border: 1px solid rgba(255,255,255,0.25);
-      color: rgba(255,255,255,0.4);
+      border: 1px solid rgba(255,255,255,0.35);
+      color: rgba(255,255,255,0.6);
       cursor: pointer;
       pointer-events: auto;
-      padding: 1px 6px;
+      padding: 2px 8px;
       line-height: 1.6;
       transition: color 0.2s ease, border-color 0.2s ease;
     }
     #sketch-detail-btn:hover,
     #sketch-detail-btn.active {
-      color: rgba(255,255,255,0.75);
-      border-color: rgba(255,255,255,0.5);
+      color: rgba(255,255,255,0.9);
+      border-color: rgba(255,255,255,0.65);
     }
 
     /* save thumb：デバッグモード時のみ表示 */
