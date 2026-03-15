@@ -25,7 +25,7 @@
       align-items: flex-end;
       justify-content: space-between;
       gap: 24px;
-      background: linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%);
+      background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 100%);
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
       font-weight: 300;
       pointer-events: none;
@@ -43,12 +43,12 @@
     #sketch-overlay-title {
       font-size: 1.1rem;
       letter-spacing: 0.2em;
-      color: rgba(255,255,255,0.4);
+      color: rgba(255,255,255,0.7);
     }
     #sketch-overlay-desc {
       font-size: 1.2rem;
       line-height: 1.65;
-      color: rgba(255,255,255,0.28);
+      color: rgba(255,255,255,0.55);
       letter-spacing: 0.03em;
     }
 
@@ -62,13 +62,13 @@
     #sketch-overlay-back {
       font-size: 0.9rem;
       letter-spacing: 0.22em;
-      color: rgba(255,255,255,0.25);
+      color: rgba(255,255,255,0.5);
       text-decoration: none;
       pointer-events: auto;
       white-space: nowrap;
       transition: color 0.2s ease;
     }
-    #sketch-overlay-back:hover { color: rgba(255,255,255,0.55); }
+    #sketch-overlay-back:hover { color: rgba(255,255,255,0.8); }
 
     #sketch-capture-btn {
       font-family: inherit;
@@ -77,14 +77,14 @@
       letter-spacing: 0.22em;
       background: transparent;
       border: none;
-      color: rgba(255,255,255,0.22);
+      color: rgba(255,255,255,0.45);
       cursor: pointer;
       pointer-events: auto;
       padding: 0;
       white-space: nowrap;
       transition: color 0.2s ease;
     }
-    #sketch-capture-btn:hover { color: rgba(255,255,255,0.55); }
+    #sketch-capture-btn:hover { color: rgba(255,255,255,0.8); }
     #sketch-capture-btn.done { color: rgba(255,255,255,0.5); }
   `;
   document.head.appendChild(style);
