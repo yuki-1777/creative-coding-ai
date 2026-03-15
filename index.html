@@ -743,6 +743,20 @@
         transition: color 0.2s;
       }
       #fb-overlay-close:hover { color: rgba(42,42,42,0.7); }
+      #fb-copy-json {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.65rem;
+        letter-spacing: 0.1em;
+        background: transparent;
+        border: 1px solid rgba(42,42,42,0.2);
+        color: rgba(42,42,42,0.5);
+        cursor: pointer;
+        padding: 2px 8px;
+        transition: all 0.2s;
+        margin-right: 8px;
+      }
+      #fb-copy-json:hover { border-color: rgba(42,42,42,0.5); color: rgba(42,42,42,0.8); }
+      #fb-copy-json.copied { color: rgba(42,42,42,0.8); border-color: rgba(42,42,42,0.5); }
       #fb-overlay-empty {
         padding: 28px 20px;
         font-size: 0.65rem;
@@ -816,6 +830,7 @@
     overlay.innerHTML = `
       <div id="fb-overlay-header">
         <span id="fb-overlay-title">FEEDBACK</span>
+        <button id="fb-copy-json">Copy JSON</button>
         <button id="fb-overlay-close">×</button>
       </div>
       <div id="fb-list"></div>
@@ -862,6 +877,17 @@
 
     document.getElementById('fb-overlay-close').addEventListener('click', () => {
       overlay.style.display = 'none';
+    });
+
+    document.getElementById('fb-copy-json').addEventListener('click', () => {
+      let all = {};
+      try { all = JSON.parse(localStorage.getItem(FB_KEY) || '{}'); } catch (e) {}
+      navigator.clipboard.writeText(JSON.stringify(all, null, 2)).then(() => {
+        const btn = document.getElementById('fb-copy-json');
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy JSON'; btn.classList.remove('copied'); }, 1500);
+      });
     });
   })();
 
