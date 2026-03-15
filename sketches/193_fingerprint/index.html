@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>193 – Fingerprint</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 指紋 — 等間隔の歪んだ同心楕円のみ
+// マウス位置でコアシフト・歪み量が変わる
+
+let cx, cy;
+let numRings = 38;
+
+function getNoiseAngle(x, y, coreX, coreY, t) {
+  // コアからの距離と角度でノイズを適用
+  let dx = x - coreX;
+  let dy = y - coreY;
+  let r = sqrt(dx * dx + dy * dy);
+  let angle = atan2(dy, dx);
+
+  // 渦巻き状の歪み（指紋の特徴）
+  let swirl = r * 0.003 + t * 0.0003;
+  let noiseVal = noise(cos(angle + swirl) * 2, sin(angle + swirl) * 2, r * 0.01);
+
+  return noiseVal;
+}
+
+function getRingPoint(ringIdx, angle, mouseX, mouseY, t) {
+  let coreX = cx + map(mouseX, 0, 600, -80, 80);
+  let coreY = cy + map(mouseY, 0, 600, -50, 50);
+
+  let baseR = (ringIdx + 1) * 7;
+
+  // 指紋の渦巻きを作る歪み
+  let dx = cos(angle);
+  let dy = sin(angle);
+
+  // コアへの距離に応じた圧縮
+  let nx = coreX + cos(angle) * baseR;
+  let ny = coreY + sin(angle) * baseR * 0.85; // 楕円
+
+  // ノイズ歪み（指紋らしい細かいうねり）
+  let noiseScale = 0.012;
+  let noiseAmp = 6 + ringIdx * 0.15;
+  let n1 = noise(nx * noiseScale, ny * noiseScale, t * 0.0002 + ringIdx * 0.3);
+  let n2 = noise(nx * noiseScale + 100, ny * noiseScale + 100, t * 0.0002 + ringIdx * 0.3);
+
+  // 輪の歪み
+  let r = baseR + (n1 - 0.5) * noiseAmp;
+
+  // スカーとデルタ（分岐）の暗示：特定の角度で輪が途切れる
+  let gapProb = noise(angle * 0.5 + ringIdx * 1.7, ringIdx * 0.4);
+  if (gapProb > 0.65 && ringIdx > 5 && ringIdx < numRings - 3) {
+    return null; // 途切れ
+  }
+
+  return {
+    x: coreX + cos(angle) * r,
+    y: coreY + sin(angle) * r * 0.85
+  };
+}
+
+function setup() {
+  let c = createCanvas(600, 600);
+  c.parent(document.body);
+  cx = width / 2;
+  cy = height / 2;
+  noiseDetail(4, 0.5);
+}
+
+let t = 0;
+
+function draw() {
+  background(245, 244, 240);
+  t += 1;
+
+  let mx = mouseX === 0 ? width / 2 : mouseX;
+  let my = mouseY === 0 ? height / 2 : mouseY;
+
+  // 各輪を描く
+  for (let ring = 0; ring < numRings; ring++) {
+    let alpha = map(ring, 0, numRings, 160, 80);
+    let weight = map(ring, 0, numRings, 0.6, 0.4);
+    stroke(60, 55, 50, alpha);
+    strokeWeight(weight);
+    noFill();
+
+    let numSteps = 200;
+    let prevPt = null;
+    beginShape();
+    for (let i = 0; i <= numSteps; i++) {
+      let angle = map(i, 0, numSteps, -PI, PI);
+      let pt = getRingPoint(ring, angle, mx, my, t);
+
+      if (pt === null) {
+        if (prevPt !== null) {
+          endShape();
+          beginShape();
+        }
+        prevPt = null;
+        continue;
+      }
+      vertex(pt.x, pt.y);
+      prevPt = pt;
+    }
+    endShape();
+  }
+
+  // コア点
+  let coreX = cx + map(mx, 0, 600, -80, 80);
+  let coreY = cy + map(my, 0, 600, -50, 50);
+  noStroke();
+  fill(60, 55, 50, 120);
+  circle(coreX, coreY, 3);
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '193',
+  title: 'Fingerprint',
+  detail: 'ノイズで歪めた同心楕円を38本重ねたら、指紋に見えてきた。所々で輪が途切れているのが隆線の分岐や終端を模している。マウスを動かすと渦の中心がずれ、形が変わる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

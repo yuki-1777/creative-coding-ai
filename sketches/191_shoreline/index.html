@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>191 – Shoreline</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 波打ち際 — 現在時刻で潮位が変わる
+// 制約: 水平線とその揺らぎのみ。色は使わない。
+
+let waveLines = []; // 複数の波形レイヤー
+let numWaves = 5;
+let noiseOffset = 0;
+
+function getTideLevel() {
+  // 現在時刻から潮位を計算
+  // 約12.4時間周期（月の引力）を近似
+  let now = new Date();
+  let secOfDay = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  let tideT = secOfDay / (12.4 * 3600) * TWO_PI;
+  // 高潮と干潮の振れ幅
+  return sin(tideT) * 80; // ±80px
+}
+
+function getWaveY(x, t, waveIdx) {
+  let freq1 = 0.008 + waveIdx * 0.002;
+  let freq2 = 0.014 + waveIdx * 0.003;
+  let speed1 = t * (0.8 + waveIdx * 0.15);
+  let speed2 = t * (1.1 - waveIdx * 0.1);
+  let amp1 = 8 + waveIdx * 3;
+  let amp2 = 5 + waveIdx * 1.5;
+  let n = noise(x * 0.006 + waveIdx * 10, t * 0.3 + waveIdx);
+  return sin(x * freq1 + speed1) * amp1
+       + sin(x * freq2 - speed2 + 1.3) * amp2
+       + (n - 0.5) * 12;
+}
+
+function setup() {
+  let c = createCanvas(600, 600);
+  c.parent(document.body);
+}
+
+let t = 0;
+
+function draw() {
+  background(245, 244, 240);
+  t += 0.015;
+
+  let tideLevel = getTideLevel();
+  let baseY = height * 0.5 - tideLevel;
+
+  // 各波を後ろから描く（奥の波は薄く）
+  for (let w = numWaves - 1; w >= 0; w--) {
+    let offset = w * 18;
+    let alpha = map(w, 0, numWaves - 1, 50, 180);
+    let weight = map(w, 0, numWaves - 1, 0.5, 1.2);
+
+    stroke(80, 75, 70, alpha);
+    strokeWeight(weight);
+    noFill();
+
+    beginShape();
+    for (let x = 0; x <= width; x += 3) {
+      let y = baseY + offset + getWaveY(x, t, w);
+      vertex(x, y);
+    }
+    endShape();
+
+    // 砕ける泡（最前列の波のみ）
+    if (w === 0) {
+      for (let x = 20; x < width - 20; x += 40) {
+        let y = baseY + offset + getWaveY(x, t, w);
+        let foam = sin(x * 0.1 + t * 3) > 0.6;
+        if (foam) {
+          stroke(160, 158, 155, 80);
+          strokeWeight(0.5);
+          line(x - 4, y, x + 4, y);
+        }
+      }
+    }
+  }
+
+  // 砂浜（波より下の水平グラデーション線）
+  let shoreY = baseY + numWaves * 18 + 5;
+  for (let i = 0; i < 6; i++) {
+    let y = shoreY + i * 4;
+    stroke(160, 150, 135, map(i, 0, 5, 80, 20));
+    strokeWeight(0.5);
+    // 不均一な砂紋
+    beginShape();
+    for (let x = 0; x <= width; x += 4) {
+      let ny = y + (noise(x * 0.01, i * 5) - 0.5) * 3;
+      vertex(x, ny);
+    }
+    endShape();
+  }
+
+  // 時刻と潮位表示
+  let now = new Date();
+  let hStr = nf(now.getHours(), 2) + ':' + nf(now.getMinutes(), 2);
+  noStroke();
+  fill(140, 135, 128, 160);
+  textSize(10);
+  textAlign(LEFT);
+  let tideDir = tideLevel > 0 ? '▲ 満' : '▽ 干';
+  text(hStr + '  ' + tideDir + '潮', 12, height - 12);
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '191',
+  title: 'Shoreline',
+  detail: '波打ち際を描いた。5本の波が重なって寄せては返す。現在時刻が潮位に影響していて、約12時間周期で水位が上下する。砂紋も少し残している。何も操作しなくてもいい。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>190 – Brushstroke</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede6; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 毛筆の一画 — ドラッグした軌跡を毛筆らしく描く
+// 制約: 1画で完結。ドラッグ中のみ描画、離したら完成。やり直しは次の1画まで待つ
+
+let strokes = []; // 完成した画
+let currentPath = null;
+let brushPressure = 0;
+let isDrawing = false;
+let showHint = true;
+
+class BrushPath {
+  constructor() {
+    this.points = [];
+    this.finished = false;
+  }
+
+  addPoint(x, y, speed) {
+    // 速さで太さが変わる（速いと細く、遅いと太く）
+    let thickness = map(speed, 0, 20, 14, 1.5);
+    thickness = constrain(thickness, 1.5, 16);
+    // インクの濃度（始めと終わりで変化）
+    this.points.push({ x, y, thickness });
+  }
+
+  draw() {
+    if (this.points.length < 2) return;
+
+    noFill();
+    for (let i = 1; i < this.points.length; i++) {
+      let p0 = this.points[i - 1];
+      let p1 = this.points[i];
+      let t = i / this.points.length;
+      // 始端と末端は細く（掠れ）
+      let edgeFade = sin(t * PI); // 両端で0、中央で1
+      let w = p1.thickness * (0.2 + edgeFade * 0.8);
+      // インクの濃さ（始端はじっくり濃く、末端は掠れる）
+      let alpha;
+      if (t < 0.15) {
+        alpha = map(t, 0, 0.15, 0, 200);
+      } else if (t > 0.75) {
+        alpha = map(t, 0.75, 1.0, 190, 30);
+      } else {
+        alpha = 200 + random(-15, 15);
+      }
+
+      // 毛の繊維感（わずかにジッター）
+      let jitter = w * 0.08;
+      stroke(30, 25, 20, alpha);
+      strokeWeight(w);
+      line(p0.x + random(-jitter, jitter),
+           p0.y + random(-jitter, jitter),
+           p1.x + random(-jitter, jitter),
+           p1.y + random(-jitter, jitter));
+
+      // 側面の細い毛
+      if (w > 4) {
+        stroke(30, 25, 20, alpha * 0.3);
+        strokeWeight(0.5);
+        let perp = atan2(p1.y - p0.y, p1.x - p0.x) + PI / 2;
+        let offset = w * 0.45 + random(-1, 1);
+        line(p0.x + cos(perp) * offset, p0.y + sin(perp) * offset,
+             p1.x + cos(perp) * offset, p1.y + sin(perp) * offset);
+        line(p0.x - cos(perp) * offset, p0.y - sin(perp) * offset,
+             p1.x - cos(perp) * offset, p1.y - sin(perp) * offset);
+      }
+    }
+  }
+}
+
+function setup() {
+  let c = createCanvas(600, 600);
+  c.parent(document.body);
+  background(240, 237, 230);
+  // 最初からサンプル筆跡を描画
+  drawSampleStrokes();
+}
+
+function drawSampleStrokes() {
+  // 3本の見本筆跡を生成（点数を多くして滑らかに）
+  let samples = [
+    // 横払い
+    { pts: generateArc(100, 200, 500, 220, 80) },
+    // 縦画
+    { pts: generateLine(280, 100, 330, 500, 50) },
+    // 曲線
+    { pts: generateCurve(80, 380, 520, 450) }
+  ];
+  for (let s of samples) {
+    let bp = new BrushPath();
+    for (let i = 0; i < s.pts.length; i++) {
+      let p = s.pts[i];
+      let speed = i < 5 ? 2 : (i > s.pts.length - 5 ? 2 : random(3, 9));
+      bp.addPoint(p.x, p.y, speed);
+    }
+    strokes.push(bp);
+  }
+}
+
+function generateArc(x1, y1, x2, y2, n) {
+  let pts = [];
+  for (let i = 0; i <= n; i++) {
+    let t = i / n;
+    pts.push({
+      x: lerp(x1, x2, t),
+      y: lerp(y1, y2, t) + sin(t * PI) * -20
+    });
+  }
+  return pts;
+}
+
+function generateLine(x1, y1, x2, y2, n) {
+  let pts = [];
+  for (let i = 0; i <= n; i++) {
+    let t = i / n;
+    pts.push({
+      x: lerp(x1, x2, t) + sin(t * PI * 3) * 8,
+      y: lerp(y1, y2, t)
+    });
+  }
+  return pts;
+}
+
+function generateCurve(x1, y1, x2, y2) {
+  let pts = [];
+  let n = 70;
+  for (let i = 0; i <= n; i++) {
+    let t = i / n;
+    let cx1 = x1 + (x2 - x1) * 0.3;
+    let cy1 = y1 - 80;
+    let cx2 = x1 + (x2 - x1) * 0.7;
+    let cy2 = y2 + 60;
+    // 三次ベジェ近似
+    let mt = 1 - t;
+    let bx = mt*mt*mt*x1 + 3*mt*mt*t*cx1 + 3*mt*t*t*cx2 + t*t*t*x2;
+    let by = mt*mt*mt*y1 + 3*mt*mt*t*cy1 + 3*mt*t*t*cy2 + t*t*t*y2;
+    pts.push({ x: bx, y: by });
+  }
+  return pts;
+}
+
+let prevMX = 0, prevMY = 0;
+
+function draw() {
+  // 紙の質感（毎フレーム再描画しない——背景は一度だけ）
+  // ↑ただし積み重ねのため毎フレーム背景クリアしてから再描画
+  background(240, 237, 230);
+
+  // 完成した画
+  for (let s of strokes) {
+    s.draw();
+  }
+
+  // 現在描いている画
+  if (currentPath) {
+    currentPath.draw();
+  }
+
+  // ヒント
+  if (showHint && frameCount < 240) {
+    noStroke();
+    let hAlpha = frameCount < 180 ? 180 : map(frameCount, 180, 240, 180, 0);
+    fill(120, 110, 90, hAlpha);
+    textAlign(CENTER);
+    textSize(12);
+    text('ドラッグして一画を引く', width / 2, height - 20);
+  }
+}
+
+function mouseDragged() {
+  if (!isDrawing) return;
+  let speed = dist(mouseX, mouseY, prevMX, prevMY);
+  currentPath.addPoint(mouseX, mouseY, speed);
+  prevMX = mouseX;
+  prevMY = mouseY;
+  showHint = false;
+}
+
+function mousePressed() {
+  isDrawing = true;
+  currentPath = new BrushPath();
+  currentPath.addPoint(mouseX, mouseY, 0);
+  prevMX = mouseX;
+  prevMY = mouseY;
+}
+
+function mouseReleased() {
+  if (currentPath && currentPath.points.length > 1) {
+    currentPath.finished = true;
+    strokes.push(currentPath);
+    if (strokes.length > 20) strokes.shift();
+  }
+  currentPath = null;
+  isDrawing = false;
+}
+
+function keyPressed() {
+  if (key === ' ') {
+    strokes = [];
+    currentPath = null;
+    background(240, 237, 230);
+  }
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '190',
+  title: 'Brushstroke',
+  detail: 'ドラッグして毛筆の一画を引く。速く動かすと細く掠れ、ゆっくり動かすと太く滲む。始端と末端は自然に細くなる。スペースキーで白紙に戻る。20画まで重ねられる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

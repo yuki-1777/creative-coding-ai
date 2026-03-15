@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>187 – Catenary</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// カテナリー（懸垂線）のみで構成
+// 電柱の位置を管理
+let poles = [];
+let draggingIdx = -1;
+let hoverIdx = -1;
+
+// カテナリー曲線を計算して描画する
+// x1,y1 → x2,y2 の間に、たるみ量 sag の懸垂線を描く
+function drawCatenary(x1, y1, x2, y2, slack) {
+  // 近似：放物線で代替（十分な精度）
+  // カテナリー y = a * cosh((x - h) / a) + k
+  // sag を使う簡易版
+  let steps = 80;
+  let pts = [];
+
+  let dx = x2 - x1;
+  let dy = y2 - y1;
+  let dist = sqrt(dx * dx + dy * dy);
+
+  // たるみ量
+  let sag = slack * dist * 0.35;
+
+  for (let i = 0; i <= steps; i++) {
+    let t = i / steps;
+    // 2次ベジェ曲線でカテナリー近似（制御点は中点より下）
+    let bx = lerp(x1, x2, t);
+    // 垂直成分
+    let midY = (y1 + y2) / 2 + sag;
+    let curveY = lerp(lerp(y1, midY, t), lerp(midY, y2, t), t);
+    pts.push({ x: bx, y: curveY });
+  }
+
+  beginShape();
+  for (let p of pts) {
+    vertex(p.x, p.y);
+  }
+  endShape();
+}
+
+function setup() {
+  let c = createCanvas(600, 600);
+  c.parent(document.body);
+
+  // 初期電柱（3本）
+  poles = [
+    { x: 100, y: 200 },
+    { x: 300, y: 180 },
+    { x: 500, y: 195 }
+  ];
+}
+
+function draw() {
+  background(245, 244, 240);
+
+  // ホバー判定
+  hoverIdx = -1;
+  for (let i = 0; i < poles.length; i++) {
+    let d = dist(mouseX, mouseY, poles[i].x, poles[i].y);
+    if (d < 18) {
+      hoverIdx = i;
+      break;
+    }
+  }
+
+  // ワイヤーを描く（隣り合う電柱間）
+  noFill();
+  stroke(80, 75, 68);
+  strokeWeight(1.0);
+  for (let i = 0; i < poles.length - 1; i++) {
+    let slack = map(dist(poles[i].x, poles[i].y, poles[i+1].x, poles[i+1].y),
+                    0, 500, 0.3, 0.7);
+    drawCatenary(poles[i].x, poles[i].y, poles[i+1].x, poles[i+1].y, slack);
+  }
+
+  // 電柱を描く（縦の細い棒）
+  for (let i = 0; i < poles.length; i++) {
+    let p = poles[i];
+    let isHover = (i === hoverIdx || i === draggingIdx);
+    stroke(isHover ? color(100, 80, 50) : color(100, 95, 88));
+    strokeWeight(isHover ? 2 : 1.5);
+    // 柱の下端は画面下
+    let bottomY = height - 20;
+    line(p.x, p.y, p.x, bottomY);
+
+    // 柱の上部（横木）
+    strokeWeight(isHover ? 2 : 1.2);
+    line(p.x - 12, p.y, p.x + 12, p.y);
+
+    // ホバー時に丸印
+    if (isHover) {
+      noFill();
+      stroke(100, 80, 50, 120);
+      strokeWeight(0.8);
+      circle(p.x, p.y, 30);
+    }
+  }
+
+  // ドラッグ中なら更新
+  if (draggingIdx >= 0) {
+    poles[draggingIdx].x = mouseX;
+    poles[draggingIdx].y = constrain(mouseY, 60, height - 80);
+  }
+
+  // ヒント
+  if (frameCount < 200) {
+    noStroke();
+    fill(140, 135, 128, map(frameCount, 150, 200, 180, 0));
+    textAlign(CENTER);
+    textSize(11);
+    text('電柱をドラッグ  ／  クリックで電柱を追加', width / 2, height - 20);
+  }
+}
+
+function mousePressed() {
+  // まず既存電柱のドラッグチェック
+  for (let i = 0; i < poles.length; i++) {
+    if (dist(mouseX, mouseY, poles[i].x, poles[i].y) < 18) {
+      draggingIdx = i;
+      return;
+    }
+  }
+  // 何もなければ電柱追加（最大8本）
+  if (poles.length < 8) {
+    poles.push({ x: mouseX, y: constrain(mouseY, 60, height - 80) });
+  }
+}
+
+function mouseReleased() {
+  draggingIdx = -1;
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '187',
+  title: 'Catenary',
+  detail: '電柱の間に垂れ下がるワイヤーを描いた。垂れる量は柱の距離で変わる。電柱をドラッグすると形が変わる。クリックで電柱を増やせる（最大8本）。この垂れ曲線はカテナリー（懸垂線）と呼ばれ、双曲線余弦関数で表される。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>192 – Window Rain</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 雨が降る窓の内側から見た視点
+// ガラスに当たった水滴が垂れ落ちる
+// マウスX: 風向き
+
+let drops = [];
+let maxDrops = 60;
+
+class WaterDrop {
+  constructor() {
+    this.reset();
+  }
+
+  reset() {
+    this.x = random(20, 580);
+    this.y = random(-20, 50);
+    this.r = random(2, 6);
+    this.vy = random(0.3, 1.2);
+    this.vx = 0;
+    this.trail = [];
+    this.life = 1.0;
+    this.mergeSize = 0; // 合体して大きくなった分
+    this.wobblePhase = random(TWO_PI);
+    this.sliding = false; // ガラスを伝い始めたか
+    this.slideDelay = floor(random(30, 150)); // 何フレーム後に落ち始めるか
+    this.age = 0;
+  }
+
+  update(windX) {
+    this.age++;
+
+    if (this.age < this.slideDelay) {
+      // 付着している状態（少し震える）
+      let wobble = sin(this.age * 0.1 + this.wobblePhase) * 0.3;
+      this.x += wobble;
+      return;
+    }
+
+    this.sliding = true;
+
+    // ガラスを伝い落ちる
+    this.vy = lerp(this.vy, 2.0 + this.r * 0.4, 0.05);
+    this.vx = lerp(this.vx, windX * 0.015 + sin(this.age * 0.03 + this.wobblePhase) * 0.3, 0.1);
+
+    this.trail.push({ x: this.x, y: this.y, r: this.r * 0.4 });
+    if (this.trail.length > 25) this.trail.shift();
+
+    this.x += this.vx;
+    this.y += this.vy;
+
+    // 画面外
+    if (this.y > 620 || this.x < -10 || this.x > 610) {
+      this.reset();
+    }
+  }
+
+  draw() {
+    // 軌跡（細い水の跡）
+    if (this.trail.length > 1 && this.sliding) {
+      for (let i = 1; i < this.trail.length; i++) {
+        let p0 = this.trail[i - 1];
+        let p1 = this.trail[i];
+        let a = map(i, 0, this.trail.length, 0, 80);
+        stroke(140, 155, 170, a);
+        strokeWeight(p1.r * 0.8);
+        line(p0.x, p0.y, p1.x, p1.y);
+      }
+    }
+
+    let a = this.sliding ? 160 : 120;
+
+    // 水滴本体（楕円で立体感）
+    noStroke();
+    fill(170, 185, 200, a * 0.4);
+    ellipse(this.x, this.y, this.r * 2.2, this.r * 2.8);
+
+    // 縁
+    stroke(130, 148, 165, a);
+    strokeWeight(0.6);
+    noFill();
+    ellipse(this.x, this.y, this.r * 2, this.r * 2.5);
+
+    // ハイライト
+    noStroke();
+    fill(255, 255, 255, a * 0.7);
+    ellipse(this.x - this.r * 0.3, this.y - this.r * 0.4, this.r * 0.5, this.r * 0.35);
+  }
+}
+
+function setup() {
+  let c = createCanvas(600, 600);
+  c.parent(document.body);
+  for (let i = 0; i < 30; i++) {
+    let d = new WaterDrop();
+    d.age = floor(random(200));
+    drops.push(d);
+  }
+}
+
+let windX = 0;
+
+function draw() {
+  background(245, 244, 240);
+
+  // マウスX位置から風向き
+  windX = lerp(windX, map(mouseX, 0, width, -30, 30), 0.05);
+
+  // 新しい雫を追加
+  if (frameCount % 20 === 0 && drops.length < maxDrops) {
+    drops.push(new WaterDrop());
+  }
+
+  // ガラスの質感（わずかな縦縞）
+  for (let x = 0; x < width; x += 80) {
+    stroke(200, 200, 200, 15);
+    strokeWeight(30);
+    line(x, 0, x, height);
+  }
+
+  // 水滴
+  for (let d of drops) {
+    d.update(windX);
+    d.draw();
+  }
+
+  // 窓枠
+  stroke(140, 130, 120);
+  strokeWeight(6);
+  noFill();
+  rect(0, 0, width, height);
+  // 窓の桟
+  strokeWeight(3);
+  line(width / 2, 0, width / 2, height);
+  line(0, height * 0.55, width, height * 0.55);
+
+  // 風向きインジケーター
+  if (abs(windX) > 3) {
+    noStroke();
+    fill(140, 135, 128, 120);
+    textSize(10);
+    textAlign(windX < 0 ? LEFT : RIGHT);
+    let windStr = windX < 0 ? '← 風' : '風 →';
+    text(windStr, windX < 0 ? 12 : width - 12, height - 12);
+  }
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '192',
+  title: 'Window Rain',
+  detail: 'ガラス窓の内側から雨を見ている。水滴はガラスに付いてから少し間を置いて垂れ始める。マウスを左右に動かすと風が吹いて流れる方向が変わる。窓枠と桟がある。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

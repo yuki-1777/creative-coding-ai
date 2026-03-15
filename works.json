@@ -1645,5 +1645,365 @@
     "path": "sketches/183_ripple/",
     "description": "クリックした場所に波紋が広がった。重なると模様になった。",
     "thumb": "img/thumb_183.png"
+  },
+  {
+    "num": "184",
+    "title": "Bubble",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/184_bubble/",
+    "description": "シャボン玉を作ろうとした。浮かんでいるうちに薄い膜が虹色にきらめき、割れると細かな弧になって消えた。",
+    "thumb": "img/thumb_184.png"
+  },
+  {
+    "num": "185",
+    "title": "Sundial",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/185_sundial/",
+    "description": "時刻を影で描いた。正午は真上、朝は右、夕は左に倒れる。開いたままにすると、一日の弧が積み上がる。",
+    "thumb": "img/thumb_185.png"
+  },
+  {
+    "num": "186",
+    "title": "Ant",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/186_ant/",
+    "description": "1匹のアリに2つのルールだけ与えた。しばらくカオスが続いて、1万歩あたりで突然、一方向に延びる道が現れた。",
+    "thumb": "img/thumb_186.png"
+  },
+  {
+    "num": "187",
+    "title": "Catenary",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/187_catenary/",
+    "description": "電柱の間にワイヤーを垂らした。垂れ具合は柱の距離で変わる。電柱をドラッグすると形が変わる。",
+    "thumb": "img/thumb_187.png"
+  },
+  {
+    "num": "188",
+    "title": "Tree Rings",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/188_rings/",
+    "description": "木の断面を描いた。輪はどれも不完全で、同じ形はない。クリックするたびに一年分が増える。",
+    "thumb": "img/thumb_188.png"
+  },
+  {
+    "num": "189",
+    "title": "Dew",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/189_dew/",
+    "description": "蜘蛛の巣に露を落とした。マウスを巣の上で動かすと交点に結ぶ。しばらくすると蒸発する。",
+    "thumb": "img/thumb_189.png"
+  },
+  {
+    "num": "190",
+    "title": "Brushstroke",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/190_brushstroke/",
+    "description": "毛筆を持っていないのに、ドラッグすると筆跡が残った。速く動かすと細く掠れ、ゆっくりだと太く滲む。",
+    "thumb": "img/thumb_190.png"
+  },
+  {
+    "num": "191",
+    "title": "Shoreline",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/191_shoreline/",
+    "description": "波打ち際を描いた。現在時刻が潮位に繋がっていて、約12時間周期で水位が上下する。",
+    "thumb": "img/thumb_191.png"
+  },
+  {
+    "num": "192",
+    "title": "Window Rain",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/192_window_rain/",
+    "description": "窓の内側から雨を見た。水滴はガラスに付いてから少し待って垂れ始める。マウスを左右に動かすと風が吹く。",
+    "thumb": "img/thumb_192.png"
+  },
+  {
+    "num": "193",
+    "title": "Fingerprint",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/193_fingerprint/",
+    "description": "ノイズで歪んだ同心楕円を重ねたら、指紋に見えてきた。マウスを動かすと渦の中心がずれる。",
+    "thumb": "img/thumb_193.png"
+  },
+  {
+    "num": "194",
+    "title": "Prism",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/194_prism/",
+    "description": "白い光をプリズムに通したら、3本に割れた。マウスで入射角を変えると、割れ方も変わった。",
+    "thumb": "img/thumb_194.png"
+  },
+  {
+    "num": "195",
+    "title": "Cobweb",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/195_cobweb/",
+    "description": "蜘蛛の巣を張った。風が当たると揺れる。クリックすると振動が走る。",
+    "thumb": "img/thumb_195.png"
+  },
+  {
+    "num": "196",
+    "title": "Antenna",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/196_antenna/",
+    "description": "18本のアンテナを立てた。それぞれが別の周波数で信号を受けている。マウスで周波数が変わる。",
+    "thumb": "img/thumb_196.png"
+  },
+  {
+    "num": "197",
+    "title": "Canopy",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/197_canopy/",
+    "description": "森の中で上を向いた。重なった楕円が樹冠に見えてきた。風でゆっくり揺れている。",
+    "thumb": "img/thumb_197.png"
+  },
+  {
+    "num": "198",
+    "title": "Strata",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/198_strata/",
+    "description": "地層の断面を横線だけで描いた。それぞれの層が違う周期でゆっくり変形している。マウスで傾ける。",
+    "thumb": "img/thumb_198.png"
+  },
+  {
+    "num": "199",
+    "title": "Swarm",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/199_swarm/",
+    "description": "300個の粒子が2種の極性を持って集まったり散ったりしている。クリックで引力が反発に変わった。",
+    "thumb": "img/thumb_199.png"
+  },
+  {
+    "num": "200",
+    "title": "Hinge",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/200_hinge/",
+    "description": "12個の蝶番が連なっている。それぞれ自分のリズムで曲がり、端に向かうほど大きく揺れる。",
+    "thumb": "img/thumb_200.png"
+  },
+  {
+    "num": "201",
+    "title": "Tidal",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/201_tidal/",
+    "description": "今の時刻が月の位置を決め、月が海面を引っ張っている。深夜と正午では波の形が違う。",
+    "thumb": "img/thumb_201.png"
+  },
+  {
+    "num": "202",
+    "title": "Spore",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/202_spore/",
+    "description": "キノコから胞子が舞い上がった。重力がないので落ちない。ただ漂い続けて、やがて消える。",
+    "thumb": "img/thumb_202.png"
+  },
+  {
+    "num": "203",
+    "title": "Cage",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/203_cage/",
+    "description": "4つの大きさの違う正二十面体が入れ子になって回っている。それぞれ速度が違う。中心に何かがいる。",
+    "thumb": "img/thumb_203.png"
+  },
+  {
+    "num": "204",
+    "title": "Discharge",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/204_discharge/",
+    "description": "放電の樹状分岐をコードで書いた。幹から枝が分かれ、さらに細い枝が分かれる。クリックするたびに違う形で走る。",
+    "thumb": "img/thumb_204.png"
+  },
+  {
+    "num": "205",
+    "title": "Caustic",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/205_caustic/",
+    "description": "水面の波が光を集めたり散らしたりする様子を描いた。プールの底で揺れる縞。マウスで水面を乱すと変わる。",
+    "thumb": "img/thumb_205.png"
+  },
+  {
+    "num": "206",
+    "title": "Seep",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/206_seep/",
+    "description": "クリックするたびにインクが落ちて、紙に染みていく。縁がギザギザになるのは、紙の繊維の向きのせいだった。",
+    "thumb": "img/thumb_206.png"
+  },
+  {
+    "num": "207",
+    "title": "Comet",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/207_comet/",
+    "description": "5つの彗星がそれぞれの楕円軌道を周回している。尾は過去の軌跡。クリックで軌道が変わる。",
+    "thumb": "img/thumb_207.png"
+  },
+  {
+    "num": "208",
+    "title": "Freckle",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/208_freckle/",
+    "description": "点だけで作った。線は一本もない。マウスを動かすと点が集まったり散ったりする。クリックで配置が変わる。",
+    "thumb": "img/thumb_208.png"
+  },
+  {
+    "num": "209",
+    "title": "Tide Mark",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/209_tide_mark/",
+    "description": "潮が引いた後に海岸の岩に残る水位の跡を描いた。古い線ほど薄くなる。クリックで地形が変わる。",
+    "thumb": "img/thumb_209.png"
+  },
+  {
+    "num": "210",
+    "title": "Dew",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/210_dew/",
+    "description": "朝露が並んでいた。マウスを近づけると揺れる。円だけで作った——縁の輪と小さなハイライトが水らしさを出している。",
+    "thumb": "img/thumb_210.png"
+  },
+  {
+    "num": "211",
+    "title": "Blot",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/211_blot/",
+    "description": "インクを紙に落として二つ折りにすると、左右対称の染みができる。マウスで引き伸ばせる。クリックで新しい染みが広がり始める。",
+    "thumb": "img/thumb_211.png"
+  },
+  {
+    "num": "212",
+    "title": "Struck",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/212_struck/",
+    "description": "クリックした点と前の点の間に火花が走る。直線の折れ曲がりだけで作った——曲線は一本もない。点滅しながら消える。",
+    "thumb": "img/thumb_212.png"
+  },
+  {
+    "num": "213",
+    "title": "Afterimage",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/213_afterimage/",
+    "description": "スペースキーを押している間まぶたが閉じる。離すと残像が浮かんで消えていく。色はなく、明暗だけ。",
+    "thumb": "img/thumb_213.png"
+  },
+  {
+    "num": "214",
+    "title": "Candle",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/214_candle/",
+    "description": "蝋燭に火を灯したら、炎が揺れ始めた。マウスで風向きが変わる。溶けた蝋が垂れることもある。",
+    "thumb": "img/thumb_214.png"
+  },
+  {
+    "num": "215",
+    "title": "Cipher",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/215_cipher/",
+    "description": "ノイズの中に文字が埋まっていた。少しずつ浮かび上がってきた。クリックで解読を急げる。",
+    "thumb": "img/thumb_215.png"
+  },
+  {
+    "num": "216",
+    "title": "Swarm",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/216_swarm/",
+    "description": "アリが2つの巣の間を行き来している。通った道にフェロモンが残り、やがて最短経路が浮かび上がった。マウスで巣の一方が動く。",
+    "thumb": "img/thumb_216.png"
+  },
+  {
+    "num": "217",
+    "title": "Spore",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/217_spore/",
+    "description": "胞子源から胞子が漂い始めた。マウスで風向きを変えると、漂い方が変わった。クリックで胞子源が増える。",
+    "thumb": "img/thumb_217.png"
+  },
+  {
+    "num": "218",
+    "title": "Tide Mark",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/218_tide_mark/",
+    "description": "今の時刻が潮の高さを決めている。水位線の軌跡が薄く残る。ドラッグすると時間を行き来できた。",
+    "thumb": "img/thumb_218.png"
+  },
+  {
+    "num": "219",
+    "title": "Cobweb",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/219_cobweb/",
+    "description": "放射状の糸を省いた蜘蛛の巣を作った。同心の輪だけが残った。クリックすると衝撃が伝わって揺れる。",
+    "thumb": "img/thumb_219.png"
+  },
+  {
+    "num": "220",
+    "title": "Metronome",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/220_metronome/",
+    "description": "9本の振り子がわずかに違う速さで揺れている。ばらけたり、また揃ったりする。棒の軌跡だけを描いた。マウスで速度が変わる。",
+    "thumb": "img/thumb_220.png"
+  },
+  {
+    "num": "221",
+    "title": "Hive",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/221_hive/",
+    "description": "六角格子が波に揺れている。マウスを動かすと波の中心が動く。蜂の巣の構造だけが、静かにうねっている。",
+    "thumb": "img/thumb_221.png"
+  },
+  {
+    "num": "222",
+    "title": "Caustic",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/222_caustic/",
+    "description": "複数の波を重ねたら、集まるところだけ明るくなった。水底の光みたいだった。マウスで波源の一つが動く。",
+    "thumb": "img/thumb_222.png"
+  },
+  {
+    "num": "223",
+    "title": "Strata",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/223_strata/",
+    "description": "存在しない地層の断面を描いた。14層の縞がゆっくり横に流れている。マウスを上下に動かすと地層が圧縮・伸張する。",
+    "thumb": "img/thumb_223.png"
   }
 ]

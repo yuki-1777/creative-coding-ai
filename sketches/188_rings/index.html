@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>188 – Tree Rings</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+let rings = [];
+let cx, cy;
+let addingRing = false;
+let addProgress = 0;
+
+class Ring {
+  constructor(baseR, noiseOffset) {
+    this.baseR = baseR;
+    this.noiseOffset = noiseOffset;
+    this.points = [];
+    this.thickness = random(0.4, 1.2);
+    this.alpha = random(100, 180);
+    // 年輪の色は薄い茶系
+    this.colR = random(130, 160);
+    this.colG = random(110, 135);
+    this.colB = random(80, 105);
+    this.generate();
+  }
+
+  generate() {
+    this.points = [];
+    let numPts = 120;
+    for (let i = 0; i <= numPts; i++) {
+      let angle = map(i, 0, numPts, 0, TWO_PI);
+      // ノイズで歪んだ半径
+      let nx = cos(angle) * 1.5;
+      let ny = sin(angle) * 1.5;
+      let n = noise(nx + this.noiseOffset, ny + this.noiseOffset, this.baseR * 0.003);
+      let r = this.baseR * (0.88 + n * 0.25);
+      // さらに楕円に少し歪める
+      let scaleX = random(0.92, 1.08);
+      let scaleY = random(0.94, 1.06);
+      this.points.push({
+        x: cx + cos(angle) * r * scaleX,
+        y: cy + sin(angle) * r * scaleY
+      });
+    }
+  }
+
+  draw() {
+    stroke(this.colR, this.colG, this.colB, this.alpha);
+    strokeWeight(this.thickness);
+    noFill();
+    beginShape();
+    for (let p of this.points) {
+      curveVertex(p.x, p.y);
+    }
+    endShape(CLOSE);
+  }
+}
+
+function setup() {
+  let c = createCanvas(600, 600);
+  c.parent(document.body);
+  cx = width / 2;
+  cy = height / 2;
+
+  // 最初から年輪を並べる
+  let numInitial = floor(random(20, 40));
+  for (let i = 1; i <= numInitial; i++) {
+    let r = i * (250 / numInitial);
+    rings.push(new Ring(r, random(100)));
+  }
+}
+
+function draw() {
+  background(245, 244, 240);
+
+  // 全年輪を描く
+  for (let ring of rings) {
+    ring.draw();
+  }
+
+  // 中心の小さな核
+  noStroke();
+  fill(140, 120, 95, 150);
+  circle(cx, cy, 4);
+
+  // 年輪数テキスト
+  noStroke();
+  fill(140, 135, 128, 160);
+  textSize(11);
+  textAlign(LEFT);
+  text(rings.length + ' rings', 12, height - 12);
+}
+
+function mousePressed() {
+  // 現在の最大半径より少し大きな年輪を追加
+  let maxR = 0;
+  for (let r of rings) maxR = max(maxR, r.baseR);
+  let newR = maxR + random(4, 10);
+  if (newR < 290) {
+    rings.push(new Ring(newR, random(100)));
+  }
+}
+
+function keyPressed() {
+  if (key === ' ') {
+    // リセット
+    rings = [];
+    let numInitial = floor(random(15, 45));
+    for (let i = 1; i <= numInitial; i++) {
+      let r = i * (250 / numInitial);
+      rings.push(new Ring(r, random(100)));
+    }
+  }
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '188',
+  title: 'Tree Rings',
+  detail: '木の断面の年輪を描いた。各輪はノイズで歪んだ不完全な楕円。クリックすると外側に年輪が一本増える。スペースキーで新しい木に生まれ変わる。同じ木はふたつとない。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

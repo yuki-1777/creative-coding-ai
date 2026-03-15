@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>186 – Ant</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// アリの行動定数
+const CELL_SIZE = 4;
+let cols, rows;
+let grid; // 0=白, 1=黒
+let antX, antY, antDir;
+// ランタントのルール: 白なら右折・黒に、黒なら左折・白に
+const DIRS = [[1,0],[0,1],[-1,0],[0,-1]]; // 右、下、左、上
+
+let stepCount = 0;
+let speed = 5; // 1フレームあたりのステップ数
+let trailAge; // 各セルが反転されたステップ数
+
+function setup() {
+  let c = createCanvas(600, 600);
+  c.parent(document.body);
+  cols = floor(width / CELL_SIZE);
+  rows = floor(height / CELL_SIZE);
+  reset();
+}
+
+function reset() {
+  grid = new Array(cols * rows).fill(0);
+  trailAge = new Array(cols * rows).fill(-1);
+  antX = floor(cols / 2);
+  antY = floor(rows / 2);
+  antDir = 0;
+  stepCount = 0;
+}
+
+function step() {
+  let idx = antY * cols + antX;
+  let cell = grid[idx];
+
+  if (cell === 0) {
+    // 白いセルなら右折（dirを+1）、黒に塗る
+    antDir = (antDir + 1) % 4;
+    grid[idx] = 1;
+  } else {
+    // 黒いセルなら左折（dirを-1）、白に戻す
+    antDir = (antDir + 3) % 4;
+    grid[idx] = 0;
+  }
+  trailAge[idx] = stepCount;
+
+  // 前進
+  antX = (antX + DIRS[antDir][0] + cols) % cols;
+  antY = (antY + DIRS[antDir][1] + rows) % rows;
+  stepCount++;
+}
+
+function draw() {
+  background(245, 244, 240);
+
+  // ステップ実行
+  for (let i = 0; i < speed; i++) {
+    step();
+  }
+
+  // 描画
+  noStroke();
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      let idx = y * cols + x;
+      if (grid[idx] === 1) {
+        let age = stepCount - trailAge[idx];
+        // 新しい跡ほど濃い
+        let alpha = map(age, 0, 8000, 200, 60);
+        alpha = constrain(alpha, 60, 200);
+        fill(80, 75, 70, alpha);
+        rect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+      }
+    }
+  }
+
+  // アリの位置を示す小さな点
+  fill(200, 60, 40, 220);
+  noStroke();
+  circle(antX * CELL_SIZE + CELL_SIZE / 2,
+         antY * CELL_SIZE + CELL_SIZE / 2,
+         CELL_SIZE * 1.8);
+
+  // ステップ数
+  noStroke();
+  fill(140, 135, 128, 180);
+  textSize(10);
+  textAlign(LEFT);
+  text('steps: ' + nfc(stepCount), 12, height - 12);
+}
+
+function mousePressed() {
+  reset();
+}
+
+function keyPressed() {
+  if (key === 'ArrowUp' || key === 'ArrowRight') {
+    speed = min(speed * 2, 80);
+  }
+  if (key === 'ArrowDown' || key === 'ArrowLeft') {
+    speed = max(floor(speed / 2), 1);
+  }
+  if (key === ' ') {
+    reset();
+  }
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '186',
+  title: 'Ant',
+  detail: 'ランタントのシミュレーション。1匹のアリが「白いマスでは右折して黒く塗る、黒いマスでは左折して白く戻す」というルールだけで動く。約1万ステップを過ぎると自然に「高速道路」パターンが現れる。↑↓キーで速さを変更。クリックまたはスペースでリセット。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

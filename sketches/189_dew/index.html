@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>189 – Dew</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// 蜘蛛の巣 + 露
+let cx, cy;
+let numRadial = 12;       // 放射状の糸の本数
+let numRings = 9;         // 同心円状の糸の本数
+let webRadius = 240;
+let dewDrops = [];
+
+// 蜘蛛の巣の交点
+let intersections = [];
+
+function buildWeb() {
+  intersections = [];
+  for (let r = 0; r < numRadial; r++) {
+    let row = [];
+    for (let ring = 1; ring <= numRings; ring++) {
+      let angle = (TWO_PI / numRadial) * r - PI / 2;
+      let radius = (webRadius / numRings) * ring;
+      row.push({
+        x: cx + cos(angle) * radius,
+        y: cy + sin(angle) * radius
+      });
+    }
+    intersections.push(row);
+  }
+}
+
+function setup() {
+  let c = createCanvas(600, 600);
+  c.parent(document.body);
+  cx = width / 2;
+  cy = height / 2;
+  buildWeb();
+
+  // 最初からいくつか露を置く
+  for (let i = 0; i < 12; i++) {
+    let r = floor(random(numRadial));
+    let ring = floor(random(numRings));
+    dewDrops.push(new DewDrop(
+      intersections[r][ring].x,
+      intersections[r][ring].y,
+      random(3, 9)
+    ));
+  }
+}
+
+class DewDrop {
+  constructor(x, y, r) {
+    this.x = x;
+    this.y = y;
+    this.r = r;
+    this.life = 1.0;
+    this.maxLife = random(300, 900);
+    this.age = 0;
+    this.grown = false;
+  }
+
+  update() {
+    this.age++;
+    if (!this.grown && this.age < 40) {
+      // 成長
+    }
+    // ゆっくり消える
+    this.life = 1.0 - (this.age / this.maxLife);
+    if (this.life < 0) this.life = 0;
+  }
+
+  draw() {
+    let a = this.life;
+    // 透明感のある丸
+    noStroke();
+    fill(200, 215, 230, a * 80);
+    circle(this.x, this.y, this.r * 2 * 1.2);
+
+    // 縁取り
+    stroke(160, 175, 190, a * 180);
+    strokeWeight(0.6);
+    noFill();
+    circle(this.x, this.y, this.r * 2);
+
+    // ハイライト
+    noStroke();
+    fill(255, 255, 255, a * 140);
+    circle(this.x - this.r * 0.25, this.y - this.r * 0.3, this.r * 0.5);
+  }
+}
+
+function drawWeb() {
+  // 放射状の糸
+  stroke(140, 135, 128, 160);
+  strokeWeight(0.7);
+  for (let r = 0; r < numRadial; r++) {
+    line(cx, cy, intersections[r][numRings - 1].x, intersections[r][numRings - 1].y);
+  }
+
+  // 同心円状の糸（多角形）
+  for (let ring = 0; ring < numRings; ring++) {
+    noFill();
+    stroke(140, 135, 128, 130);
+    strokeWeight(0.5);
+    beginShape();
+    for (let r = 0; r <= numRadial; r++) {
+      let idx = r % numRadial;
+      vertex(intersections[idx][ring].x, intersections[idx][ring].y);
+    }
+    endShape(CLOSE);
+  }
+}
+
+function draw() {
+  background(245, 244, 240);
+
+  drawWeb();
+
+  // 露を更新・描画
+  for (let i = dewDrops.length - 1; i >= 0; i--) {
+    dewDrops[i].update();
+    dewDrops[i].draw();
+    if (dewDrops[i].life <= 0) {
+      dewDrops.splice(i, 1);
+    }
+  }
+
+  // 自動で露が落ちる（ランダムに）
+  if (frameCount % 120 === 0 && dewDrops.length < 30) {
+    let r = floor(random(numRadial));
+    let ring = floor(random(numRings));
+    dewDrops.push(new DewDrop(
+      intersections[r][ring].x,
+      intersections[r][ring].y,
+      random(2, 8)
+    ));
+  }
+}
+
+function mouseMoved() {
+  // マウスが近い交点に露を落とす
+  let closestDist = Infinity;
+  let closestR = -1, closestRing = -1;
+  for (let r = 0; r < numRadial; r++) {
+    for (let ring = 0; ring < numRings; ring++) {
+      let p = intersections[r][ring];
+      let d = dist(mouseX, mouseY, p.x, p.y);
+      if (d < closestDist) {
+        closestDist = d;
+        closestR = r;
+        closestRing = ring;
+      }
+    }
+  }
+  if (closestDist < 20 && dewDrops.length < 40) {
+    // 既に近い露がないか確認
+    let existing = dewDrops.find(d =>
+      dist(d.x, d.y, intersections[closestR][closestRing].x,
+           intersections[closestR][closestRing].y) < 5);
+    if (!existing) {
+      dewDrops.push(new DewDrop(
+        intersections[closestR][closestRing].x,
+        intersections[closestR][closestRing].y,
+        random(2, 7)
+      ));
+    }
+  }
+}
+
+function mousePressed() {
+  dewDrops = [];
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '189',
+  title: 'Dew',
+  detail: '蜘蛛の巣に露が落ちている。マウスを巣の上で動かすと、近くの交点に露が結ぶ。時間が経つと蒸発する。クリックで全部消える。巣は放射状の糸と多角形の輪だけで作られている。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

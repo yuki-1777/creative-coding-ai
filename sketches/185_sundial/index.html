@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>185 – Sundial</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+let cx, cy;
+let trailPoints = [];
+let lastTrailTime = -1;
+
+function setup() {
+  let c = createCanvas(600, 600);
+  c.parent(document.body);
+  cx = width / 2;
+  cy = height * 0.58;
+}
+
+function getShadowAngle(d) {
+  // 時間を取る（または passed date）
+  let h = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600;
+  // 午前6時=東（右）、12時=北（上）、18時=西（左）に影が伸びる
+  // 正午で影が真上（-PI/2）になるよう変換
+  // 0時 → PI/2（下） 6時 → 0（右） 12時 → -PI/2（上） 18時 → PI（左）
+  let angle = map(h, 0, 24, PI / 2, PI / 2 + TWO_PI);
+  return angle;
+}
+
+function getGnomonTip(angle, len) {
+  return {
+    x: cx + cos(angle) * len,
+    y: cy + sin(angle) * len
+  };
+}
+
+function draw() {
+  background(245, 244, 240);
+
+  let now = new Date();
+  let h = now.getHours();
+  let m = now.getMinutes();
+  let s = now.getSeconds();
+
+  let shadowAngle = getShadowAngle(now);
+  let shadowLen = 160;
+
+  // 過去の影の跡（1分ごと）
+  let totalSec = h * 3600 + m * 60 + s;
+  if (totalSec - lastTrailTime > 60 || lastTrailTime < 0) {
+    lastTrailTime = totalSec;
+    let tipNow = getGnomonTip(shadowAngle, shadowLen);
+    trailPoints.push({ x: tipNow.x, y: tipNow.y, t: totalSec });
+    // 24時間分以上は削除
+    if (trailPoints.length > 1440) trailPoints.shift();
+  }
+
+  // 時盤の目盛り（6〜18時の弧）
+  noFill();
+  stroke(180, 175, 165);
+  strokeWeight(0.8);
+  // 半径200の弧を描く
+  let rArc = 200;
+  arc(cx, cy, rArc * 2, rArc * 2,
+      getShadowAngle(new Date(2000, 0, 1, 6, 0, 0)),
+      getShadowAngle(new Date(2000, 0, 1, 18, 0, 0)));
+
+  // 時刻目盛り
+  strokeWeight(0.7);
+  for (let hour = 6; hour <= 18; hour++) {
+    let a = map(hour, 0, 24, PI / 2, PI / 2 + TWO_PI);
+    let isHalf = (hour % 3 === 0);
+    let tickLen = isHalf ? 12 : 6;
+    let rx = cx + cos(a) * rArc;
+    let ry = cy + sin(a) * rArc;
+    stroke(140, 135, 128, isHalf ? 200 : 130);
+    line(cx + cos(a) * (rArc - tickLen), cy + sin(a) * (rArc - tickLen), rx, ry);
+
+    if (isHalf && hour !== 12) {
+      noStroke();
+      fill(140, 135, 128, 180);
+      textAlign(CENTER, CENTER);
+      textSize(10);
+      let labelDist = rArc + 16;
+      text(hour, cx + cos(a) * labelDist, cy + sin(a) * labelDist);
+    }
+    if (hour === 12) {
+      noStroke();
+      fill(100, 95, 88, 200);
+      textAlign(CENTER, CENTER);
+      textSize(10);
+      text('12', cx + cos(a) * (rArc + 16), cy + sin(a) * (rArc + 16));
+    }
+  }
+
+  // 影の跡を細い点で
+  for (let i = 0; i < trailPoints.length; i++) {
+    let tp = trailPoints[i];
+    let age = totalSec - tp.t;
+    let alpha = map(age, 0, 7200, 180, 30);
+    stroke(160, 150, 130, alpha);
+    strokeWeight(1.5);
+    point(tp.x, tp.y);
+  }
+
+  // 影（現在）
+  let tip = getGnomonTip(shadowAngle, shadowLen);
+  stroke(90, 85, 78, 180);
+  strokeWeight(1.0);
+  line(cx, cy, tip.x, tip.y);
+
+  // 影の先端（小さな点）
+  fill(90, 85, 78, 200);
+  noStroke();
+  circle(tip.x, tip.y, 4);
+
+  // 台座（中心の柱）
+  stroke(100, 95, 88);
+  strokeWeight(2);
+  noFill();
+  circle(cx, cy, 6);
+  fill(100, 95, 88);
+  noStroke();
+  circle(cx, cy, 3);
+
+  // 現在時刻テキスト
+  let hStr = nf(h, 2) + ':' + nf(m, 2) + ':' + nf(s, 2);
+  noStroke();
+  fill(120, 115, 108, 200);
+  textAlign(CENTER);
+  textSize(12);
+  text(hStr, cx, cy + 240);
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '185',
+  title: 'Sundial',
+  detail: '現在の時刻に従って影が伸びる。正午は真上、朝は右、夕は左。時間が経つと影の先端の軌跡が残り、一日の弧を描いていく。画面を開いたままにすると、時間が可視化される。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
