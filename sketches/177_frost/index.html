@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>177 — Frost</title>
+  <meta name="description" content="クリックした場所から霜が広がる。枝を伸ばし、また枝を伸ばし。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="177 — Frost | Creative Coding">
+  <meta property="og:description" content="クリックした場所から霜が広がる。枝を伸ばし、また枝を伸ばし。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/177_frost/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_177.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="177 — Frost | Creative Coding">
+  <meta name="twitter:description" content="クリックした場所から霜が広がる。枝を伸ばし、また枝を伸ばし。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_177.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F0EEE9; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Frost: branching crystal growth.
+// Each crystal arm grows in one direction. Occasionally it splits.
+// Constraint: only 8 cardinal/diagonal directions. No curves. No fill.
+// Click to seed a new crystal.
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+const CELL = 3;  // pixels per grid cell
+let COLS, ROWS;
+
+// grid: null = empty, or {t: birthFrame, fromDir: [dx,dy]}
+let grid;
+
+// Active arms: {x, y, dx, dy, age, len}
+// Each arm advances one cell per tick with probability ADVANCE_PROB.
+let arms = [];
+
+// 8 directions
+const DIRS8 = [
+  [1,0],[-1,0],[0,1],[0,-1],
+  [1,1],[-1,1],[1,-1],[-1,-1]
+];
+
+function idx(x, y) { return y * COLS + x; }
+
+function inBounds(x, y) { return x >= 0 && x < COLS && y >= 0 && y < ROWS; }
+
+function seedAt(x, y) {
+  if (!inBounds(x, y)) return;
+  if (grid[idx(x, y)]) return;
+  grid[idx(x, y)] = { t: frame, fromDir: [0, 0] };
+  // Spawn arms in all 8 directions
+  for (const [dx, dy] of DIRS8) {
+    arms.push({ x: x + dx, y: y + dy, dx, dy, age: 0, len: 0 });
+  }
+}
+
+let frame = 0;
+
+// How many arm steps per frame
+const STEPS_PER_FRAME = 8;
+
+// Probability an arm advances this tick
+const ADVANCE_PROB = 0.7;
+
+// Probability a frozen cell spawns a side branch (per step)
+const BRANCH_PROB = 0.04;
+
+// Max arm length before it dies
+const MAX_LEN = 180;
+
+function growStep() {
+  const born = [];
+
+  for (let g = 0; g < STEPS_PER_FRAME; g++) {
+    if (arms.length === 0) break;
+
+    // Pick random arm
+    const i = Math.floor(Math.random() * arms.length);
+    const arm = arms[i];
+
+    arm.age++;
+
+    if (!inBounds(arm.x, arm.y) || grid[idx(arm.x, arm.y)] || arm.len > MAX_LEN) {
+      // Kill arm
+      arms[i] = arms[arms.length - 1];
+      arms.pop();
+      continue;
+    }
+
+    if (Math.random() > ADVANCE_PROB) continue; // stall this tick
+
+    // Freeze this cell
+    grid[idx(arm.x, arm.y)] = { t: frame, fromDir: [arm.dx, arm.dy] };
+
+    // Advance arm in same direction
+    arm.x += arm.dx;
+    arm.y += arm.dy;
+    arm.len++;
+
+    // Occasionally sprout a side branch (perpendicular-ish)
+    if (Math.random() < BRANCH_PROB) {
+      // Pick a direction perpendicular to current
+      // For [dx,dy], perpendiculars are [-dy,dx] and [dy,-dx]
+      const perps = [[-arm.dy, arm.dx], [arm.dy, -arm.dx]];
+      // Also allow diagonal fan
+      const all = DIRS8.filter(([ndx, ndy]) => {
+        const dot = ndx * arm.dx + ndy * arm.dy;
+        return dot === 0; // strictly perpendicular
+      });
+      if (all.length > 0) {
+        const [bdx, bdy] = all[Math.floor(Math.random() * all.length)];
+        const bx = arm.x - arm.dx + bdx; // branch from last frozen cell
+        const by = arm.y - arm.dy + bdy;
+        if (inBounds(bx, by) && !grid[idx(bx, by)]) {
+          born.push({ x: bx, y: by, dx: bdx, dy: bdy, age: 0, len: 0 });
+        }
+      }
+    }
+
+    // Tiny chance to fork forward (fan out)
+    if (Math.random() < 0.015) {
+      // pick a forward-adjacent direction
+      const fwd = DIRS8.filter(([ndx, ndy]) => {
+        const dot = ndx * arm.dx + ndy * arm.dy;
+        return dot >= 1 && !(ndx === arm.dx && ndy === arm.dy);
+      });
+      if (fwd.length > 0) {
+        const [fdx, fdy] = fwd[Math.floor(Math.random() * fwd.length)];
+        const fx = arm.x - arm.dx + fdx;
+        const fy = arm.y - arm.dy + fdy;
+        if (inBounds(fx, fy) && !grid[idx(fx, fy)]) {
+          born.push({ x: fx, y: fy, dx: fdx, dy: fdy, age: 0, len: 0 });
+        }
+      }
+    }
+  }
+
+  for (const b of born) arms.push(b);
+}
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  COLS = Math.ceil(W / CELL);
+  ROWS = Math.ceil(H / CELL);
+  grid = new Array(COLS * ROWS).fill(null);
+  arms = [];
+  frame = 0;
+  seedAt(Math.floor(COLS / 2), Math.floor(ROWS / 2));
+}
+
+window.addEventListener('resize', resize);
+resize();
+
+function draw() {
+  requestAnimationFrame(draw);
+  frame++;
+
+  for (let s = 0; s < 3; s++) growStep();
+
+  ctx.fillStyle = '#F0EEE9';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw frozen cells
+  for (let cy = 0; cy < ROWS; cy++) {
+    for (let cx = 0; cx < COLS; cx++) {
+      const cell = grid[idx(cx, cy)];
+      if (!cell) continue;
+
+      const cellAge = frame - cell.t;
+      // t: 0=new (icy blue-white) → 1=old (steel grey)
+      const t = Math.min(1, cellAge / 200);
+
+      // new: rgba(210,220,230, 0.55) → old: rgba(148,155,162, 0.85)
+      const r = Math.round(210 - t * 62);
+      const g = Math.round(220 - t * 65);
+      const b = Math.round(230 - t * 68);
+      const a  = (0.55 + t * 0.30).toFixed(2);
+
+      ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
+      ctx.fillRect(cx * CELL, cy * CELL, CELL - 0.5, CELL - 0.5);
+    }
+  }
+
+  // Hint
+  if (frame < 200) {
+    const alpha = Math.max(0, 1 - frame / 180) * 0.6;
+    ctx.fillStyle = `rgba(120,115,110,${alpha.toFixed(2)})`;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('click — new crystal', W - 18, H - 18);
+  }
+}
+
+canvas.addEventListener('click', (e) => {
+  const cx = Math.floor(e.clientX / CELL);
+  const cy = Math.floor(e.clientY / CELL);
+  seedAt(cx, cy);
+});
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  seedAt(Math.floor(t.clientX / CELL), Math.floor(t.clientY / CELL));
+}, { passive: false });
+
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '177',
+  title: 'Frost',
+  detail: 'クリックした場所から霜の結晶が広がる。腕が8方向に伸び、ときどき横に枝分かれする。まっすぐ伸びることが多く、横への分岐はまれ。古い霜は時間とともに色が沈んでいく。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
