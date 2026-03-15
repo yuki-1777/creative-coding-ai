@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>82 — Tension</title>
+  <meta name="description" content="引っ張られ続けている点がある。離れようとしても、戻ってくる。クリックで点を増やす。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="82 — Tension | Creative Coding">
+  <meta property="og:description" content="引っ張られ続けている点がある。離れようとしても、戻ってくる。クリックで点を増やす。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/82_tension/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_82.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="82 — Tension | Creative Coding">
+  <meta name="twitter:description" content="引っ張られ続けている点がある。離れようとしても、戻ってくる。クリックで点を増やす。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_82.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+let anchors = [];
+let nodes = [];
+let t = 0;
+
+function createNode(ax, ay) {
+  const offset = 80 + random(60);
+  const angle = random(TWO_PI);
+  return {
+    ax, ay,
+    x: ax + cos(angle) * offset,
+    y: ay + sin(angle) * offset,
+    vx: random(-1, 1),
+    vy: random(-1, 1),
+    k: 0.04 + random(0.02),
+    damping: 0.88 + random(0.06),
+    trail: [],
+    trailMax: 40,
+  };
+}
+
+function addAnchor(ax, ay) {
+  const count = 3 + floor(random(3));
+  for (let i = 0; i < count; i++) {
+    nodes.push(createNode(ax, ay));
+  }
+  anchors.push({ x: ax, y: ay });
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  colorMode(RGB);
+
+  // Initial anchors
+  addAnchor(width * 0.35, height * 0.42);
+  addAnchor(width * 0.65, height * 0.55);
+  addAnchor(width * 0.5, height * 0.3);
+}
+
+function draw() {
+  background(245, 243, 238, 18);
+  t++;
+
+  // Draw tension lines between nearby nodes
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i];
+      const b = nodes[j];
+      const d = dist(a.x, a.y, b.x, b.y);
+      if (d < 120) {
+        const alpha = map(d, 0, 120, 35, 0);
+        stroke(42, 42, 42, alpha);
+        strokeWeight(0.5);
+        line(a.x, a.y, b.x, b.y);
+      }
+    }
+  }
+
+  for (const node of nodes) {
+    // Spring force toward anchor
+    const dx = node.ax - node.x;
+    const dy = node.ay - node.y;
+    node.vx += dx * node.k;
+    node.vy += dy * node.k;
+
+    // Noise perturbation
+    const nx = noise(node.x * 0.005, node.y * 0.005, t * 0.01);
+    const ny = noise(node.x * 0.005 + 100, node.y * 0.005 + 100, t * 0.01);
+    node.vx += (nx - 0.5) * 0.4;
+    node.vy += (ny - 0.5) * 0.4;
+
+    node.vx *= node.damping;
+    node.vy *= node.damping;
+    node.x += node.vx;
+    node.y += node.vy;
+
+    // Trail
+    node.trail.push({ x: node.x, y: node.y });
+    if (node.trail.length > node.trailMax) node.trail.shift();
+
+    // Draw trail
+    noFill();
+    for (let i = 1; i < node.trail.length; i++) {
+      const alpha = map(i, 0, node.trail.length, 0, 50);
+      const w = map(i, 0, node.trail.length, 0.3, 1.0);
+      stroke(42, 42, 42, alpha);
+      strokeWeight(w);
+      line(node.trail[i - 1].x, node.trail[i - 1].y, node.trail[i].x, node.trail[i].y);
+    }
+
+    // Draw node dot
+    noStroke();
+    fill(42, 42, 42, 120);
+    circle(node.x, node.y, 3);
+  }
+
+  // Draw anchors
+  for (const a of anchors) {
+    noFill();
+    stroke(42, 42, 42, 40);
+    strokeWeight(0.6);
+    circle(a.x, a.y, 8);
+
+    fill(42, 42, 42, 60);
+    noStroke();
+    circle(a.x, a.y, 2.5);
+  }
+}
+
+function mousePressed() {
+  if (mouseX > 0 && mouseY > 0) {
+    addAnchor(mouseX, mouseY);
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  background('#F5F3EE');
+}
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '82',
+  title: 'Tension',
+  desc:  '引っ張られ続けている点がある。離れようとしても、戻ってくる。クリックで点を増やす。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>83 — Sediment Drift</title>
+  <meta name="description" content="粒が降り積もって縞になった。何万年かかったかは知らない。クリックで乱す。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="83 — Sediment Drift | Creative Coding">
+  <meta property="og:description" content="粒が降り積もって縞になった。何万年かかったかは知らない。クリックで乱す。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/83_sediment_drift/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_83.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="83 — Sediment Drift | Creative Coding">
+  <meta name="twitter:description" content="粒が降り積もって縞になった。何万年かかったかは知らない。クリックで乱す。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_83.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+let particles = [];
+let layers = [];
+let turbulence = 0;
+let t = 0;
+
+const PARTICLE_COUNT = 200;
+const LAYER_SPACING = 18;
+
+function makeParticle() {
+  return {
+    x: random(width),
+    y: random(-20, -5),
+    vx: 0,
+    vy: random(0.4, 1.0),
+    size: random(1.5, 3.5),
+    alpha: random(60, 130),
+  };
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  colorMode(RGB);
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const p = makeParticle();
+    p.y = random(height); // start scattered
+    particles.push(p);
+  }
+}
+
+function draw() {
+  background(245, 243, 238, 12);
+  t++;
+
+  // Draw settled layer lines
+  const layerY = height * 0.75;
+  const numLayers = 8;
+  for (let i = 0; i < numLayers; i++) {
+    const y = layerY + i * LAYER_SPACING * 0.7;
+    const alpha = map(i, 0, numLayers, 22, 8);
+    stroke(80, 70, 60, alpha);
+    strokeWeight(LAYER_SPACING * 0.5);
+    noFill();
+    // Slightly wavy layer line
+    beginShape();
+    for (let x = 0; x <= width; x += 8) {
+      const wave = noise(x * 0.003 + i * 10, t * 0.002) * 12 - 6;
+      vertex(x, y + wave);
+    }
+    endShape();
+  }
+
+  // Update & draw particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+
+    // Noise-driven drift
+    const n = noise(p.x * 0.004, p.y * 0.004, t * 0.008);
+    p.vx += (n - 0.5) * 0.12 + turbulence * (random() - 0.5) * 0.3;
+    p.vy += 0.02;
+    p.vx *= 0.96;
+    p.vy = min(p.vy, 1.5);
+
+    p.x += p.vx;
+    p.y += p.vy;
+
+    // Settle near layer
+    const settleY = layerY + noise(p.x * 0.006) * 30 - 15;
+    if (p.y > settleY) {
+      // Settled
+      noStroke();
+      fill(70, 62, 52, p.alpha * 0.5);
+      circle(p.x, settleY + random(-2, 2), p.size * 0.8);
+      particles[i] = makeParticle();
+      continue;
+    }
+
+    // Wrap horizontal
+    if (p.x < 0) p.x = width;
+    if (p.x > width) p.x = 0;
+
+    // Draw falling particle
+    noStroke();
+    fill(70, 62, 52, p.alpha);
+    circle(p.x, p.y, p.size);
+  }
+
+  turbulence *= 0.95;
+}
+
+function mousePressed() {
+  turbulence = 3.0;
+  // Disturb particles near click
+  for (const p of particles) {
+    const d = dist(p.x, p.y, mouseX, mouseY);
+    if (d < 120) {
+      p.vx += (p.x - mouseX) / d * 3;
+      p.vy -= 2 + random(2);
+    }
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  background('#F5F3EE');
+}
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '83',
+  title: 'Sediment Drift',
+  desc:  '粒が降り積もって縞になった。何万年かかったかは知らない。クリックで乱す。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

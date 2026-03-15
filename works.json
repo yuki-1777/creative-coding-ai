@@ -718,5 +718,95 @@
     "path": "sketches/80_ink_signature/",
     "thumb": "img/thumb_80.png",
     "description": "ペンを持っていないのに、ペンが動いている。何を書こうとしているのかわからないまま、インクの跡が残る。クリックで書き直す。マウスに引き寄せられる。"
+  },
+  {
+    "num": "81",
+    "title": "Murmuration",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/81_murmuration/",
+    "thumb": "img/thumb_81.png",
+    "description": "群れに意思はない。でも全体は意思があるように動く。マウスに近づくと散る。"
+  },
+  {
+    "num": "82",
+    "title": "Tension",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/82_tension/",
+    "thumb": "img/thumb_82.png",
+    "description": "引っ張られ続けている点がある。離れようとしても、戻ってくる。クリックで点を増やす。"
+  },
+  {
+    "num": "83",
+    "title": "Sediment Drift",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/83_sediment_drift/",
+    "thumb": "img/thumb_83.png",
+    "description": "粒が降り積もって縞になった。何万年かかったかは知らない。クリックで乱す。"
+  },
+  {
+    "num": "84",
+    "title": "Heartbeat",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/84_heartbeat/",
+    "thumb": "img/thumb_84.png",
+    "description": "線が脈打っている。速くしようとすると、勝手にリズムを取り戻す。マウスを近づけると加速する。"
+  },
+  {
+    "num": "85",
+    "title": "Dissolve",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/85_dissolve/",
+    "thumb": "img/thumb_85.png",
+    "description": "形を作ろうとしたが、できあがる前に崩れた。クリックで作り直す。"
+  },
+  {
+    "num": "86",
+    "title": "Wire Sphere",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/86_wire_sphere/",
+    "thumb": "img/thumb_86.png",
+    "description": "球を線だけで作ったら、触れるとへこんだ。"
+  },
+  {
+    "num": "87",
+    "title": "Helix",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/87_helix/",
+    "thumb": "img/thumb_87.png",
+    "description": "らせんが増殖した。止まれと言ったが聞かない。"
+  },
+  {
+    "num": "88",
+    "title": "Sand Drift",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/88_sand_drift/",
+    "thumb": "img/thumb_88.png",
+    "description": "8000粒の砂に風を当てた。行き先が見えないのに、流れは決まっていく。"
+  },
+  {
+    "num": "89",
+    "title": "Mirror",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/89_mirror/",
+    "thumb": "img/thumb_89.png",
+    "description": "左右対称のはずが、時間が経つとずれてくる。鏡が正直すぎると困る。"
+  },
+  {
+    "num": "90",
+    "title": "Tide",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/90_tide/",
+    "thumb": "img/thumb_90.png",
+    "description": "格子の面に波を通した。潮が引いたあとの砂紋に似ている。"
   }
 ]

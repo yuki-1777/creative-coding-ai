@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>81 — Murmuration</title>
+  <meta name="description" content="群れに意思はない。でも全体は意思があるように動く。マウスに近づくと散る。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="81 — Murmuration | Creative Coding">
+  <meta property="og:description" content="群れに意思はない。でも全体は意思があるように動く。マウスに近づくと散る。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/81_murmuration/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_81.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="81 — Murmuration | Creative Coding">
+  <meta name="twitter:description" content="群れに意思はない。でも全体は意思があるように動く。マウスに近づくと散る。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_81.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+const N = 320;
+const PERCEPTION = 60;
+const MAX_SPEED = 2.8;
+const MAX_FORCE = 0.06;
+
+let boids = [];
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  colorMode(RGB);
+  for (let i = 0; i < N; i++) {
+    boids.push({
+      x: random(width),
+      y: random(height),
+      vx: random(-1, 1),
+      vy: random(-1, 1),
+    });
+  }
+}
+
+function limit(vx, vy, max) {
+  const mag = Math.sqrt(vx * vx + vy * vy);
+  if (mag > max) {
+    return [vx / mag * max, vy / mag * max];
+  }
+  return [vx, vy];
+}
+
+function steer(boid, tx, ty) {
+  let dx = tx - boid.x;
+  let dy = ty - boid.y;
+  const mag = Math.sqrt(dx * dx + dy * dy) || 1;
+  dx = dx / mag * MAX_SPEED;
+  dy = dy / mag * MAX_SPEED;
+  let fx = dx - boid.vx;
+  let fy = dy - boid.vy;
+  [fx, fy] = limit(fx, fy, MAX_FORCE);
+  return [fx, fy];
+}
+
+function draw() {
+  background(245, 243, 238, 30);
+
+  const mx = mouseX;
+  const my = mouseY;
+
+  for (let i = 0; i < N; i++) {
+    const b = boids[i];
+
+    let sepX = 0, sepY = 0, sepCount = 0;
+    let aliX = 0, aliY = 0;
+    let cohX = 0, cohY = 0, cohCount = 0;
+
+    for (let j = 0; j < N; j++) {
+      if (i === j) continue;
+      const nb = boids[j];
+      const dx = nb.x - b.x;
+      const dy = nb.y - b.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+
+      if (d < PERCEPTION) {
+        cohX += nb.x;
+        cohY += nb.y;
+        cohCount++;
+
+        aliX += nb.vx;
+        aliY += nb.vy;
+
+        if (d < 20) {
+          sepX -= dx / (d || 1);
+          sepY -= dy / (d || 1);
+          sepCount++;
+        }
+      }
+    }
+
+    let ax = 0, ay = 0;
+
+    // Cohesion
+    if (cohCount > 0) {
+      const [fx, fy] = steer(b, cohX / cohCount, cohY / cohCount);
+      ax += fx * 1.0;
+      ay += fy * 1.0;
+    }
+
+    // Alignment
+    if (cohCount > 0) {
+      let [lx, ly] = limit(aliX / cohCount, aliY / cohCount, MAX_SPEED);
+      let fx = lx - b.vx;
+      let fy = ly - b.vy;
+      [fx, fy] = limit(fx, fy, MAX_FORCE);
+      ax += fx * 1.2;
+      ay += fy * 1.2;
+    }
+
+    // Separation
+    if (sepCount > 0) {
+      let [fx, fy] = steer(b, b.x + sepX, b.y + sepY);
+      ax += fx * 1.5;
+      ay += fy * 1.5;
+    }
+
+    // Mouse avoidance
+    const mdx = b.x - mx;
+    const mdy = b.y - my;
+    const md = Math.sqrt(mdx * mdx + mdy * mdy);
+    if (md < 100) {
+      const strength = (100 - md) / 100;
+      ax += (mdx / md) * MAX_FORCE * 8 * strength;
+      ay += (mdy / md) * MAX_FORCE * 8 * strength;
+    }
+
+    b.vx += ax;
+    b.vy += ay;
+    [b.vx, b.vy] = limit(b.vx, b.vy, MAX_SPEED);
+
+    b.x += b.vx;
+    b.y += b.vy;
+
+    // Wrap edges
+    if (b.x < 0) b.x = width;
+    if (b.x > width) b.x = 0;
+    if (b.y < 0) b.y = height;
+    if (b.y > height) b.y = 0;
+
+    // Draw boid as a small oriented line
+    const ang = Math.atan2(b.vy, b.vx);
+    const len = 5;
+    stroke(42, 42, 42, 160);
+    strokeWeight(0.9);
+    line(
+      b.x - Math.cos(ang) * len,
+      b.y - Math.sin(ang) * len,
+      b.x + Math.cos(ang) * len * 0.4,
+      b.y + Math.sin(ang) * len * 0.4
+    );
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  background('#F5F3EE');
+}
+</script>
+<script>
+window.SKETCH_META = {
+  num:   '81',
+  title: 'Murmuration',
+  desc:  '群れに意思はない。でも全体は意思があるように動く。マウスに近づくと散る。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
