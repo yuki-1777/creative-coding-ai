@@ -5,7 +5,8 @@
  * window.SKETCH_META = {
  *   num:   '01',
  *   title: 'Flow Field',
- *   desc:  '説明文（200字程度）'
+ *   desc:  '説明文（200字程度）',
+ *   detail: '詳細解説（任意）。操作方法・何が起きているかを非専門家向けに'
  * };
  */
 (function () {
@@ -81,7 +82,8 @@
     }
     #sketch-overlay-back:hover { color: rgba(255,255,255,0.8); }
 
-    #sketch-capture-btn {
+    #sketch-capture-btn,
+    #sketch-detail-btn {
       font-family: inherit;
       font-weight: 300;
       font-size: 0.9rem;
@@ -95,10 +97,42 @@
       white-space: nowrap;
       transition: color 0.2s ease;
     }
-    #sketch-capture-btn:hover { color: rgba(255,255,255,0.8); }
+    #sketch-capture-btn:hover,
+    #sketch-detail-btn:hover { color: rgba(255,255,255,0.8); }
     #sketch-capture-btn.done { color: rgba(255,255,255,0.5); }
+    #sketch-detail-btn.active { color: rgba(255,255,255,0.8); }
+
+    #sketch-detail-panel {
+      position: fixed;
+      bottom: 80px;
+      right: 32px;
+      z-index: 9998;
+      width: min(400px, calc(100vw - 48px));
+      background: rgba(10,10,10,0.88);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 20px 24px;
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 300;
+      font-size: 1.15rem;
+      line-height: 1.7;
+      color: rgba(255,255,255,0.65);
+      letter-spacing: 0.02em;
+      pointer-events: auto;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      pointer-events: none;
+    }
+    #sketch-detail-panel.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
   `;
   document.head.appendChild(style);
+
+  const hasDetail = !!meta.detail;
 
   const overlay = document.createElement('div');
   overlay.id = 'sketch-overlay';
@@ -109,10 +143,33 @@
     </div>
     <div id="sketch-overlay-right">
       <a id="sketch-overlay-back" href="../../index.html">← gallery</a>
+      ${hasDetail ? '<button id="sketch-detail-btn">? about</button>' : ''}
       <button id="sketch-capture-btn">↓ save thumb</button>
     </div>
   `;
   document.body.appendChild(overlay);
+
+  // 詳細パネル
+  if (hasDetail) {
+    const panel = document.createElement('div');
+    panel.id = 'sketch-detail-panel';
+    panel.textContent = meta.detail;
+    document.body.appendChild(panel);
+
+    const detailBtn = document.getElementById('sketch-detail-btn');
+    detailBtn.addEventListener('click', () => {
+      const isOpen = panel.classList.toggle('visible');
+      detailBtn.classList.toggle('active', isOpen);
+    });
+
+    // パネル外クリックで閉じる
+    document.addEventListener('click', e => {
+      if (!panel.contains(e.target) && e.target !== detailBtn) {
+        panel.classList.remove('visible');
+        detailBtn.classList.remove('active');
+      }
+    });
+  }
 
   // サムネイルをダウンロード
   document.getElementById('sketch-capture-btn').addEventListener('click', () => {

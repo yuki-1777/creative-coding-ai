@@ -43,7 +43,8 @@
     "tech":        "p5.js",
     "date":        "YYYY-MM-DD",
     "path":        "sketches/01_flow_field/",
-    "description": "作品の説明（200字程度）"
+    "description": "作品の説明（200字程度）",
+    "detail":      "操作方法と何が起きているかの解説（任意）。非専門家向け。スケッチUIの「? about」ボタンから表示される"
   },
   {
     "num":         "02",
@@ -66,9 +67,10 @@
 ```html
 <script>
 window.SKETCH_META = {
-  num:   'NN',
-  title: '作品名',
-  desc:  '説明文（200字程度）'
+  num:    'NN',
+  title:  '作品名',
+  desc:   '説明文（200字程度）',
+  detail: '操作方法と何が起きているかの解説。非専門家向けに。省略可（省略するとボタン非表示）'
 };
 </script>
 <script src="../../js/sketch-ui.js"></script>
