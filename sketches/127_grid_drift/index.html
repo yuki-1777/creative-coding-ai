@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>127 — Grid Drift</title>
+  <meta name="description" content="整列した点が、じわじわとずれていく。クリックすると元の位置に戻ろうとする。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="127 — Grid Drift | Creative Coding">
+  <meta property="og:description" content="整列した点が、じわじわとずれていく。クリックすると元の位置に戻ろうとする。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/127_grid_drift/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_127.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="127 — Grid Drift | Creative Coding">
+  <meta name="twitter:description" content="整列した点が、じわじわとずれていく。クリックすると元の位置に戻ろうとする。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_127.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+const COLS = 28;
+const ROWS = 20;
+let SPACEX, SPACEY;
+let points = [];
+let resetMode = false;
+let resetTimer = 0;
+const RESET_DURATION = 80; // frames
+
+// Simple deterministic noise using sine
+function noise2d(x, y, t) {
+  return Math.sin(x * 1.3 + t * 0.7) * Math.cos(y * 1.1 - t * 0.5) * 0.5 +
+         Math.sin(x * 0.7 - y * 0.9 + t * 0.4) * 0.5;
+}
+
+function initPoints() {
+  SPACEX = W / (COLS + 1);
+  SPACEY = H / (ROWS + 1);
+  points = [];
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const ox = SPACEX * (col + 1);
+      const oy = SPACEY * (row + 1);
+      points.push({
+        ox, oy,    // origin
+        x: ox, y: oy,  // current
+        row, col
+      });
+    }
+  }
+}
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  initPoints();
+}
+window.addEventListener('resize', resize);
+resize();
+
+canvas.addEventListener('click', () => {
+  resetMode = true;
+  resetTimer = 0;
+});
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  resetMode = true;
+  resetTimer = 0;
+}, { passive: false });
+
+const DRIFT_AMP = 28; // max drift pixels
+const DRIFT_SPEED = 0.006;
+let frame = 0;
+
+function draw() {
+  requestAnimationFrame(draw);
+  frame++;
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  const t = frame * DRIFT_SPEED;
+
+  if (resetMode) {
+    resetTimer++;
+    if (resetTimer > RESET_DURATION) {
+      resetMode = false;
+    }
+  }
+
+  for (const p of points) {
+    let targetX, targetY;
+
+    if (resetMode) {
+      // Ease back to origin
+      const progress = resetTimer / RESET_DURATION;
+      const ease = 1 - Math.pow(1 - progress, 3);
+      const driftX = noise2d(p.col * 0.4, p.row * 0.4, t) * DRIFT_AMP;
+      const driftY = noise2d(p.col * 0.4 + 100, p.row * 0.4 + 100, t) * DRIFT_AMP;
+      targetX = p.ox + driftX * (1 - ease);
+      targetY = p.oy + driftY * (1 - ease);
+    } else {
+      // Drift with noise
+      const driftX = noise2d(p.col * 0.4, p.row * 0.4, t) * DRIFT_AMP;
+      const driftY = noise2d(p.col * 0.4 + 100, p.row * 0.4 + 100, t) * DRIFT_AMP;
+      targetX = p.ox + driftX;
+      targetY = p.oy + driftY;
+    }
+
+    p.x += (targetX - p.x) * 0.08;
+    p.y += (targetY - p.y) * 0.08;
+
+    // Displacement magnitude for alpha
+    const dx = p.x - p.ox;
+    const dy = p.y - p.oy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const alpha = 0.18 + (dist / DRIFT_AMP) * 0.45;
+    const radius = 1.2 + (dist / DRIFT_AMP) * 0.8;
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(42, 42, 42, ${alpha})`;
+    ctx.fill();
+  }
+}
+
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '127',
+  title:  'Grid Drift',
+  desc:   '整列した点が、じわじわとずれていく。どれが本来の位置かわからなくなる頃、クリックすると戻ってくる。',
+  detail: 'ノイズ関数で各点をゆっくり揺らしています。クリックするとすべての点が元の格子位置に戻ろうとします。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
