@@ -53,9 +53,13 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
+      opacity: 1;
+      filter: blur(0);
+      transition: opacity 0.35s ease, filter 0.35s ease;
     }
     #sketch-ui-container.hidden {
       opacity: 0;
+      filter: blur(3px);
       pointer-events: none;
     }
 
@@ -144,8 +148,15 @@
       color: rgba(42,42,42,0.45);
       cursor: pointer;
       padding: 4px 10px;
-      display: none;
-      transition: color 0.2s ease, border-color 0.2s ease;
+      opacity: 0;
+      filter: blur(3px);
+      pointer-events: none;
+      transition: opacity 0.35s ease, filter 0.35s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+    #sketch-toggle-btn.visible {
+      opacity: 1;
+      filter: blur(0);
+      pointer-events: auto;
     }
     #sketch-toggle-btn:hover { color: rgba(42,42,42,0.75); border-color: rgba(42,42,42,0.3); }
 
@@ -270,7 +281,7 @@
 
   function toggleOverlay() {
     const hidden = container.classList.toggle('hidden');
-    toggleBtn.style.display = hidden ? 'block' : 'none';
+    toggleBtn.classList.toggle('visible', hidden);
   }
 
   toggleBtn.addEventListener('click', toggleOverlay);
