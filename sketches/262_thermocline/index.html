@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thermocline</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeeae3; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// 温度躍層：上層と下層で流れが違う。
+// 境界を越えることは、どちらの層もできない。
+// マウスのY位置で境界の深さが変わる。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+         || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const vsSource = `
+attribute vec2 a_position;
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}
+`;
+
+const fsSource = `
+precision highp float;
+uniform vec2  u_resolution;
+uniform float u_time;
+uniform float u_boundary; // 0〜1: 躍層の高さ（uv.y基準）
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u2 = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i),               hash(i + vec2(1.0, 0.0)), u2.x),
+    mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), u2.x),
+    u2.y
+  );
+}
+float fbm(vec2 p) {
+  float v = 0.0; float a = 0.5;
+  for (int i = 0; i < 4; i++) { v += a * noise(p); p *= 2.1; a *= 0.5; }
+  return v;
+}
+
+// 流線をノイズ場で表現
+// 横方向に流れる縞。上層と下層で速さ・方向が違う
+float flowLine(vec2 uv, float speed, float freq, float phase) {
+  // ノイズで流れをゆがめる
+  float warp = fbm(vec2(uv.x * 1.5 + u_time * speed * 0.3, uv.y * 3.0)) * 0.15;
+  float y = uv.y + warp;
+  // 縞の位置：x + 時間でスクロール
+  float stripe = fract((uv.x * freq + u_time * speed + phase + y * 0.2) * 0.5);
+  return stripe;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  float t = u_time;
+  float boundary = u_boundary; // 躍層の中心Y（0〜1）
+  float tcThickness = 0.06; // 躍層の厚さ
+
+  // 躍層からの距離（正規化）
+  float distFromTC = (uv.y - boundary) / tcThickness;
+  // -1未満=下層, 1超=上層, -1〜1=躍層内
+  float tcFactor = clamp(distFromTC, -1.0, 1.0);
+  float inTC = 1.0 - abs(tcFactor); // 躍層内で1
+
+  // ---- 上層の流れ（速い、右へ） ----
+  float upperFlow1 = flowLine(uv, 0.28, 7.0, 0.0);
+  float upperFlow2 = flowLine(uv, 0.19, 11.0, 0.37);
+  float upperFlow3 = flowLine(uv, 0.33, 5.5, 0.71);
+
+  // 上層の縞：細い明暗ストライプ
+  float upperStripe = 0.0;
+  upperStripe += smoothstep(0.52, 0.48, upperFlow1) * 0.5;
+  upperStripe += smoothstep(0.52, 0.48, upperFlow2) * 0.3;
+  upperStripe += smoothstep(0.52, 0.48, upperFlow3) * 0.2;
+
+  // ---- 下層の流れ（遅い、左へ） ----
+  float lowerFlow1 = flowLine(uv, -0.11, 6.0, 0.15);
+  float lowerFlow2 = flowLine(uv, -0.07, 9.0, 0.55);
+
+  float lowerStripe = 0.0;
+  lowerStripe += smoothstep(0.52, 0.48, lowerFlow1) * 0.6;
+  lowerStripe += smoothstep(0.52, 0.48, lowerFlow2) * 0.4;
+
+  // ---- 躍層内：乱流のノイズ ----
+  float turbulence = fbm(vec2(uv.x * 4.0 + t * 0.15, uv.y * 12.0 + t * 0.08));
+  float tcNoise = smoothstep(0.3, 0.7, turbulence);
+
+  // ---- カラーリング ----
+  // 背景：明るいオフホワイト〜薄いグレー
+  vec3 bg = vec3(0.936, 0.925, 0.908);
+
+  // 上層の線色（やや薄いグレー）
+  vec3 upperColor = vec3(0.62, 0.60, 0.57);
+  // 下層の線色（やや濃いグレー）
+  vec3 lowerColor = vec3(0.48, 0.46, 0.43);
+  // 躍層の色（中間）
+  vec3 tcColor = vec3(0.55, 0.53, 0.50);
+
+  vec3 col = bg;
+
+  // 上層マスク（境界以上）
+  float upperMask = smoothstep(boundary - tcThickness * 0.5,
+                               boundary + tcThickness * 0.5, uv.y);
+  // 下層マスク
+  float lowerMask = 1.0 - smoothstep(boundary - tcThickness * 0.5,
+                                      boundary + tcThickness * 0.5, uv.y);
+
+  // 上層の縞を描画
+  col = mix(col, upperColor, upperStripe * upperMask * 0.7);
+  // 下層の縞を描画
+  col = mix(col, lowerColor, lowerStripe * lowerMask * 0.8);
+
+  // 躍層内の乱流
+  float tcMask = smoothstep(0.0, 1.0, inTC);
+  col = mix(col, tcColor, tcNoise * tcMask * 0.4);
+
+  // 躍層の境界線（ごく細い線）
+  float tcLine1 = smoothstep(0.004, 0.0, abs(uv.y - (boundary - tcThickness * 0.5)));
+  float tcLine2 = smoothstep(0.004, 0.0, abs(uv.y - (boundary + tcThickness * 0.5)));
+  col = mix(col, lowerColor, (tcLine1 + tcLine2) * 0.5);
+
+  // ケルビン・ヘルムホルツ不安定性：境界が少し波打つ
+  float khWave = sin(uv.x * 18.0 + t * 0.25) * 0.012
+               + sin(uv.x * 11.0 - t * 0.18) * 0.008;
+  float khDist = abs(uv.y - (boundary + khWave));
+  float khLine = smoothstep(0.008, 0.002, khDist) * 0.3;
+  col = mix(col, tcColor, khLine);
+
+  // 全体の紙テクスチャ
+  float grain = (noise(uv * 350.0) - 0.5) * 0.009;
+  col += grain;
+  col = clamp(col, 0.0, 1.0);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+    return null;
+  }
+  return shader;
+}
+
+const vs = compileShader(gl.VERTEX_SHADER, vsSource);
+const fs = compileShader(gl.FRAGMENT_SHADER, fsSource);
+const program = gl.createProgram();
+gl.attachShader(program, vs);
+gl.attachShader(program, fs);
+gl.linkProgram(program);
+
+if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+  console.error('Program link error:', gl.getProgramInfoLog(program));
+}
+
+gl.useProgram(program);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1,  -1, 1,
+  -1,  1,  1, -1,   1, 1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(program, 'a_position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uResolution = gl.getUniformLocation(program, 'u_resolution');
+const uTime       = gl.getUniformLocation(program, 'u_time');
+const uBoundary   = gl.getUniformLocation(program, 'u_boundary');
+
+const startTime = Date.now();
+let targetBoundary = 0.5;
+let currentBoundary = 0.5;
+
+canvas.addEventListener('mousemove', (e) => {
+  targetBoundary = 1.0 - e.clientY / canvas.height;
+  // 上下端から余白を設ける
+  targetBoundary = Math.max(0.2, Math.min(0.8, targetBoundary));
+});
+
+function render() {
+  requestAnimationFrame(render);
+
+  // なめらかに追従
+  currentBoundary += (targetBoundary - currentBoundary) * 0.04;
+
+  const elapsed = (Date.now() - startTime) / 1000;
+
+  gl.uniform2f(uResolution, canvas.width, canvas.height);
+  gl.uniform1f(uTime, elapsed);
+  gl.uniform1f(uBoundary, currentBoundary);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '262',
+  title:  'Thermocline',
+  detail: '温度躍層：上層と下層で流れの速さと向きが違う。細い縞が上層は速く右へ、下層はゆっくり左へ流れる。境界では乱流が起きている。マウスを上下に動かすと境界の深さが変わる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

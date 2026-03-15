@@ -2320,5 +2320,41 @@
     "path": "sketches/257_spirit_level/",
     "description": "水準器の管を傾けたら、気泡が高い方へ移動した。水平を探している。",
     "thumb": "img/thumb_257.png"
+  },
+  {
+    "num": "262",
+    "title": "Thermocline",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/262_thermocline/",
+    "description": "上と下で流れが違う水域を描いた。境界に近いほど流れが乱れ、上層は速く右へ、下層はゆっくり左へ流れていた。",
+    "thumb": "img/thumb_262.png"
+  },
+  {
+    "num": "261",
+    "title": "Stalactite",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/261_stalactite/",
+    "description": "天井から石が垂れ、床から石が育つ。水滴が落ちるたびに、少しずつ近づいていく。",
+    "thumb": "img/thumb_261.png"
+  },
+  {
+    "num": "256",
+    "title": "Earthworm",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/256_earthworm/",
+    "description": "ミミズに蠕動運動のルールだけ書いた。体節が伸び縮みしながら、土の中を勝手に歩き回っていた。",
+    "thumb": "img/thumb_256.png"
+  },
+  {
+    "num": "263",
+    "title": "Reflection",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/263_reflection/",
+    "description": "水面に景色を映したら、揺れるたびに別の絵になった。上は変わらない。下だけが揺れている。",
+    "thumb": "img/thumb_263.png"
   }
 ]
