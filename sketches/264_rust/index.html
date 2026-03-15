@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>264 – Rust</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #d4cfc8; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}`;
+
+const FS = `
+precision highp float;
+uniform float u_time;
+uniform vec2  u_res;
+uniform vec2  u_points[8];
+uniform float u_ages[8];
+uniform float u_active[8];
+uniform int   u_count;
+
+// Hash functions
+float hash(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7));
+  p += dot(p, p + 19.31);
+  return fract(p.x * p.y);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i + vec2(0,0)), hash(i + vec2(1,0)), u.x),
+    mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 6; i++) {
+    v += a * noise(p);
+    p = p * 2.1 + vec2(1.7, 9.2);
+    a *= 0.5;
+  }
+  return v;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  uv.y = 1.0 - uv.y;
+
+  // Metal base
+  float metalNoise = fbm(uv * 8.0 + vec2(0.5));
+  vec3 metalColor = mix(vec3(0.78, 0.75, 0.72), vec3(0.68, 0.65, 0.62), metalNoise);
+
+  // Rust accumulation from each point
+  float rustAmount = 0.0;
+
+  for (int k = 0; k < 8; k++) {
+    vec2 pt = u_points[k];
+    float age = u_ages[k];
+    float active = u_active[k];
+
+    float d = length(uv - pt);
+    // Rust spreads with noisy edge
+    float noiseOffset = fbm(uv * 5.5 + pt * 3.0 + age * 0.1) * 0.35;
+    float spread = age * 0.55 + noiseOffset;
+    float ring = smoothstep(spread + 0.04, spread, d);
+
+    // Inner texture variation
+    float innerNoise = fbm(uv * 12.0 - pt * 6.0 + age * 0.05);
+    ring *= (0.6 + innerNoise * 0.6);
+
+    rustAmount = max(rustAmount, ring * active);
+  }
+
+  // Slow ambient rust forming over time
+  float ambientAge = u_time * 0.025;
+  float ambientRust = fbm(uv * 4.0 + vec2(u_time * 0.01));
+  ambientRust = smoothstep(0.55 - ambientAge * 0.3, 0.75 - ambientAge * 0.3, ambientRust) * 0.35;
+  rustAmount = max(rustAmount, ambientRust);
+  rustAmount = clamp(rustAmount, 0.0, 1.0);
+
+  // Rust color layers
+  float rustVar = fbm(uv * 9.0 + vec2(3.7, 1.2));
+  vec3 rustLight = vec3(0.72, 0.38, 0.18);  // bright rust
+  vec3 rustDark  = vec3(0.42, 0.22, 0.10);  // deep rust
+  vec3 rustOxide = vec3(0.55, 0.30, 0.14);  // mid
+  vec3 rustColor = mix(rustDark, mix(rustOxide, rustLight, rustVar), rustVar * 0.7);
+
+  // Pitting / texture on rust surface
+  float pitting = fbm(uv * 22.0);
+  rustColor *= (0.75 + pitting * 0.5);
+
+  vec3 color = mix(metalColor, rustColor, rustAmount * rustAmount);
+
+  // Subtle vignette
+  float vign = 1.0 - length(uv - 0.5) * 0.4;
+  color *= vign;
+
+  gl_FragColor = vec4(color, 1.0);
+}`;
+
+function compile(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  return sh;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uTime   = gl.getUniformLocation(prog, 'u_time');
+const uRes    = gl.getUniformLocation(prog, 'u_res');
+const uPts    = gl.getUniformLocation(prog, 'u_points');
+const uAges   = gl.getUniformLocation(prog, 'u_ages');
+const uActive = gl.getUniformLocation(prog, 'u_active');
+const uCount  = gl.getUniformLocation(prog, 'u_count');
+
+const MAX_PTS = 8;
+let points = [];
+let ages   = [];
+
+// Start with one random rust point
+points.push([Math.random() * 0.6 + 0.2, Math.random() * 0.6 + 0.2]);
+ages.push(0.0);
+
+canvas.addEventListener('click', (e) => {
+  const x = e.clientX / canvas.width;
+  const y = e.clientY / canvas.height;
+  if (points.length >= MAX_PTS) {
+    points.shift();
+    ages.shift();
+  }
+  points.push([x, y]);
+  ages.push(0.0);
+});
+
+let startTime = performance.now();
+
+function render() {
+  requestAnimationFrame(render);
+  const t = (performance.now() - startTime) / 1000;
+
+  // Age each rust point
+  for (let i = 0; i < ages.length; i++) {
+    ages[i] += 0.003;
+  }
+
+  // Flatten arrays for uniform upload
+  const ptFlat     = new Float32Array(MAX_PTS * 2).fill(0);
+  const ageFlat    = new Float32Array(MAX_PTS).fill(0);
+  const activeFlat = new Float32Array(MAX_PTS).fill(0);
+  for (let i = 0; i < points.length; i++) {
+    ptFlat[i * 2]     = points[i][0];
+    ptFlat[i * 2 + 1] = points[i][1];
+    ageFlat[i]    = ages[i];
+    activeFlat[i] = 1.0;
+  }
+
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform2fv(uPts, ptFlat);
+  gl.uniform1fv(uAges, ageFlat);
+  gl.uniform1fv(uActive, activeFlat);
+  gl.uniform1i(uCount, points.length);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '264',
+  title:  'Rust',
+  detail: 'クリックした場所から錆が広がります。放置しておくと、画面全体がゆっくり腐食していきます。金属表面が酸化する様子をノイズ関数で再現しました。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
