@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>212 – Struck</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f3ef; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// ============================================================
+//  212 – Struck
+//  静電気の火花——直線の折れ曲がりだけで雷のような軌跡を描く
+//  クリックで火花が走る
+//  制約：直線のみ、曲線なし
+// ============================================================
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_time;
+uniform float u_seed;
+// 火花の起点と終点 (最大4本)
+uniform vec4  u_sparks[4];   // x0,y0,x1,y1
+uniform float u_sparkTimes[4]; // 発生時刻
+uniform int   u_sparkCount;
+
+float hash1(float n) {
+  return fract(sin(n + u_seed) * 43758.5453);
+}
+
+float hash2x(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7) + u_seed);
+  p += dot(p, p + 17.5);
+  return fract(p.x * p.y);
+}
+
+// 線分への距離
+float segDist(vec2 p, vec2 a, vec2 b) {
+  vec2 ab = b - a;
+  vec2 ap = p - a;
+  float t = clamp(dot(ap, ab) / dot(ab, ab), 0.0, 1.0);
+  return length(ap - ab * t);
+}
+
+// 静電気の火花パス（折れ曲がり直線）
+// start → end の間をランダムに折れ曲がりながら進む
+// stepsN: セグメント数（固定展開）
+float sparkPath(vec2 uv, vec2 start, vec2 end, float sparkSeed, float age) {
+  float totalLen = length(end - start);
+  if (totalLen < 0.001) return 0.0;
+
+  vec2 mainDir = (end - start) / totalLen;
+  // 垂直方向
+  vec2 perpDir = vec2(-mainDir.y, mainDir.x);
+
+  float minDist = 999.0;
+
+  // 8セグメントで折れ曲がりパスを構成
+  int SEGS = 8;
+  vec2 prev = start;
+
+  for (int i = 0; i < 8; i++) {
+    float fi = float(i);
+    float t_next = (fi + 1.0) / 8.0;
+
+    // 次の点（主方向に進みながら垂直にランダムにずれる）
+    float jitter = (hash1(sparkSeed + fi * 3.1) - 0.5) * totalLen * 0.35;
+    // 最後のセグメントは終点に収束
+    float convergence = smoothstep(0.5, 1.0, t_next);
+    jitter *= (1.0 - convergence);
+
+    vec2 target = start + mainDir * totalLen * t_next;
+    // サブ分岐のジッター（垂直方向）
+    float subJitter = (hash1(sparkSeed + fi * 5.7 + 1.1) - 0.5) * totalLen * 0.2;
+
+    vec2 next = target + perpDir * (jitter + subJitter * (1.0 - convergence));
+
+    // 最後のセグメントは正確に終点へ
+    if (i == 7) next = end;
+
+    float d = segDist(uv, prev, next);
+    float lineWidth = 0.003;
+    float lineAlpha = smoothstep(lineWidth, 0.0, d);
+    minDist = min(minDist, d - lineWidth);
+
+    prev = next;
+  }
+
+  return smoothstep(0.002, 0.0, minDist);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  float aspect = u_res.x / u_res.y;
+  vec2 uvA = vec2((uv.x - 0.5) * aspect + 0.5, uv.y);
+
+  float totalAlpha = 0.0;
+
+  // 各火花を描く（最大4本、固定展開）
+  if (u_sparkCount > 0) {
+    vec4 s = u_sparks[0];
+    float age = u_time - u_sparkTimes[0];
+    if (age >= 0.0) {
+      // フリッカー（高速点滅）
+      float flicker = step(0.3, sin(age * 80.0 + u_seed));
+      float fadeOut = smoothstep(3.5, 0.5, age);
+      float alpha = sparkPath(uvA, s.xy, s.zw, u_seed, age);
+      totalAlpha = max(totalAlpha, alpha * flicker * fadeOut);
+    }
+  }
+  if (u_sparkCount > 1) {
+    vec4 s = u_sparks[1];
+    float age = u_time - u_sparkTimes[1];
+    if (age >= 0.0) {
+      float flicker = step(0.3, sin(age * 73.0 + u_seed * 2.1));
+      float fadeOut = smoothstep(3.5, 0.5, age);
+      float alpha = sparkPath(uvA, s.xy, s.zw, u_seed + 17.3, age);
+      totalAlpha = max(totalAlpha, alpha * flicker * fadeOut);
+    }
+  }
+  if (u_sparkCount > 2) {
+    vec4 s = u_sparks[2];
+    float age = u_time - u_sparkTimes[2];
+    if (age >= 0.0) {
+      float flicker = step(0.4, sin(age * 91.0 + u_seed * 3.3));
+      float fadeOut = smoothstep(3.5, 0.5, age);
+      float alpha = sparkPath(uvA, s.xy, s.zw, u_seed + 33.7, age);
+      totalAlpha = max(totalAlpha, alpha * flicker * fadeOut);
+    }
+  }
+  if (u_sparkCount > 3) {
+    vec4 s = u_sparks[3];
+    float age = u_time - u_sparkTimes[3];
+    if (age >= 0.0) {
+      float flicker = step(0.35, sin(age * 67.0 + u_seed * 4.1));
+      float fadeOut = smoothstep(3.5, 0.5, age);
+      float alpha = sparkPath(uvA, s.xy, s.zw, u_seed + 51.2, age);
+      totalAlpha = max(totalAlpha, alpha * flicker * fadeOut);
+    }
+  }
+
+  totalAlpha = clamp(totalAlpha, 0.0, 1.0);
+
+  vec3 bg      = vec3(0.961, 0.953, 0.941);
+  vec3 sparkCol = vec3(0.18, 0.16, 0.15);
+
+  vec3 col = mix(bg, sparkCol, totalAlpha);
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+function createProgram(vs, fs) {
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(prog));
+  }
+  return prog;
+}
+
+const prog = createProgram(VS, FS);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1, -1,  1,
+  -1,  1,  1, -1,  1,  1
+]), gl.STATIC_DRAW);
+
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes        = gl.getUniformLocation(prog, 'u_res');
+const uTime       = gl.getUniformLocation(prog, 'u_time');
+const uSeed       = gl.getUniformLocation(prog, 'u_seed');
+const uSparks     = gl.getUniformLocation(prog, 'u_sparks');
+const uSparkTimes = gl.getUniformLocation(prog, 'u_sparkTimes');
+const uSparkCount = gl.getUniformLocation(prog, 'u_sparkCount');
+
+const startTime = performance.now();
+let seed = Math.random() * 100.0;
+
+// 火花データ: [x0, y0, x1, y1, time]
+const sparks = [];
+let lastClickPos = null;
+
+function addSpark(x, y) {
+  const t = (performance.now() - startTime) * 0.001;
+
+  // 前の点から今の点へ走る（または画面の端から端へ）
+  let x0, y0;
+  if (lastClickPos) {
+    x0 = lastClickPos[0];
+    y0 = lastClickPos[1];
+  } else {
+    // 画面端からランダムに
+    const edge = Math.floor(Math.random() * 4);
+    if (edge === 0) { x0 = Math.random(); y0 = 0.05; }
+    else if (edge === 1) { x0 = Math.random(); y0 = 0.95; }
+    else if (edge === 2) { x0 = 0.05; y0 = Math.random(); }
+    else { x0 = 0.95; y0 = Math.random(); }
+  }
+
+  if (sparks.length >= 4) sparks.shift();
+  sparks.push([x0, y0, x, y, t]);
+  lastClickPos = [x, y];
+  seed = seed + 7.3;
+}
+
+// 最初の火花（初期表示用）
+// 発生時刻 = 0（ページロード直後）
+sparks.push([0.25, 0.65, 0.75, 0.35, 0.0]);
+// 2本目もすぐに追加（対角線）
+sparks.push([0.7, 0.7, 0.3, 0.3, 0.3]);
+
+canvas.addEventListener('click', (e) => {
+  const x = e.clientX / canvas.width;
+  const y = 1.0 - e.clientY / canvas.height;
+  addSpark(x, y);
+});
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const x = e.touches[0].clientX / canvas.width;
+  const y = 1.0 - e.touches[0].clientY / canvas.height;
+  addSpark(x, y);
+}, { passive: false });
+
+function render() {
+  const t = (performance.now() - startTime) * 0.001;
+
+  const flatSparks = new Float32Array(4 * 4);
+  const flatTimes  = new Float32Array(4);
+  for (let i = 0; i < 4; i++) {
+    if (i < sparks.length) {
+      flatSparks[i * 4 + 0] = sparks[i][0];
+      flatSparks[i * 4 + 1] = sparks[i][1];
+      flatSparks[i * 4 + 2] = sparks[i][2];
+      flatSparks[i * 4 + 3] = sparks[i][3];
+      flatTimes[i] = sparks[i][4];
+    }
+  }
+
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform1f(uSeed, seed);
+  gl.uniform4fv(uSparks, flatSparks);
+  gl.uniform1fv(uSparkTimes, flatTimes);
+  gl.uniform1i(uSparkCount, sparks.length);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '212',
+  title:  'Struck',
+  detail: 'クリックした点と前の点の間に火花が走る。静電気の放電は最短距離を一直線には進まず、ランダムにジグザグする。直線の折れ曲がりだけで作った——曲線は一本も使っていない。点滅しながら消えていく。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
