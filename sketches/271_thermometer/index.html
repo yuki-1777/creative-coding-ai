@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thermometer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede6; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; cursor: pointer; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Thermometer layout
+// Multiple thermometers arranged side by side
+const N_THERM = 5;
+
+// Temperature range
+const T_MIN = 35.0;
+const T_MAX = 42.0;
+
+// State for each thermometer
+const therms = [];
+
+function randomTemp() {
+  // Skewed toward normal/slightly elevated
+  const r = Math.random();
+  if (r < 0.4) return 36.2 + Math.random() * 0.6;       // normal
+  if (r < 0.65) return 36.9 + Math.random() * 0.5;      // low-grade
+  if (r < 0.85) return 37.5 + Math.random() * 1.0;      // fever
+  return 38.5 + Math.random() * 2.5;                     // high fever
+}
+
+function initTherm(i) {
+  const targetTemp = randomTemp();
+  therms[i] = {
+    current: T_MIN + 0.1,          // starts near bottom
+    target: targetTemp,
+    speed: 0.008 + Math.random() * 0.012,  // rise speed per frame
+    rising: true,
+    settled: false,
+    settleTimer: 0,
+    // small shake amplitude when just placed
+    shakeAmp: 0.4 + Math.random() * 0.3,
+    shakeT: 0,
+    startDelay: i * 18,
+    delayTimer: 0
+  };
+}
+
+for (let i = 0; i < N_THERM; i++) initTherm(i);
+
+// Layout calculations
+function getThermLayout(idx) {
+  const totalW = W * 0.7;
+  const spacing = totalW / (N_THERM - 1);
+  const startX = W * 0.15;
+
+  const cx = startX + idx * spacing;
+  const bodyBottom = H * 0.82;
+  const bodyTop = H * 0.12;
+  const tubeH = bodyBottom - bodyTop;
+  const tubeW = 8;
+  const bulbR = 18;
+
+  return { cx, bodyTop, bodyBottom, tubeH, tubeW, bulbR };
+}
+
+function tempToY(temp, layout) {
+  const { bodyTop, bodyBottom } = layout;
+  const frac = (temp - T_MIN) / (T_MAX - T_MIN);
+  return bodyBottom - frac * (bodyBottom - bodyTop);
+}
+
+function drawThermometer(idx) {
+  const th = therms[idx];
+  const layout = getThermLayout(idx);
+  const { cx, bodyTop, bodyBottom, tubeH, tubeW, bulbR } = layout;
+
+  ctx.save();
+
+  // ── Glass tube ──
+  const tubeX = cx - tubeW / 2;
+  const tubeY = bodyTop;
+  const tubeH2 = tubeH;
+  const tubeR = tubeW / 2;
+
+  // Glass outline
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 1;
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+
+  // Tube body (rounded top)
+  ctx.beginPath();
+  ctx.moveTo(tubeX, bodyBottom - bulbR);
+  ctx.lineTo(tubeX, bodyTop + tubeR);
+  ctx.arc(cx, bodyTop + tubeR, tubeR, Math.PI, 0, false);
+  ctx.lineTo(cx + tubeW / 2, bodyBottom - bulbR);
+  ctx.fill();
+  ctx.stroke();
+
+  // Bulb
+  ctx.beginPath();
+  ctx.arc(cx, bodyBottom, bulbR, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fill();
+  ctx.stroke();
+
+  // ── Mercury column ──
+  const mercuryTemp = th.current;
+  const mercuryY = tempToY(mercuryTemp, layout);
+  const mercuryH = bodyBottom - mercuryY;
+  const mercW = tubeW - 3;
+  const mercX = cx - mercW / 2;
+
+  // Fever color: normal = warm gray, high = reddish
+  const feverFrac = Math.max(0, Math.min(1, (mercuryTemp - 37.0) / 3.0));
+  const r = Math.round(180 + feverFrac * 60);
+  const g = Math.round(90 - feverFrac * 60);
+  const b = Math.round(80 - feverFrac * 60);
+  const mercColor = `rgb(${r},${g},${b})`;
+
+  // Bulb fill (mercury)
+  ctx.beginPath();
+  ctx.arc(cx, bodyBottom, bulbR - 2, 0, Math.PI * 2);
+  ctx.fillStyle = mercColor;
+  ctx.fill();
+
+  // Tube mercury
+  if (mercuryH > 0) {
+    ctx.fillStyle = mercColor;
+    ctx.beginPath();
+    ctx.rect(mercX, mercuryY, mercW, Math.min(mercuryH, bodyBottom - bodyTop - tubeR));
+    ctx.fill();
+  }
+
+  // Subtle highlight on mercury
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillRect(mercX + 1, mercuryY, 2, Math.min(mercuryH - 2, bodyBottom - bodyTop));
+
+  // ── Tick marks ──
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.font = '9px serif';
+  ctx.textAlign = 'left';
+
+  for (let t = T_MIN; t <= T_MAX + 0.01; t += 0.1) {
+    const ty = tempToY(t, layout);
+    const isMajor = Math.abs(Math.round(t * 10) % 10) < 0.5;
+    const isHalf = Math.abs(Math.round(t * 10) % 5) < 0.5 && !isMajor;
+
+    const tickLen = isMajor ? 10 : (isHalf ? 6 : 3);
+    ctx.lineWidth = isMajor ? 1 : 0.6;
+    ctx.beginPath();
+    ctx.moveTo(cx + tubeW / 2 + 1, ty);
+    ctx.lineTo(cx + tubeW / 2 + 1 + tickLen, ty);
+    ctx.stroke();
+
+    if (isMajor) {
+      ctx.fillText(`${Math.round(t)}`, cx + tubeW / 2 + 14, ty + 3.5);
+    }
+  }
+
+  // ── 37°C marker (normal body temp reference) ──
+  const refY = tempToY(37.0, layout);
+  ctx.strokeStyle = 'rgba(120,80,60,0.3)';
+  ctx.lineWidth = 0.8;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(cx - tubeW / 2 - 6, refY);
+  ctx.lineTo(cx + tubeW / 2 + 30, refY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── Current reading label (only when settled) ──
+  if (th.settled) {
+    ctx.save();
+    ctx.font = '11px serif';
+    ctx.fillStyle = `rgba(${r},${g},${b},0.85)`;
+    ctx.textAlign = 'center';
+    const label = th.target.toFixed(1) + '°';
+    ctx.fillText(label, cx, bodyTop - 12);
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+// Update thermometer physics
+function updateTherm(i) {
+  const th = therms[i];
+
+  // Delay before rising
+  if (th.delayTimer < th.startDelay) {
+    th.delayTimer++;
+    return;
+  }
+
+  if (th.rising) {
+    // Ease: fast at first, slow near target
+    const diff = th.target - th.current;
+    if (diff > 0.01) {
+      const speed = th.speed * (0.3 + 0.7 * (diff / (th.target - T_MIN)));
+      th.current = Math.min(th.target, th.current + speed);
+    } else {
+      th.current = th.target;
+      th.rising = false;
+      th.settleTimer = 0;
+    }
+  } else {
+    if (!th.settled) {
+      th.settleTimer++;
+      // Small jitter as it settles
+      th.shakeT += 0.3;
+      const jitter = Math.sin(th.shakeT) * th.shakeAmp * Math.exp(-th.settleTimer * 0.05);
+      th.current = th.target + jitter;
+      if (th.settleTimer > 80) {
+        th.current = th.target;
+        th.settled = true;
+      }
+    }
+  }
+}
+
+// Reset: shake and re-measure on click
+canvas.addEventListener('click', () => {
+  for (let i = 0; i < N_THERM; i++) {
+    initTherm(i);
+  }
+});
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  ctx.fillStyle = '#f0ede6';
+  ctx.fillRect(0, 0, W, H);
+
+  for (let i = 0; i < N_THERM; i++) {
+    updateTherm(i);
+    drawThermometer(i);
+  }
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '271',
+  title:  'Thermometer',
+  detail: '5本の体温計が、それぞれ違う体温を測っている。水銀がゆっくり上がって、ある温度で止まる。クリックするとまた測り直す。高い体温ほど赤みが増す。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
