@@ -1332,6 +1332,24 @@
     "thumb": "img/thumb_148.png"
   },
   {
+    "num": "149",
+    "title": "Bloom",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/149_bloom/",
+    "description": "7枚の花びらがゆっくり開いたり閉じたりしている。マウスを上に動かすと花が大きく開き、下に動かすと閉じる。左右に動かすと花全体が回転する。線だけで描いた花。",
+    "thumb": "img/thumb_149.png"
+  },
+  {
+    "num": "150",
+    "title": "Orbit",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/150_orbit/",
+    "description": "8本の楕円軌道が傾いて重なっている。それぞれの軌道上に小さな四面体が回っていて、外側ほどゆっくり動く。マウスを動かすと全体が傾き、軌道が3D空間に重なっているのが見える。",
+    "thumb": "img/thumb_150.png"
+  },
+  {
     "num": "155",
     "title": "Breath Ring",
     "tech": "p5.js",
@@ -1348,5 +1366,14 @@
     "path": "sketches/156_orbit/",
     "description": "5つの点がそれぞれ異なる軌道を回り、後ろに軌跡を引く。マウスでドラッグすると視点が変わり、軌跡が3D空間に広がっているのがわかる。",
     "thumb": "img/thumb_156.png"
+  },
+  {
+    "num": "157",
+    "title": "Ripple Shader",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/157_ripple_shader/",
+    "description": "クリックした場所から波紋が広がる。複数の波が出会うと干渉して、明暗の縞が現れる。しばらくすると波は消える。",
+    "thumb": "img/thumb_157.png"
   }
 ]

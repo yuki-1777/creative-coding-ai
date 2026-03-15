@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>157 — Ripple Shader</title>
+  <meta name="description" content="クリックすると波紋が広がる。複数の波が重なると干渉する。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="157 — Ripple Shader | Creative Coding">
+  <meta property="og:description" content="クリックすると波紋が広がる。複数の波が重なると干渉する。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/157_ripple_shader/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_157.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="157 — Ripple Shader | Creative Coding">
+  <meta name="twitter:description" content="クリックすると波紋が広がる。複数の波が重なると干渉する。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_157.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Ripple Shader: continuous wave interference pattern.
+// The shader computes waves from multiple fixed + user-added sources.
+// Mouse position adds a live interactive source.
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+if (!gl) {
+  document.body.innerHTML = '<p style="padding:2em">WebGL not supported</p>';
+  throw new Error('no webgl');
+}
+
+let W = window.innerWidth;
+let H = window.innerHeight;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  gl.viewport(0, 0, W, H);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const vsSource = `
+  attribute vec2 a_pos;
+  void main() {
+    gl_Position = vec4(a_pos, 0.0, 1.0);
+  }
+`;
+
+// Fragment shader: continuous ripple pattern from multiple sources
+// Uses time-based expanding waves with proper amplitude control
+const fsSource = `
+  precision highp float;
+
+  uniform vec2  u_resolution;
+  uniform float u_time;
+  uniform vec2  u_mouse;   // normalised 0..1
+
+  float ripple(vec2 uv, vec2 src, float t, float delay) {
+    float age = t - delay;
+    if (age < 0.0) return 0.0;
+    float dist = distance(uv, src);
+    float front   = age * 0.5;
+    float wavelen = 0.05;
+    // Gaussian envelope around expanding front
+    float env  = exp(-pow((dist - front) / wavelen, 2.0) * 2.0);
+    float decay= exp(-age * 0.45);
+    float amp  = env * decay;
+    float s    = sin((dist / wavelen - age * 6.0) * 6.2832);
+    return s * amp;
+  }
+
+  void main() {
+    vec2 uv = gl_FragCoord.xy / u_resolution;
+    // Aspect correct
+    float aspect = u_resolution.x / u_resolution.y;
+    vec2 p = vec2(uv.x * aspect, uv.y);
+
+    float wave = 0.0;
+
+    // Auto sources (looping with delay)
+    float period = 3.0;
+    wave += ripple(p, vec2(0.3 * aspect, 0.4), mod(u_time, period + 0.5),               0.0);
+    wave += ripple(p, vec2(0.7 * aspect, 0.6), mod(u_time + 0.8, period + 1.2),          0.0);
+    wave += ripple(p, vec2(0.5 * aspect, 0.25),mod(u_time + 1.6, period + 0.8),          0.0);
+
+    // Mouse source (continuous; pos updated every frame)
+    wave += ripple(p, vec2(u_mouse.x * aspect, u_mouse.y), mod(u_time * 1.2, 4.0), 0.0) * 0.6;
+
+    // Background: warm off-white base
+    float base = 0.961;
+    float brightness = base + wave * 0.14;
+    brightness = clamp(brightness, 0.80, 1.00);
+
+    // Warm tint
+    vec3 color = vec3(brightness, brightness * 0.993, brightness * 0.975);
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error('Shader error:', gl.getShaderInfoLog(s));
+    return null;
+  }
+  return s;
+}
+
+const vs = compileShader(gl.VERTEX_SHADER, vsSource);
+const fs = compileShader(gl.FRAGMENT_SHADER, fsSource);
+if (!vs || !fs) throw new Error('shader compile failed');
+
+const prog = gl.createProgram();
+gl.attachShader(prog, vs);
+gl.attachShader(prog, fs);
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+  console.error('Link error:', gl.getProgramInfoLog(prog));
+  throw new Error('link failed');
+}
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,  1,-1,  -1,1,  1,1]), gl.STATIC_DRAW);
+
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'u_resolution');
+const uTime  = gl.getUniformLocation(prog, 'u_time');
+const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+const start = performance.now();
+let mouseNorm = { x: 0.5, y: 0.5 };
+
+canvas.addEventListener('mousemove', (e) => {
+  mouseNorm.x = e.clientX / W;
+  mouseNorm.y = 1.0 - e.clientY / H;
+});
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  mouseNorm.x = e.touches[0].clientX / W;
+  mouseNorm.y = 1.0 - e.touches[0].clientY / H;
+}, { passive: false });
+
+function render() {
+  requestAnimationFrame(render);
+  const t = (performance.now() - start) / 1000;
+  gl.uniform2f(uRes, W, H);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouseNorm.x, mouseNorm.y);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+render();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '157',
+  title:  'Ripple Shader',
+  detail: '3か所から波紋が自動で広がり続け、互いに干渉して縞模様を作る。マウスを動かすと4つ目の波源が追加され、複雑な模様が現れる。シェーダーが毎フレーム全ピクセルを計算している。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
