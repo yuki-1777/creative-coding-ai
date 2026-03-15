@@ -143,15 +143,16 @@
     /* ? ボタン：タイトル横 */
     #sketch-detail-btn {
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
-      font-weight: 400;
-      font-size: 0.8rem;
+      font-weight: 300;
+      font-size: 0.7rem;
       letter-spacing: 0.05em;
       background: transparent;
       border: 1px solid rgba(42,42,42,0.2);
       color: rgba(42,42,42,0.45);
       cursor: pointer;
-      padding: 1px 7px;
-      line-height: 1.6;
+      padding: 0px 5px;
+      line-height: 1.4;
+      vertical-align: middle;
       transition: color 0.2s ease, border-color 0.2s ease;
     }
     #sketch-detail-btn:hover,
