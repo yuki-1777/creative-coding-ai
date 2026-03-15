@@ -1474,5 +1474,59 @@
     "path": "sketches/164_helix_grow/",
     "description": "二本の線が互いに巻きつきながら上へ伸びていく。横棒でつながれながら育つ。マウスドラッグで視点が変わる。",
     "thumb": "img/thumb_164.png"
+  },
+  {
+    "num": "165",
+    "title": "Knot",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/165_knot/",
+    "description": "今日の時刻を紐で結んでいる。時間が経つと結び目の形が変わる。0時にほどけてまた始まる。",
+    "thumb": "img/thumb_165.png"
+  },
+  {
+    "num": "166",
+    "title": "Thread",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/166_thread/",
+    "description": "針は見えない。糸の跡だけが残る。スペースキーで張り直す。縫われているのが何かはわからない。",
+    "thumb": "img/thumb_166.png"
+  },
+  {
+    "num": "167",
+    "title": "Sediment",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/167_sediment/",
+    "description": "粒が上から降ってきて積み重なる。時間が経つと地層の色の縞が見えてくる。クリックすると崩れる。",
+    "thumb": "img/thumb_167.png"
+  },
+  {
+    "num": "168",
+    "title": "Rain on Glass",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/168_rain_on_glass/",
+    "description": "ガラス面に落ちた雨粒が、それぞれのペースで垂れていく。40個の粒を数式だけで描いた。クリックすると一瞬強い雨になる。",
+    "thumb": "img/thumb_168.png"
+  },
+  {
+    "num": "169",
+    "title": "Vibrating String",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/169_thread/",
+    "description": "糸を張ろうとした。でも両端が定まらず、ずっと揺れている。マウスを左右に動かすと張力が変わる。",
+    "thumb": "img/thumb_169.png"
+  },
+  {
+    "num": "170",
+    "title": "Membrane",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/170_membrane/",
+    "description": "クリックすると波が広がる。波同士が干渉し、端で反射して戻ってくる。変位を等高線で描いた。",
+    "thumb": "img/thumb_170.png"
   }
 ]
