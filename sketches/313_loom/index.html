@@ -122,8 +122,9 @@ async function startWithCamera() {
 
   // Tone.js ノード初期化
   try {
-    reverb = new Tone.Reverb({ decay: 2.5, wet: 0.4 }).toDestination();
-    gainNode = new Tone.Gain(0.6).connect(reverb);
+    // Freeverb は同期で使えるリバーブ（Reverb と異なり await 不要）
+    reverb = new Tone.Freeverb({ roomSize: 0.6, dampening: 3000 }).toDestination();
+    gainNode = new Tone.Gain(0.8).connect(reverb);
     toneWaveform = new Tone.Waveform(CANVAS_H);
     gainNode.connect(toneWaveform);
 
@@ -132,7 +133,7 @@ async function startWithCamera() {
       const osc = new Tone.Oscillator({
         frequency: baseFreq,
         type: 'sine',
-        volume: -30
+        volume: -18
       }).connect(gainNode);
       osc.start();
       oscillators.push(osc);
@@ -234,7 +235,7 @@ function draw() {
       const baseFreq = 80 + i * 47;
       oscillators[i].frequency.rampTo(baseFreq + bright * 60, 0.1);
       const brightness01 = Math.abs(bright - 0.5) * 2;
-      oscillators[i].volume.rampTo(-48 + (1 - brightness01) * 24, 0.1);
+      oscillators[i].volume.rampTo(-24 + (1 - brightness01) * 18, 0.1);
     }
 
     let meanBright = 0;
