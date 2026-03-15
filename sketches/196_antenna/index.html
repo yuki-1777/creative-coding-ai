@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Antenna</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xf5f4f0);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+  camera.position.set(0, 0, 5);
+
+  let W = window.innerWidth, H = window.innerHeight;
+  renderer.setSize(W, H);
+  const aspect = W / H;
+  camera.left = -aspect; camera.right = aspect;
+  camera.updateProjectionMatrix();
+
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x666660 });
+  const activeMat = new THREE.LineBasicMaterial({ color: 0x888878 });
+
+  const N_ANTENNAS = 18;
+  const antennas = [];
+
+  // Place antennas in a grid pattern
+  for (let i = 0; i < N_ANTENNAS; i++) {
+    const col = i % 6;
+    const row = Math.floor(i / 6);
+    const bx = (col / 5 - 0.5) * 1.5 * aspect;
+    const by = (row / 2 - 0.5) * 1.2 + 0.05;
+
+    // Main mast
+    const mastGeo = new THREE.BufferGeometry();
+    const mastPos = new Float32Array([bx, by - 0.18, 0,  bx, by + 0.18, 0]);
+    mastGeo.setAttribute('position', new THREE.BufferAttribute(mastPos, 3));
+    const mast = new THREE.Line(mastGeo, lineMat.clone());
+    scene.add(mast);
+
+    // Crossbars (3 horizontal bars at different heights)
+    const bars = [];
+    for (let b = 0; b < 4; b++) {
+      const hy = by - 0.12 + b * 0.08;
+      const hw = 0.09 - b * 0.018;
+      const barGeo = new THREE.BufferGeometry();
+      const barPos = new Float32Array([bx - hw, hy, 0,  bx + hw, hy, 0]);
+      barGeo.setAttribute('position', new THREE.BufferAttribute(barPos, 3));
+      const bar = new THREE.Line(barGeo, lineMat.clone());
+      scene.add(bar);
+      bars.push(bar);
+    }
+
+    // Signal ring (circle that pulses when active)
+    const ringSegs = 32;
+    const ringGeo = new THREE.BufferGeometry();
+    const ringPos = new Float32Array((ringSegs + 1) * 3);
+    ringGeo.setAttribute('position', new THREE.BufferAttribute(ringPos, 3));
+    const ring = new THREE.LineLoop(ringGeo, new THREE.LineBasicMaterial({
+      color: 0x888878, transparent: true, opacity: 0
+    }));
+    scene.add(ring);
+
+    antennas.push({
+      bx, by, mast, bars, ring, ringGeo, ringPos,
+      phase: Math.random() * Math.PI * 2,
+      freq: 0.5 + Math.random() * 1.5
+    });
+  }
+
+  let mouseNX = 0;
+  canvas.addEventListener('mousemove', e => {
+    mouseNX = e.clientX / W;
+  });
+
+  function update(t) {
+    const freqMod = 0.3 + mouseNX * 2.5;
+
+    antennas.forEach((ant, i) => {
+      const signal = Math.sin(t * ant.freq * freqMod + ant.phase);
+      const active = (signal + 1) * 0.5; // 0..1
+
+      // Ring pulse
+      const radius = 0.04 + active * 0.08;
+      for (let s = 0; s <= 32; s++) {
+        const angle = (s / 32) * Math.PI * 2;
+        ant.ringPos[s * 3] = ant.bx + Math.cos(angle) * radius;
+        ant.ringPos[s * 3 + 1] = ant.by + Math.sin(angle) * radius;
+        ant.ringPos[s * 3 + 2] = 0;
+      }
+      ant.ringGeo.attributes.position.needsUpdate = true;
+      ant.ring.material.opacity = active * 0.5;
+
+      // Mast tip glow: move top slightly
+      const mastPos = ant.mast.geometry.attributes.position.array;
+      mastPos[4] = ant.by + 0.18 + signal * 0.01;
+      ant.mast.geometry.attributes.position.needsUpdate = true;
+    });
+  }
+
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    t += 0.016;
+    update(t);
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    W = window.innerWidth; H = window.innerHeight;
+    renderer.setSize(W, H);
+    const aspect = W / H;
+    camera.left = -aspect; camera.right = aspect;
+    camera.updateProjectionMatrix();
+  });
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '196',
+  title:  'Antenna',
+  detail: 'マウスを左右に動かすと受信周波数が変わります。18本のアンテナがそれぞれ違うリズムで信号を受信しています。活性化したアンテナの周りに小さなリングが現れます。直線だけで構成しています。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
