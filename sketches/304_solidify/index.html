@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solidify</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eceae3; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let solidRadius = 0;   // 0 = fully liquid; 1 = fully solid (normalized)
+let coolRate = 0.0006; // default cooling rate per frame
+const MIN_COOL = 0.0001;
+const MAX_COOL = 0.003;
+let frame = 0;
+let phase = 'cooling'; // 'cooling' | 'melting' (after full solid, auto-melt)
+
+// ── Grain structure ───────────────────────────────────────────────────────────
+// Solidified metal shows a grain pattern — thin lines radiating from boundary
+const GRAIN_COUNT = 80;
+const grains = [];
+
+function buildGrains() {
+  grains.length = 0;
+  for (let i = 0; i < GRAIN_COUNT; i++) {
+    const angle = (i / GRAIN_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.12;
+    const len   = 0.06 + Math.random() * 0.18; // fraction of radius
+    const wobble = (Math.random() - 0.5) * 0.08;
+    grains.push({ angle, len, wobble });
+  }
+}
+buildGrains();
+
+// ── Solidification front (noisy boundary) ─────────────────────────────────────
+// We store N angular samples of the radius variation to make the front irregular
+const FRONT_SEGS = 180;
+const frontNoise = new Float32Array(FRONT_SEGS);
+for (let i = 0; i < FRONT_SEGS; i++) {
+  frontNoise[i] = 1 + (Math.random() * 2 - 1) * 0.035; // subtle ±3.5%
+}
+// Smooth the noise
+for (let iter = 0; iter < 3; iter++) {
+  for (let i = 0; i < FRONT_SEGS; i++) {
+    const prev = frontNoise[(i - 1 + FRONT_SEGS) % FRONT_SEGS];
+    const next = frontNoise[(i + 1) % FRONT_SEGS];
+    frontNoise[i] = frontNoise[i] * 0.5 + (prev + next) * 0.25;
+  }
+}
+
+function moldRadius() {
+  return Math.min(W, H) * 0.36;
+}
+
+// Solidification front radius at angle index i
+function frontR(i, baseR) {
+  return baseR * frontNoise[i % FRONT_SEGS];
+}
+
+// ── Liquid surface ripple ──────────────────────────────────────────────────────
+// The liquid interior shows subtle concentric ring animation
+const RIPPLE_COUNT = 5;
+
+// ── Drawing ───────────────────────────────────────────────────────────────────
+function draw() {
+  frame++;
+  const t = frame * 0.01;
+  ctx.fillStyle = '#eceae3';
+  ctx.fillRect(0, 0, W, H);
+
+  const cx = W * 0.5;
+  const cy = H * 0.5;
+  const mR = moldRadius();
+  const solidR = solidRadius * mR; // current solidification front radius from edge
+
+  // ── Mold outline ──────────────────────────────────────────────────────────
+  ctx.save();
+  ctx.strokeStyle = 'rgba(55,50,45,0.30)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, mR, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // ── Liquid interior ────────────────────────────────────────────────────────
+  // Filled area = the un-solidified center. When solidRadius=0 it's the whole circle.
+  // The liquid zone is mR - solidR in radius.
+  const liquidR = mR - solidR;
+  if (liquidR > 2) {
+    // Subtle fill for liquid zone
+    ctx.save();
+    ctx.globalAlpha = 0.07;
+    ctx.fillStyle = '#8a7a60';
+    ctx.beginPath();
+    ctx.arc(cx, cy, liquidR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Ripple rings inside liquid
+    for (let r = 0; r < RIPPLE_COUNT; r++) {
+      const phase_r = (r / RIPPLE_COUNT) * Math.PI * 2;
+      const pulse   = Math.sin(t * 1.2 + phase_r) * 0.5 + 0.5; // 0..1
+      const rr      = liquidR * (0.2 + 0.65 * (r / RIPPLE_COUNT) + pulse * 0.03);
+      if (rr <= 0 || rr >= liquidR) continue;
+      ctx.save();
+      ctx.globalAlpha = 0.09 * (1 - r / RIPPLE_COUNT);
+      ctx.strokeStyle = '#7a6a50';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // ── Solidified annulus (grain lines) ─────────────────────────────────────
+  if (solidR > 2) {
+    // Grain boundary lines radiate inward from mold wall to solid front
+    for (let g = 0; g < grains.length; g++) {
+      const gr = grains[g];
+      const fi = Math.round((gr.angle / (Math.PI * 2)) * FRONT_SEGS) % FRONT_SEGS;
+      const innerR = mR - solidR * frontNoise[fi];
+      if (innerR < 0) continue;
+
+      // Outer point (near mold wall)
+      const outerR = mR - gr.len * 4;
+      const angle  = gr.angle + gr.wobble * solidRadius;
+
+      const ox = cx + Math.cos(angle) * outerR;
+      const oy = cy + Math.sin(angle) * outerR;
+      const ix = cx + Math.cos(angle + gr.wobble) * innerR;
+      const iy = cy + Math.sin(angle + gr.wobble) * innerR;
+
+      ctx.save();
+      ctx.globalAlpha = 0.10 * solidRadius;
+      ctx.strokeStyle = '#5a5248';
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(ox, oy);
+      ctx.lineTo(ix, iy);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // ── Solidification front (boundary line) ────────────────────────────────
+  if (solidR > 1 && liquidR > 1) {
+    const frontBaseR = mR - solidR;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(55,50,45,0.60)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let i = 0; i <= FRONT_SEGS; i++) {
+      const angle = (i / FRONT_SEGS) * Math.PI * 2;
+      const r = frontBaseR * frontNoise[i % FRONT_SEGS];
+      const x = cx + Math.cos(angle) * r;
+      const y = cy + Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else         ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ── Phase update ───────────────────────────────────────────────────────────
+  if (phase === 'cooling') {
+    solidRadius = Math.min(solidRadius + coolRate, 1);
+    if (solidRadius >= 1) {
+      phase = 'melting';
+      // randomize grain structure for next cycle
+      buildGrains();
+    }
+  } else {
+    // melt slowly back
+    solidRadius = Math.max(solidRadius - coolRate * 0.4, 0);
+    if (solidRadius <= 0) phase = 'cooling';
+  }
+
+  // ── Hint label ────────────────────────────────────────────────────────────
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = '#3c3830';
+  ctx.font = `${Math.max(10, W * 0.011)}px monospace`;
+  const label = phase === 'cooling' ? 'scroll ↑ to cool faster' : 'melting…';
+  ctx.fillText(label, cx - W * 0.08, H * 0.88);
+  ctx.restore();
+
+  requestAnimationFrame(draw);
+}
+
+// ── Interaction ───────────────────────────────────────────────────────────────
+window.addEventListener('wheel', (e) => {
+  // scrolling up = faster cooling, down = slower
+  coolRate -= e.deltaY * 0.000002;
+  coolRate = Math.max(MIN_COOL, Math.min(MAX_COOL, coolRate));
+});
+
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '304',
+  title:  'Solidify',
+  detail: '円形の型に金属が流し込まれ、外側から凝固が進んでいく。固体と液体の境界を1本の線で描いている。スクロールアップで冷却を速め、スクロールダウンで遅くできる。固まりきると今度は溶けていく。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
