@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>128 — Pendulum</title>
+  <meta name="description" content="振り子が揺れながら、軌跡を残す。少しずつ弧が小さくなって、やがて止まる。クリックするとまた動き出す。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="128 — Pendulum | Creative Coding">
+  <meta property="og:description" content="振り子が揺れながら、軌跡を残す。少しずつ弧が小さくなって、やがて止まる。クリックするとまた動き出す。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/128_pendulum/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_128.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="128 — Pendulum | Creative Coding">
+  <meta name="twitter:description" content="振り子が揺れながら、軌跡を残す。少しずつ弧が小さくなって、やがて止まる。クリックするとまた動き出す。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_128.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  resetPendulum();
+}
+window.addEventListener('resize', resize);
+
+// Pendulum physics
+let pivotX, pivotY;
+let length;
+let angle;
+let angleVel;
+let angleDamping;
+const G = 0.002; // gravity constant (angular)
+
+const trailPoints = [];
+const MAX_TRAIL = 800;
+
+function resetPendulum(initialAngle) {
+  pivotX = W / 2;
+  pivotY = H * 0.22;
+  length = Math.min(W, H) * 0.42;
+  angle = initialAngle !== undefined ? initialAngle : (Math.PI / 4 + Math.random() * 0.4);
+  angleVel = 0;
+  angleDamping = 0.9985;
+  trailPoints.length = 0;
+}
+
+resize();
+
+canvas.addEventListener('click', e => {
+  // Click position determines initial angle relative to pivot
+  const dx = e.clientX - pivotX;
+  const dy = e.clientY - pivotY;
+  const clickAngle = Math.atan2(dx, -dy) * 0.8;
+  resetPendulum(Math.max(-Math.PI * 0.6, Math.min(Math.PI * 0.6, clickAngle + (Math.random() - 0.5) * 0.3)));
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const dx = t.clientX - pivotX;
+  const dy = t.clientY - pivotY;
+  const clickAngle = Math.atan2(dx, -dy) * 0.8;
+  resetPendulum(Math.max(-Math.PI * 0.6, Math.min(Math.PI * 0.6, clickAngle)));
+}, { passive: false });
+
+let frame = 0;
+
+function draw() {
+  requestAnimationFrame(draw);
+  frame++;
+
+  // Physics update
+  const accel = -G * Math.sin(angle) * length * 0.3;
+  angleVel += accel;
+  angleVel *= angleDamping;
+  angle += angleVel;
+
+  const bobX = pivotX + Math.sin(angle) * length;
+  const bobY = pivotY + Math.cos(angle) * length;
+
+  // Record trail
+  if (trailPoints.length === 0 ||
+      Math.hypot(bobX - trailPoints[trailPoints.length - 1].x,
+                 bobY - trailPoints[trailPoints.length - 1].y) > 1.5) {
+    trailPoints.push({ x: bobX, y: bobY });
+    if (trailPoints.length > MAX_TRAIL) {
+      trailPoints.shift();
+    }
+  }
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw pivot dot
+  ctx.beginPath();
+  ctx.arc(pivotX, pivotY, 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(42, 42, 42, 0.35)';
+  ctx.fill();
+
+  // Draw trail
+  if (trailPoints.length > 2) {
+    const len = trailPoints.length;
+    for (let i = 1; i < len; i++) {
+      const ratio = i / len;
+      const alpha = ratio * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(trailPoints[i - 1].x, trailPoints[i - 1].y);
+      ctx.lineTo(trailPoints[i].x, trailPoints[i].y);
+      ctx.strokeStyle = `rgba(42, 42, 42, ${alpha})`;
+      ctx.lineWidth = 0.7;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+  }
+
+  // Draw rod
+  ctx.beginPath();
+  ctx.moveTo(pivotX, pivotY);
+  ctx.lineTo(bobX, bobY);
+  ctx.strokeStyle = 'rgba(42, 42, 42, 0.2)';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  // Draw bob
+  const speed = Math.abs(angleVel);
+  const bobR = 4 + speed * 80;
+  ctx.beginPath();
+  ctx.arc(bobX, bobY, Math.min(bobR, 7), 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(42, 42, 42, 0.6)';
+  ctx.fill();
+
+  // Settled hint
+  if (Math.abs(angleVel) < 0.0003 && trailPoints.length > 10) {
+    ctx.fillStyle = 'rgba(42, 42, 42, 0.12)';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('click to start again', W / 2, H * 0.85);
+  }
+}
+
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '128',
+  title:  'Pendulum',
+  desc:   '振り子が揺れながら、軌跡を残す。少しずつ弧が小さくなって、やがて止まる。クリックするとまた動き出す。',
+  detail: '物理シミュレーションで振り子の動きを計算しています。クリックした位置が新しい初期角度になります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
