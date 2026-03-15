@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>248 – Plumb</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// Plumb — 下げ振り
+// 垂直を測るために吊るした錘。まっすぐのはずが、揺れている。
+// やがて止まる。また揺れる。
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf0ede8);
+
+const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 1.5, 22);
+camera.lookAt(0, 0, 0);
+
+// マテリアル
+const matDark   = new THREE.LineBasicMaterial({ color: 0x2a2420 });
+const matMid    = new THREE.LineBasicMaterial({ color: 0x7a7068 });
+const matLight  = new THREE.LineBasicMaterial({ color: 0xc0b8b0 });
+
+// 天井の基準線
+const ceilingPts = new Float32Array([-9, 3.8, 0, 9, 3.8, 0]);
+const ceilingGeo = new THREE.BufferGeometry();
+ceilingGeo.setAttribute('position', new THREE.BufferAttribute(ceilingPts, 3));
+scene.add(new THREE.Line(ceilingGeo, matLight));
+
+// 垂直参照の薄い縦線（中心）
+const vertRefPts = new Float32Array([0, 3.8, 0, 0, -3.8, 0]);
+const vertRefGeo = new THREE.BufferGeometry();
+vertRefGeo.setAttribute('position', new THREE.BufferAttribute(vertRefPts, 3));
+scene.add(new THREE.Line(vertRefGeo, matLight));
+
+// --- 下げ振り ---
+// NUM本を横に並べる。それぞれ独立した振り子として揺れる。
+// 同じ構造だが、初期角度と減衰係数が微妙に違う。
+
+const NUM_PLUMBS  = 7;
+const SPREAD      = 12;     // 全体の横幅
+const CORD_LEN    = 5.0;    // 糸の長さ
+const ANCHOR_Y    = 3.6;    // 吊り点のY座標
+
+// 正八面体のワイヤーフレームを線で作る
+function makeOctaWire(cx, cy, cz, radius, mat) {
+  const r = radius;
+  // 6頂点
+  const verts = [
+    [0,  r, 0],   // top
+    [0, -r, 0],   // bottom
+    [ r, 0, 0],
+    [-r, 0, 0],
+    [0,  0,  r],
+    [0,  0, -r]
+  ];
+  // 12辺
+  const edges = [
+    [0,2],[0,3],[0,4],[0,5],
+    [1,2],[1,3],[1,4],[1,5],
+    [2,4],[4,3],[3,5],[5,2]
+  ];
+  const pts = [];
+  edges.forEach(([a, b]) => {
+    pts.push(
+      cx + verts[a][0], cy + verts[a][1], cz + verts[a][2],
+      cx + verts[b][0], cy + verts[b][1], cz + verts[b][2]
+    );
+  });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3));
+  return new THREE.LineSegments(geo, mat);
+}
+
+class PlumbBob {
+  constructor(index) {
+    const frac = NUM_PLUMBS > 1 ? index / (NUM_PLUMBS - 1) : 0.5;
+    this.anchorX = (frac - 0.5) * SPREAD;
+    this.anchorY = ANCHOR_Y;
+
+    // 糸
+    const cordPts = new Float32Array(6);  // 2点 × 3成分
+    const cordGeo = new THREE.BufferGeometry();
+    cordGeo.setAttribute('position', new THREE.BufferAttribute(cordPts, 3));
+    this.cordPts  = cordPts;
+    this.cordGeo  = cordGeo;
+    this.cordLine = new THREE.Line(cordGeo, matMid);
+    scene.add(this.cordLine);
+
+    // 錘（正八面体ワイヤー）
+    const bobMat   = (index === Math.floor(NUM_PLUMBS / 2)) ? matDark : matMid;
+    this.bobRadius = 0.20 + 0.04 * Math.random();
+    this.bobMesh   = makeOctaWire(0, 0, 0, this.bobRadius, bobMat);
+    scene.add(this.bobMesh);
+
+    // 振り子の物理
+    // 初期角度：各々少しずつずれている（ランダム）
+    this.angle    = (Math.random() - 0.5) * 0.15;   // ラジアン
+    this.angVel   = (Math.random() - 0.5) * 0.08;
+    // 減衰係数（わずかに個体差）
+    this.damping  = 0.992 + Math.random() * 0.006;
+    // 固有振動数（糸の長さで決まる。少しバラバラに）
+    const len     = CORD_LEN * (0.92 + Math.random() * 0.16);
+    this.omega    = Math.sqrt(9.8 / len);
+
+    // 外乱タイマー
+    this.nextKick = 3.0 + Math.random() * 4.0;
+  }
+
+  update(dt, elapsed) {
+    // 外乱タイマー（止まったらまた揺らす）
+    this.nextKick -= dt;
+    if (this.nextKick < 0) {
+      // 小さな外乱
+      this.angVel  += (Math.random() - 0.5) * 0.12;
+      this.nextKick = 5.0 + Math.random() * 6.0;
+    }
+
+    // 振り子方程式（単振り子、小角度近似）
+    const accel  = -this.omega * this.omega * this.angle;
+    this.angVel += accel * dt;
+    this.angVel *= Math.pow(this.damping, dt * 60);
+    this.angle  += this.angVel * dt;
+
+    // 錘の位置
+    const bobX = this.anchorX + Math.sin(this.angle) * CORD_LEN;
+    const bobY = this.anchorY - Math.cos(this.angle) * CORD_LEN;
+
+    // 糸の更新
+    this.cordPts[0] = this.anchorX;  this.cordPts[1] = this.anchorY;  this.cordPts[2] = 0;
+    this.cordPts[3] = bobX;          this.cordPts[4] = bobY;           this.cordPts[5] = 0;
+    this.cordGeo.attributes.position.needsUpdate = true;
+
+    // 錘の位置更新
+    this.bobMesh.position.set(bobX, bobY, 0);
+  }
+}
+
+// 吊り点のマーク（小さいバツ印）
+function addAnchorMark(x, y) {
+  const s = 0.1;
+  const pts = new Float32Array([
+    x - s, y + s, 0,  x + s, y - s, 0,
+    x + s, y + s, 0,  x - s, y - s, 0
+  ]);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+  scene.add(new THREE.LineSegments(geo, matLight));
+}
+
+const plumbs = [];
+for (let i = 0; i < NUM_PLUMBS; i++) {
+  const p = new PlumbBob(i);
+  plumbs.push(p);
+  addAnchorMark(p.anchorX, p.anchorY);
+}
+
+// 床の基準線
+const floorPts = new Float32Array([-9, -1.6, 0, 9, -1.6, 0]);
+const floorGeo = new THREE.BufferGeometry();
+floorGeo.setAttribute('position', new THREE.BufferAttribute(floorPts, 3));
+scene.add(new THREE.Line(floorGeo, matLight));
+
+// マウスドラッグで視点を回転
+let isDragging = false;
+let prevMX = 0, prevMY = 0;
+let cameraTheta = 0;    // 水平回転（rad）
+let cameraPhi   = 0.08; // 垂直傾き（rad）
+
+function updateCamera() {
+  const r = 22;
+  camera.position.x = r * Math.sin(cameraTheta) * Math.cos(cameraPhi);
+  camera.position.y = 1.5 + r * Math.sin(cameraPhi);
+  camera.position.z = r * Math.cos(cameraTheta) * Math.cos(cameraPhi);
+  camera.lookAt(0, 0, 0);
+}
+
+window.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  prevMX = e.clientX;
+  prevMY = e.clientY;
+});
+window.addEventListener('mouseup', () => { isDragging = false; });
+window.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const dx = (e.clientX - prevMX) / window.innerWidth;
+  const dy = (e.clientY - prevMY) / window.innerHeight;
+  prevMX = e.clientX;
+  prevMY = e.clientY;
+  cameraTheta -= dx * 2.5;
+  cameraPhi    = Math.max(-0.3, Math.min(0.5, cameraPhi + dy * 1.5));
+  updateCamera();
+});
+
+// タッチ対応
+window.addEventListener('touchstart', (e) => {
+  isDragging = true;
+  prevMX = e.touches[0].clientX;
+  prevMY = e.touches[0].clientY;
+}, { passive: true });
+window.addEventListener('touchend', () => { isDragging = false; });
+window.addEventListener('touchmove', (e) => {
+  if (!isDragging) return;
+  const dx = (e.touches[0].clientX - prevMX) / window.innerWidth;
+  const dy = (e.touches[0].clientY - prevMY) / window.innerHeight;
+  prevMX = e.touches[0].clientX;
+  prevMY = e.touches[0].clientY;
+  cameraTheta -= dx * 2.5;
+  cameraPhi    = Math.max(-0.3, Math.min(0.5, cameraPhi + dy * 1.5));
+  updateCamera();
+}, { passive: true });
+
+// アニメーション
+let lastTime = 0;
+let elapsed  = 0;
+
+function animate(time) {
+  requestAnimationFrame(animate);
+  const t  = time / 1000;
+  const dt = Math.min(t - lastTime, 0.05);
+  lastTime = t;
+  elapsed += dt;
+
+  plumbs.forEach(p => p.update(dt, elapsed));
+
+  renderer.render(scene, camera);
+}
+
+animate(0);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '248',
+  title:  'Plumb',
+  detail: '7本の下げ振りが並んでいます。全部まっすぐになろうとしていますが、揺れています。ドラッグすると視点が変わり、それぞれのずれ方が立体的に見えます。しばらく放っておくと、また動き出します。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
