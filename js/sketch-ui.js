@@ -15,7 +15,8 @@
   const meta = window.SKETCH_META;
   if (!meta) return;
 
-  const isDebug = new URLSearchParams(location.search).has('debug');
+  const isLocalhost = ['localhost', '127.0.0.1', ''].includes(location.hostname);
+  const isDebug = localStorage.getItem('debug_mode') === 'true';
   const hasDetail = !!meta.detail;
 
   if (!document.querySelector('link[href*="Cormorant+Garamond"]')) {
@@ -187,6 +188,26 @@
       pointer-events: auto;
     }
     #sketch-toggle-btn:hover { color: rgba(42,42,42,0.75); border-color: rgba(42,42,42,0.3); }
+
+    /* DEV トグル：localhost のみ */
+    #sketch-dev-toggle {
+      position: fixed;
+      top: 24px;
+      right: 32px;
+      z-index: 9999;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-weight: 300;
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      background: rgba(245,243,238,0.85);
+      border: 1px solid rgba(42,42,42,0.15);
+      color: rgba(42,42,42,0.35);
+      cursor: pointer;
+      padding: 4px 10px;
+      transition: color 0.2s ease, border-color 0.2s ease;
+    }
+    #sketch-dev-toggle:hover { color: rgba(42,42,42,0.7); border-color: rgba(42,42,42,0.3); }
+    #sketch-dev-toggle.on { color: rgba(42,42,42,0.75); border-color: rgba(42,42,42,0.4); }
 
     /* save thumb：デバッグモード時のみ */
     #sketch-capture-btn {
@@ -377,6 +398,20 @@
       } catch (e) {
         alert('キャプチャに失敗しました: ' + e.message);
       }
+    });
+  }
+
+  // DEV トグル（localhost のみ）
+  if (isLocalhost) {
+    const devBtn = document.createElement('button');
+    devBtn.id = 'sketch-dev-toggle';
+    devBtn.textContent = 'DEV';
+    if (isDebug) devBtn.classList.add('on');
+    document.body.appendChild(devBtn);
+
+    devBtn.addEventListener('click', () => {
+      localStorage.setItem('debug_mode', isDebug ? 'false' : 'true');
+      location.reload();
     });
   }
 

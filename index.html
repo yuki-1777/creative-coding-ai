@@ -654,9 +654,49 @@
     btn.addEventListener('click', () => applyFilter(btn.dataset.filter));
   });
 
-  // ─── Debug FB overlay ───
+  // ─── Dev toggle & Debug FB overlay ───
   (function () {
-    if (!new URLSearchParams(location.search).has('debug')) return;
+    const isLocalhost = ['localhost', '127.0.0.1', ''].includes(location.hostname);
+    const isDebug = localStorage.getItem('debug_mode') === 'true';
+
+    // DEV トグルボタン（localhost のみ）
+    if (isLocalhost) {
+      const devStyle = document.createElement('style');
+      devStyle.textContent = `
+        #dev-toggle {
+          position: fixed;
+          top: 22px;
+          right: 48px;
+          z-index: 9001;
+          font-family: 'IBM Plex Mono', monospace;
+          font-weight: 300;
+          font-size: 0.62rem;
+          letter-spacing: 0.2em;
+          background: rgba(245,243,238,0.9);
+          border: 1px solid rgba(42,42,42,0.15);
+          color: rgba(42,42,42,0.35);
+          cursor: pointer;
+          padding: 4px 10px;
+          transition: color 0.2s, border-color 0.2s;
+        }
+        #dev-toggle:hover { color: rgba(42,42,42,0.7); border-color: rgba(42,42,42,0.3); }
+        #dev-toggle.on { color: rgba(42,42,42,0.75); border-color: rgba(42,42,42,0.4); }
+      `;
+      document.head.appendChild(devStyle);
+
+      const devBtn = document.createElement('button');
+      devBtn.id = 'dev-toggle';
+      devBtn.textContent = 'DEV';
+      if (isDebug) devBtn.classList.add('on');
+      document.body.appendChild(devBtn);
+
+      devBtn.addEventListener('click', () => {
+        localStorage.setItem('debug_mode', isDebug ? 'false' : 'true');
+        location.reload();
+      });
+    }
+
+    if (!isDebug) return;
 
     const FB_KEY = 'sketch_fb';
 
@@ -745,8 +785,8 @@
       .fb-delete:hover { color: rgba(42,42,42,0.6); }
       #fb-trigger {
         position: fixed;
-        top: 24px;
-        right: 32px;
+        top: 22px;
+        right: 100px;
         z-index: 9001;
         font-family: 'IBM Plex Mono', monospace;
         font-weight: 300;
