@@ -418,7 +418,7 @@
       <div id="sketch-fb-header"><span>FB</span><span id="sketch-fb-status"></span></div>
       <div id="sketch-fb-thread"></div>
       <div id="sketch-fb-input-area">
-        <textarea id="sketch-fb-textarea" placeholder="コメント… (Enter で送信)"></textarea>
+        <textarea id="sketch-fb-textarea" placeholder="コメント…"></textarea>
         <button id="sketch-fb-send">→</button>
       </div>
     `;
@@ -466,7 +466,7 @@
 
     sendBtn.addEventListener('click', sendMessage);
     textarea.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendMessage(); }
     });
 
     function showLinkPrompt() {
@@ -557,7 +557,7 @@
 
   // H キーで表示トグル
   document.addEventListener('keydown', e => {
-    if (e.key === 'h' || e.key === 'H') toggleOverlay();
+    if ((e.key === 'h' || e.key === 'H') && e.metaKey) toggleOverlay();
   });
 
   // works.json から tech・desc を取得して表示（works.json が正とする）
