@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>142 — Scatter</title>
+  <meta name="description" content="文字を書くと、文字が逃げる。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="142 — Scatter | Creative Coding">
+  <meta property="og:description" content="文字を書くと、文字が逃げる。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/142_scatter/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_142.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="142 — Scatter | Creative Coding">
+  <meta name="twitter:description" content="文字を書くと、文字が逃げる。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_142.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; cursor: none; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Scatter: the canvas is filled with a grid of characters from a fixed text.
+// Moving the mouse scatters the nearby characters away — they drift back slowly.
+// Constraint: only characters. No lines, no shapes. Text is the only visual element.
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+
+// The source text — a loop of this text fills the grid
+const SOURCE = 'コードを書いていたら何かが現れた ';
+
+// Grid of character particles
+const FONT_SIZE = 13;
+const COL_GAP = 32;
+const ROW_GAP = 48;
+
+let particles = [];
+let mouseX = -999, mouseY = -999;
+let isMouseActive = false;
+
+class CharParticle {
+  constructor(x, y, ch) {
+    this.ox = x;      // origin
+    this.oy = y;
+    this.x = x;       // current
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.ch = ch;
+    this.opacity = 0.28 + Math.random() * 0.18;
+  }
+
+  update(mx, my, active) {
+    // Repulsion from mouse
+    if (active) {
+      const dx = this.x - mx;
+      const dy = this.y - my;
+      const dist2 = dx * dx + dy * dy;
+      const radius = 120;
+      if (dist2 < radius * radius) {
+        const dist = Math.sqrt(dist2) || 0.1;
+        const force = (1 - dist / radius) * 5.5;
+        this.vx += (dx / dist) * force;
+        this.vy += (dy / dist) * force;
+      }
+    }
+
+    // Spring back to origin
+    this.vx += (this.ox - this.x) * 0.06;
+    this.vy += (this.oy - this.y) * 0.06;
+
+    // Damping
+    this.vx *= 0.80;
+    this.vy *= 0.80;
+
+    this.x += this.vx;
+    this.y += this.vy;
+  }
+
+  draw() {
+    const dist = Math.hypot(this.x - this.ox, this.y - this.oy);
+    // Characters that are displaced become slightly fainter
+    const alpha = this.opacity * Math.max(0.15, 1 - dist / 100);
+    ctx.fillStyle = `rgba(42,42,42,${alpha.toFixed(3)})`;
+    ctx.fillText(this.ch, this.x, this.y);
+  }
+}
+
+function buildGrid() {
+  particles = [];
+  const cols = Math.ceil(W / COL_GAP) + 2;
+  const rows = Math.ceil(H / ROW_GAP) + 2;
+  let charIdx = 0;
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const x = col * COL_GAP;
+      const y = row * ROW_GAP + FONT_SIZE;
+      const ch = SOURCE[charIdx % SOURCE.length];
+      charIdx++;
+      particles.push(new CharParticle(x, y, ch));
+    }
+  }
+}
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  buildGrid();
+}
+window.addEventListener('resize', resize);
+resize();
+
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+  isMouseActive = true;
+});
+canvas.addEventListener('mouseleave', () => {
+  isMouseActive = false;
+  mouseX = -999;
+  mouseY = -999;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  mouseX = t.clientX;
+  mouseY = t.clientY;
+  isMouseActive = true;
+}, { passive: false });
+canvas.addEventListener('touchend', () => {
+  isMouseActive = false;
+}, { passive: false });
+
+function tick() {
+  requestAnimationFrame(tick);
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.font = `${FONT_SIZE}px 'Hiragino Mincho ProN', 'Yu Mincho', Georgia, serif`;
+  ctx.textBaseline = 'alphabetic';
+
+  for (const p of particles) {
+    p.update(mouseX, mouseY, isMouseActive);
+    p.draw();
+  }
+
+  // Draw cursor dot
+  if (isMouseActive) {
+    ctx.beginPath();
+    ctx.arc(mouseX, mouseY, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(42,42,42,0.3)';
+    ctx.fill();
+  }
+}
+
+tick();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '142',
+  title:  'Scatter',
+  desc:   '画面いっぱいに文字が並んでいる。マウスを近づけると、文字が逃げる。離すと、ゆっくり元の位置に戻る。文字だけで作った。',
+  detail: 'ひとつの文章が文字ごとにグリッド上に並べられています。マウスカーソルに近い文字が反発して逃げ、弾性で元の位置に戻ります。形のない力が、文字の配置を乱します。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
