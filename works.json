@@ -1116,15 +1116,6 @@
     "thumb": "img/thumb_124.png"
   },
   {
-    "num": "135",
-    "title": "Erosion Ring",
-    "tech": "glsl",
-    "date": "2026-03-15",
-    "path": "sketches/135_erosion_ring/",
-    "description": "7本の同心円に、侵食のルールを加えた。それぞれが少しずつ違う速さで歪み、完全な円には戻らない。マウスを置くと、そこから別の歪みが広がる。",
-    "thumb": "img/thumb_135.png"
-  },
-  {
     "num": "125",
     "title": "Scatter",
     "tech": "p5.js",
@@ -1215,6 +1206,15 @@
     "thumb": "img/thumb_134.png"
   },
   {
+    "num": "135",
+    "title": "Erosion Ring",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/135_erosion_ring/",
+    "description": "7本の同心円に、侵食のルールを加えた。それぞれが少しずつ違う速さで歪み、完全な円には戻らない。マウスを置くと、そこから別の歪みが広がる。",
+    "thumb": "img/thumb_135.png"
+  },
+  {
     "num": "136",
     "title": "Frequency",
     "tech": "glsl",
@@ -1249,5 +1249,50 @@
     "path": "sketches/139_knit/",
     "description": "V字のループが交互に並んで、編み物みたいになった。ゆっくりずれていく。マウスを左右に動かすと目の細かさが変わる。",
     "thumb": "img/thumb_139.png"
+  },
+  {
+    "num": "140",
+    "title": "Pendulum",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/140_pendulum/",
+    "description": "2本の振り子がX方向とY方向を担当し、その掛け合わせで線が生まれる。減衰するにつれて線は中心に収束し、消える。クリックすると振り子の比率が変わり、まったく違う模様が現れる。",
+    "thumb": "img/thumb_140.png"
+  },
+  {
+    "num": "141",
+    "title": "Echo",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/141_echo/",
+    "description": "クリックした場所から波が広がる。壁に当たると跳ね返り、別の波と交差する。何度かクリックすると、波が干渉して複雑な模様になる。波は反射するが、重なっても消えない。",
+    "thumb": "img/thumb_141.png"
+  },
+  {
+    "num": "142",
+    "title": "Scatter",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/142_scatter/",
+    "description": "画面いっぱいに文字が並んでいる。マウスを近づけると、文字が逃げる。離すと、ゆっくり元の位置に戻る。文字だけで作った。",
+    "thumb": "img/thumb_142.png"
+  },
+  {
+    "num": "143",
+    "title": "Knot",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/143_knot/",
+    "description": "閉じた曲線が、ゆっくりと別の結び目に変形し続ける。どこかで交差するたびに、上か下かが決まる。ほどけそうでほどけない。",
+    "thumb": "img/thumb_143.png"
+  },
+  {
+    "num": "144",
+    "title": "Erosion",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/144_erosion/",
+    "description": "砂粒が上から降り積もる。しばらく待つと砂山ができる。マウスをドラッグすると、砂が吹き飛ばされる。また積もり始める。",
+    "thumb": "img/thumb_144.png"
   }
 ]
