@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>289 – Autoclave</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #f5f3ef;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Autoclave: マウスY座標で圧力が変わる。
+// 圧力が上がるほど蒸気の密度が増し、空間が歪む。
+
+const canvas = document.getElementById('c');
+const gl     = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+if (!gl) {
+  document.body.innerHTML = '<p style="padding:2em">WebGL not supported</p>';
+  throw new Error('no webgl');
+}
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ─── シェーダー ─────────────────────────────────
+const VS = `
+attribute vec2 a_pos;
+void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+`;
+
+const FS = `
+precision highp float;
+uniform vec2  u_res;
+uniform float u_time;
+uniform float u_pressure; // 0〜1
+uniform vec2  u_mouse;
+
+// ─── ノイズ ───────────────────────────────────
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i),            hash(i + vec2(1,0)), u.x),
+    mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float v = 0.0, amp = 0.5;
+  for (int i = 0; i < 5; i++) {
+    v   += amp * noise(p);
+    p   *= 2.0;
+    amp *= 0.5;
+  }
+  return v;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  uv.y = 1.0 - uv.y; // 上が高圧
+
+  float press = u_pressure;
+  float t     = u_time;
+
+  // ─── 蒸気の歪み場 ─────────────────────────────
+  // 低圧: ほぼ静止、高圧: 蒸気が激しく対流
+  vec2 steamOffset = vec2(0.0);
+  float steamStr   = press * press * 0.06;
+  steamOffset.x    = fbm(uv * 4.0 + vec2(t * 0.3, 0.0)) - 0.5;
+  steamOffset.y    = fbm(uv * 4.0 + vec2(0.0, t * 0.25)) - 0.5;
+  vec2 distUV      = uv + steamOffset * steamStr;
+
+  // ─── 圧力帯の可視化（等圧線）───────────────────
+  // 空間全体の「圧力場」= ノイズで歪んだ等高線
+  float pressField = fbm(distUV * 3.0 + vec2(-t * 0.15, t * 0.08));
+  pressField       = pressField * 0.7 + distUV.y * 0.3;
+
+  // 等圧線
+  float contour = sin(pressField * 18.0 * press + t * 0.4);
+  float lineW   = 0.02 / (press + 0.2);
+  float iso     = smoothstep(lineW, 0.0, abs(contour));
+
+  // 高圧ほど線が細かく・密に
+  float contour2 = sin(pressField * 36.0 * press + t * 0.6);
+  float iso2     = press * smoothstep(lineW * 1.5, 0.0, abs(contour2)) * 0.4;
+
+  // ─── 蒸気のもや ────────────────────────────────
+  float steam = fbm(distUV * 5.0 + vec2(t * 0.4, -t * 0.2));
+  steam       = smoothstep(0.45, 0.65, steam) * press * 0.18;
+
+  // ─── 容器の輪郭（縦線） ─────────────────────────
+  float wallL   = smoothstep(0.02, 0.0, abs(uv.x - 0.05));
+  float wallR   = smoothstep(0.02, 0.0, abs(uv.x - 0.95));
+  float wallT   = smoothstep(0.02, 0.0, abs(uv.y - 0.04));
+  float wallB   = smoothstep(0.02, 0.0, abs(uv.y - 0.96));
+  float wall    = max(max(wallL, wallR), max(wallT, wallB));
+
+  // 高圧で壁が微振動
+  float vib = press * 0.003 * sin(t * 40.0 + uv.y * 20.0);
+
+  // ─── 合成 ──────────────────────────────────────
+  vec3 bg     = vec3(0.961, 0.953, 0.937); // オフホワイト
+  vec3 dark   = vec3(0.165, 0.149, 0.125); // グラファイト
+
+  float draw  = clamp(iso + iso2 + steam + wall + vib * 0.1, 0.0, 1.0);
+
+  // 高圧で背景がわずかに暗くなる（圧迫感）
+  bg -= press * 0.06;
+
+  vec3 col = mix(bg, dark, draw);
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compile(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER,   VS));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes      = gl.getUniformLocation(prog, 'u_res');
+const uTime     = gl.getUniformLocation(prog, 'u_time');
+const uPressure = gl.getUniformLocation(prog, 'u_pressure');
+const uMouse    = gl.getUniformLocation(prog, 'u_mouse');
+
+let mouseY    = 0.5; // 正規化Y (0=上, 1=下)
+let pressure  = 0.0;
+
+window.addEventListener('mousemove', (e) => {
+  mouseY = e.clientY / window.innerHeight;
+});
+
+// スマホ用
+window.addEventListener('touchmove', (e) => {
+  mouseY = e.touches[0].clientY / window.innerHeight;
+  e.preventDefault();
+}, { passive: false });
+
+function render(ts) {
+  requestAnimationFrame(render);
+  const t = ts * 0.001;
+
+  // マウスY=0(上端)が高圧, Y=1(下端)が低圧
+  const targetPressure = 1.0 - mouseY;
+  pressure += (targetPressure - pressure) * 0.04;
+
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform1f(uPressure, pressure);
+  gl.uniform2f(uMouse, mouseY, pressure);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+requestAnimationFrame(render);
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '289',
+  title:  'Autoclave',
+  detail: '高圧蒸気滅菌器の内部をイメージして描いた。マウスを上に移動すると圧力が上がり、等圧線が細かくなり、蒸気のもやが濃くなる。容器の壁が微振動する。数字は一切使っていない——圧力は密度と歪みだけで表している。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
