@@ -1447,5 +1447,14 @@
     "path": "sketches/161_noise_field/",
     "description": "ランダムな等高線がゆっくり流れている。マウスを動かすと近くの線が歪む。何層もの波を重ねたノイズで全ピクセルを計算している。",
     "thumb": "img/thumb_161.png"
+  },
+  {
+    "num": "162",
+    "title": "Constellation",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/162_constellation/",
+    "description": "星がゆっくり漂っている。近い星同士は自動的に線でつながる。クリックすると星が増える。マウスを近づけると、その点にも線が集まる。",
+    "thumb": "img/thumb_162.png"
   }
 ]

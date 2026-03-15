@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>162 — Constellation</title>
+  <meta name="description" content="クリックで星を置く。近い星同士が線でつながる。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="162 — Constellation | Creative Coding">
+  <meta property="og:description" content="クリックで星を置く。近い星同士が線でつながる。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/162_constellation/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_162.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="162 — Constellation | Creative Coding">
+  <meta name="twitter:description" content="クリックで星を置く。近い星同士が線でつながる。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_162.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Constellation: stars drift slowly. Click to add more.
+// Stars within a threshold distance are connected by lines.
+// Line opacity inversely proportional to distance.
+// Stars slowly drift with Perlin-like wobble.
+
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const MAX_CONNECT_DIST = 160;
+const STAR_RADIUS = 2.0;
+const MAX_STARS = 80;
+
+// Star class with drift
+class Star {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.vx = (Math.random() - 0.5) * 0.3;
+    this.vy = (Math.random() - 0.5) * 0.3;
+    this.phase = Math.random() * Math.PI * 2;
+    this.driftAmp = 0.3 + Math.random() * 0.5;
+    this.twinkle = 0;
+  }
+  update(t) {
+    // Slow drift
+    this.x += this.vx + Math.sin(t * 0.5 + this.phase) * this.driftAmp * 0.01;
+    this.y += this.vy + Math.cos(t * 0.4 + this.phase + 1) * this.driftAmp * 0.01;
+
+    // Wrap at edges
+    if (this.x < -5) this.x = W + 5;
+    if (this.x > W + 5) this.x = -5;
+    if (this.y < -5) this.y = H + 5;
+    if (this.y > H + 5) this.y = -5;
+
+    // Twinkle: random size variation
+    this.twinkle = 0.7 + 0.3 * Math.sin(t * 3.1 + this.phase * 4);
+  }
+}
+
+// Generate initial stars
+const stars = [];
+function seedStars() {
+  for (let i = 0; i < 40; i++) {
+    stars.push(new Star(Math.random() * W, Math.random() * H));
+  }
+}
+seedStars();
+
+let mouseX = -1, mouseY = -1;
+
+canvas.addEventListener('click', (e) => {
+  if (stars.length < MAX_STARS) {
+    stars.push(new Star(e.clientX, e.clientY));
+  }
+});
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+canvas.addEventListener('mouseleave', () => { mouseX = -1; mouseY = -1; });
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (stars.length < MAX_STARS) {
+    stars.push(new Star(e.touches[0].clientX, e.touches[0].clientY));
+  }
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  mouseX = e.touches[0].clientX;
+  mouseY = e.touches[0].clientY;
+}, { passive: false });
+
+const start = performance.now();
+
+function tick() {
+  requestAnimationFrame(tick);
+
+  const t = (performance.now() - start) / 1000;
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  // Update stars
+  for (const s of stars) s.update(t);
+
+  // Draw connections
+  ctx.lineCap = 'round';
+  for (let i = 0; i < stars.length; i++) {
+    for (let j = i + 1; j < stars.length; j++) {
+      const dx = stars[j].x - stars[i].x;
+      const dy = stars[j].y - stars[i].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > MAX_CONNECT_DIST) continue;
+
+      const alpha = (1 - dist / MAX_CONNECT_DIST) * 0.30;
+      ctx.strokeStyle = `rgba(42,42,42,${alpha.toFixed(3)})`;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(stars[i].x, stars[i].y);
+      ctx.lineTo(stars[j].x, stars[j].y);
+      ctx.stroke();
+    }
+  }
+
+  // Mouse connections
+  if (mouseX >= 0) {
+    for (const s of stars) {
+      const dx = s.x - mouseX;
+      const dy = s.y - mouseY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > MAX_CONNECT_DIST * 1.3) continue;
+      const alpha = (1 - dist / (MAX_CONNECT_DIST * 1.3)) * 0.50;
+      ctx.strokeStyle = `rgba(42,42,42,${alpha.toFixed(3)})`;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(mouseX, mouseY);
+      ctx.lineTo(s.x, s.y);
+      ctx.stroke();
+    }
+    // Mouse cursor dot
+    ctx.beginPath();
+    ctx.arc(mouseX, mouseY, 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(42,42,42,0.5)';
+    ctx.fill();
+  }
+
+  // Draw stars
+  for (const s of stars) {
+    const r = STAR_RADIUS * s.twinkle;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(42,42,42,0.75)';
+    ctx.fill();
+  }
+}
+
+tick();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '162',
+  title:  'Constellation',
+  detail: '星がゆっくり漂っている。近い星同士は線でつながる。クリックすると星が増える。マウスに近い星とも線が引かれる。最大80個まで追加できる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
