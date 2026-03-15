@@ -38,7 +38,7 @@ function getGate() {
 }
 
 // ─── Particles ──────────────────────────────────────────────────────────────
-const MAX_PARTICLES = 700;
+const MAX_PARTICLES = 1500;
 const particles = [];
 
 function channelX() {
@@ -67,6 +67,7 @@ class Particle {
     this.alpha = 0.50 + Math.random() * 0.40;
     this.passed = false;
     this.blocked = false;
+    this.active = true;
   }
 
   update() {
@@ -117,9 +118,15 @@ class Particle {
       this.y += this.vy;
     }
 
-    // Off-screen → respawn from top
+    // Off-screen handling
     if (this.y > H + 30 || this.x < -80 || this.x > W + 80) {
-      this.init(false);
+      if (this.passed) {
+        // passed particles that leave the screen are deactivated (no respawn)
+        this.active = false;
+      } else {
+        // non-passed particles respawn from top to keep water flowing
+        this.init(false);
+      }
     }
   }
 
@@ -243,10 +250,10 @@ function drawLabel() {
 // ─── Interaction ──────────────────────────────────────────────────────────────
 canvas.addEventListener('click', () => {
   gateOpen = !gateOpen;
-  // When closing, reset all passed particles so they re-enter from top
+  // When closing, reactivate inactive particles so water keeps flowing
   if (!gateOpen) {
     for (const p of particles) {
-      if (p.passed) p.init(false);
+      if (!p.active || p.passed) p.init(false);
     }
   }
 });
@@ -261,12 +268,12 @@ function draw() {
 
   drawChannel();
 
-  for (const p of particles) p.update();
+  for (const p of particles) { if (p.active) p.update(); }
 
   // Draw passed (below gate) first, then gate, then blocked (above)
-  for (const p of particles) { if (p.passed)  p.draw(); }
+  for (const p of particles) { if (p.active && p.passed)  p.draw(); }
   drawGate();
-  for (const p of particles) { if (!p.passed) p.draw(); }
+  for (const p of particles) { if (p.active && !p.passed) p.draw(); }
 
   drawLabel();
 
