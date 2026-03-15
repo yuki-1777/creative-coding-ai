@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>140 — Pendulum</title>
+  <meta name="description" content="振り子が描く。止まれないから、ずっと描き続ける。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="140 — Pendulum | Creative Coding">
+  <meta property="og:description" content="振り子が描く。止まれないから、ずっと描き続ける。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/140_pendulum/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_140.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="140 — Pendulum | Creative Coding">
+  <meta name="twitter:description" content="振り子が描く。止まれないから、ずっと描き続ける。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_140.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Harmonograph: two pendulums (X and Y) with slightly different frequencies
+// draw a Lissajous-like curve that slowly precesses and never exactly repeats.
+// Constraint: only pendulum physics. No noise, no agents, no explicit drawing logic.
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Harmonograph parameters
+// Two damped pendulums for X, two for Y — classic setup
+function makePendulum(freq, phase, decay) {
+  return { freq, phase, decay };
+}
+
+let pendulums;
+let trailCtx, trailCanvas;
+let t = 0;
+let prevX, prevY;
+let mouseX = W / 2, mouseY = H / 2;
+let generation = 0;
+
+function init() {
+  // Create offscreen canvas for persistent trail
+  trailCanvas = document.createElement('canvas');
+  trailCanvas.width = W;
+  trailCanvas.height = H;
+  trailCtx = trailCanvas.getContext('2d');
+  trailCtx.fillStyle = '#F5F3EE';
+  trailCtx.fillRect(0, 0, W, H);
+
+  t = 0;
+  generation++;
+
+  // Ratio of frequencies — irrational-ish => never closes
+  const baseFreq = 1.0;
+  const ratioX = 1.0 + (Math.random() * 0.04 - 0.02);
+  const ratioY = 1.5 + (Math.random() * 0.04 - 0.02);
+  const phaseShift = Math.random() * Math.PI * 2;
+
+  pendulums = {
+    x1: makePendulum(baseFreq,       0,             0.00015),
+    x2: makePendulum(baseFreq * 2.1, phaseShift,    0.0002),
+    y1: makePendulum(ratioX,         Math.PI * 0.5, 0.00015),
+    y2: makePendulum(ratioY,         phaseShift * 0.7, 0.0002),
+  };
+
+  prevX = null;
+  prevY = null;
+}
+
+function evalPendulum(p, t) {
+  return Math.sin(t * p.freq * 0.025 + p.phase) * Math.exp(-p.decay * t);
+}
+
+function getPos(t) {
+  const amplitude = Math.min(W, H) * 0.34;
+  const x = W / 2 + amplitude * (evalPendulum(pendulums.x1, t) + evalPendulum(pendulums.x2, t) * 0.35);
+  const y = H / 2 + amplitude * 0.7 * (evalPendulum(pendulums.y1, t) + evalPendulum(pendulums.y2, t) * 0.35);
+  return { x, y };
+}
+
+canvas.addEventListener('click', () => {
+  init();
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+
+init();
+
+// Fade-in alpha based on progress
+function getAlpha(t) {
+  const fadeIn = Math.min(1, t / 300);
+  return 0.55 * fadeIn;
+}
+
+function tick() {
+  requestAnimationFrame(tick);
+
+  // Steps per frame — more = faster drawing
+  const stepsPerFrame = 6;
+  for (let s = 0; s < stepsPerFrame; s++) {
+    t++;
+    const { x, y } = getPos(t);
+
+    if (prevX !== null) {
+      trailCtx.beginPath();
+      trailCtx.moveTo(prevX, prevY);
+      trailCtx.lineTo(x, y);
+      trailCtx.strokeStyle = `rgba(42,42,42,${getAlpha(t)})`;
+      trailCtx.lineWidth = 0.7;
+      trailCtx.lineCap = 'round';
+      trailCtx.stroke();
+    }
+
+    prevX = x;
+    prevY = y;
+
+    // If amplitude has decayed to near-zero, restart
+    const amp = Math.exp(-pendulums.x1.decay * t);
+    if (amp < 0.005 && t > 500) {
+      // Slow fade out then restart
+      trailCtx.fillStyle = 'rgba(245,243,238,0.008)';
+      trailCtx.fillRect(0, 0, W, H);
+    }
+    if (amp < 0.001) {
+      // fade fully, then reinit
+      trailCtx.fillStyle = '#F5F3EE';
+      trailCtx.fillRect(0, 0, W, H);
+      init();
+    }
+  }
+
+  // Composite trail onto main canvas
+  ctx.drawImage(trailCanvas, 0, 0);
+
+  // Draw live cursor dot (faint)
+  ctx.beginPath();
+  const cur = getPos(t);
+  ctx.arc(cur.x, cur.y, 1.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(42,42,42,0.4)';
+  ctx.fill();
+
+  // Hint
+  if (t < 600) {
+    ctx.font = '13px Georgia, serif';
+    ctx.fillStyle = `rgba(42,42,42,${Math.max(0, 0.2 - t / 3000)})`;
+    const msg = 'click to restart';
+    ctx.fillText(msg, W / 2 - ctx.measureText(msg).width / 2, H * 0.88);
+  }
+}
+
+tick();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '140',
+  title:  'Pendulum',
+  desc:   '2本の振り子がX方向とY方向を担当し、その掛け合わせで線が生まれる。減衰するにつれて線は中心に収束し、消える。クリックすると振り子の比率が変わり、まったく違う模様が現れる。',
+  detail: 'ハーモノグラフ（Harmonograph）という仕組みです。2つの振り子のわずかに異なる周波数比が、絶妙に閉じない曲線を生み出します。クリックで新しい比率に切り替わります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
