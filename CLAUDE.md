@@ -86,10 +86,11 @@ const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
 
 ```
 スケッチ [NN]〜[MM] 番を作成してください。
-docs/agent-team.md に従ってサブエージェントを並列起動してください。
+docs/agent-team.md に従って技術ごとにサブエージェントを並列起動してください。
+番号を4技術に均等に割り振ること。
 ```
 
-3. 各サブエージェントが実装完了後に works.json の追記内容を返す
+3. 各サブエージェント（技術ごと）が実装完了後に works.json の追記内容を返す
 4. オーケストレーターがまとめて `works.json` に書き込む
 
 ---
