@@ -2428,5 +2428,23 @@
     "path": "sketches/267_ribbon/",
     "description": "キーを打ち続けたら、文字の代わりにインクが薄れていった。最後は跡だけが残った。",
     "thumb": "img/thumb_267.png"
+  },
+  {
+    "num": "273",
+    "title": "Capillary",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/273_capillary/",
+    "description": "細さの違う7本の管を並べた。細いほど高く上がる。液体そのものは描かなかった。",
+    "thumb": "img/thumb_273.png"
+  },
+  {
+    "num": "271",
+    "title": "Thermometer",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/271_thermometer/",
+    "description": "5本の体温計を置いた。水銀がゆっくり上がって、それぞれ違う体温で止まった。高い体温ほど赤くなった。",
+    "thumb": "img/thumb_271.png"
   }
 ]
