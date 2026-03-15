@@ -2662,5 +2662,59 @@
     "path": "sketches/296_tone/",
     "description": "クリックした場所で音が鳴った。上ほど高く、右ほど大きく。輪が広がって消えた。",
     "thumb": "img/thumb_296.png"
+  },
+  {
+    "num": "297",
+    "title": "Unravel",
+    "tech": "p5.js",
+    "date": "2026-03-16",
+    "path": "sketches/297_unravel/",
+    "description": "布の端から糸を抜こうとした。一本ずつ出てきて、弛んで、落ちた。",
+    "thumb": "img/thumb_297.png"
+  },
+  {
+    "num": "298",
+    "title": "Vertebra",
+    "tech": "three.js",
+    "date": "2026-03-16",
+    "path": "sketches/298_vertebra/",
+    "description": "椎骨を14個縦に連ねたら、脊椎がゆっくりS字に揺れ始めた。面は一切使わず、輪郭の線だけで描いた。",
+    "thumb": "img/thumb_298.png"
+  },
+  {
+    "num": "299",
+    "title": "Punch",
+    "tech": "glsl",
+    "date": "2026-03-16",
+    "path": "sketches/299_punch/",
+    "thumb": "img/thumb_299.png",
+    "description": "8行の穴のパターンを書いていたら、1バイトずつ記録する機械が現れた。"
+  },
+  {
+    "num": "300",
+    "title": "Distill",
+    "tech": "canvas",
+    "date": "2026-03-16",
+    "path": "sketches/300_distill/",
+    "description": "蒸留のルールだけ書いた。液滴が管を伝い、受け器に溜まっていく。装置そのものは描かなかった。",
+    "thumb": "img/thumb_300.png"
+  },
+  {
+    "num": "302",
+    "title": "Suture",
+    "tech": "three.js",
+    "date": "2026-03-16",
+    "path": "sketches/302_suture/",
+    "description": "針は描かなかった。糸の跡だけが残った。縫い終わったと思ったら、また解かれていた。",
+    "thumb": "img/thumb_302.png"
+  },
+  {
+    "num": "306",
+    "title": "Screen",
+    "tech": "three.js",
+    "date": "2026-03-16",
+    "path": "sketches/306_screen/",
+    "description": "網戸に指を当てると、メッシュが奥へへこんだ。指の形は見えない。押しつけた跡だけが残る。",
+    "thumb": "img/thumb_306.png"
   }
 ]
