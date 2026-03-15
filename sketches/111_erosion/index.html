@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>111 — Erosion</title>
+  <meta name="description" content="砂の崖が、少しずつ削れていく。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="111 — Erosion | Creative Coding">
+  <meta property="og:description" content="砂の崖が、少しずつ削れていく。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/111_erosion/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_111.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="111 — Erosion | Creative Coding">
+  <meta name="twitter:description" content="砂の崖が、少しずつ削れていく。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_111.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+let heights = [];
+let time = 0;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  initHeights();
+}
+
+// Simple noise: sum of sines
+function noise1D(x, t) {
+  return (
+    Math.sin(x * 0.018 + t * 0.3) * 0.45 +
+    Math.sin(x * 0.051 - t * 0.19) * 0.25 +
+    Math.sin(x * 0.093 + t * 0.11) * 0.15 +
+    Math.sin(x * 0.007 - t * 0.07) * 0.15
+  );
+}
+
+function initHeights() {
+  heights = [];
+  const baseLevel = H * 0.52;
+  const amplitude = H * 0.22;
+  for (let x = 0; x <= W; x++) {
+    const n = noise1D(x, 0);
+    heights.push(baseLevel + n * amplitude);
+  }
+}
+
+window.addEventListener('resize', resize);
+resize();
+
+// Erosion: gradually lower the terrain over time
+// Each step: slightly erode peaks, deposit in valleys
+function erode() {
+  const newH = heights.slice();
+  const baseLevel = H * 0.52;
+
+  for (let x = 1; x < W - 1; x++) {
+    // Slope-based erosion
+    const left = heights[x - 1];
+    const right = heights[x + 1];
+    const center = heights[x];
+    const avgNeighbor = (left + right) * 0.5;
+
+    // Material moves from high to low
+    const diff = center - avgNeighbor;
+    newH[x] = center - diff * 0.005;
+
+    // Slow overall settling toward time-varying noise surface
+    const target = baseLevel + noise1D(x, time * 0.006) * H * 0.22;
+    newH[x] = newH[x] * 0.998 + target * 0.002;
+  }
+
+  // Boundaries
+  newH[0] = newH[1];
+  newH[W] = newH[W - 1];
+
+  heights = newH;
+}
+
+// Draw particles that fall when eroding
+const particles = [];
+
+function spawnParticles() {
+  if (Math.random() < 0.25) {
+    const x = Math.random() * W;
+    const idx = Math.floor(x);
+    if (idx >= 0 && idx < heights.length) {
+      particles.push({
+        x,
+        y: heights[idx],
+        vx: (Math.random() - 0.5) * 0.8,
+        vy: -(0.3 + Math.random() * 0.5),
+        life: 40 + Math.random() * 40,
+        maxLife: 80
+      });
+    }
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.vy += 0.08; // gravity
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+    if (p.life <= 0 || p.y > H + 10) {
+      particles.splice(i, 1);
+    }
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  erode();
+  spawnParticles();
+  updateParticles();
+
+  // Draw terrain
+  ctx.beginPath();
+  ctx.moveTo(0, heights[0]);
+  for (let x = 1; x <= W; x++) {
+    const h = heights[Math.min(x, heights.length - 1)];
+    ctx.lineTo(x, h);
+  }
+  ctx.lineTo(W, H);
+  ctx.lineTo(0, H);
+  ctx.closePath();
+
+  // Fill with subtle warm tone
+  ctx.fillStyle = 'rgba(180, 165, 145, 0.18)';
+  ctx.fill();
+
+  // Draw surface line
+  ctx.beginPath();
+  ctx.moveTo(0, heights[0]);
+  for (let x = 1; x <= W; x++) {
+    ctx.lineTo(x, heights[Math.min(x, heights.length - 1)]);
+  }
+  ctx.strokeStyle = 'rgba(42, 42, 42, 0.55)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Draw particles
+  for (const p of particles) {
+    const alpha = (p.life / p.maxLife) * 0.4;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 1, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(42, 42, 42, ${alpha})`;
+    ctx.fill();
+  }
+
+  time++;
+}
+
+// Click to reset
+canvas.addEventListener('click', () => {
+  time = Math.random() * 1000;
+  initHeights();
+});
+
+function loop() {
+  requestAnimationFrame(loop);
+  draw();
+}
+loop();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '111',
+  title:  'Erosion',
+  desc:   '砂の崖が、少しずつ削れていく。削れたものはどこかに積もる。終わりはない。',
+  detail: '地形の凹凸が少しずつ変化し続けています。高い場所から低い場所へ、少量ずつ素材が移動する「侵食」のシミュレーションです。クリックすると地形がリセットされます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
