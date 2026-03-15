@@ -156,26 +156,20 @@
   // トリガー要素（ページ種別で異なる）
   let trigger;
 
+  // 独立した「FB」ボタンを作成（両ページ共通）
+  trigger = document.createElement('button');
+  trigger.id = 'fb-trigger';
+  trigger.textContent = 'FB';
+  document.body.appendChild(trigger);
+
   if (isSketchPage) {
-    // スケッチページ：sketch-fb-panel の「list」ボタンを使う
-    // sketch-ui.js が先に走るので DOM に存在するはず
-    trigger = document.getElementById('sketch-fb-list-btn');
-    if (trigger) {
-      // オーバーレイを sketch-fb-panel の左横に表示
-      const panel = document.getElementById('sketch-fb-panel');
-      if (panel) {
-        const rect = panel.getBoundingClientRect();
-        overlay.style.bottom = (window.innerHeight - rect.bottom) + 'px';
-        overlay.style.right  = (window.innerWidth - rect.left + 8) + 'px';
-      }
-    }
+    // スケッチページ：sketch-fb-panel（bottom:106, ~100px高）の上
+    trigger.style.bottom = '214px';
+    trigger.style.right  = '32px';
+    overlay.style.bottom = '252px';
+    overlay.style.right  = '32px';
   } else {
-    // ギャラリーページ：独立した「FB」ボタンを作成
-    trigger = document.createElement('button');
-    trigger.id = 'fb-trigger';
-    trigger.textContent = 'FB';
-    document.body.appendChild(trigger);
-    // オーバーレイはボタンの上に表示
+    // ギャラリーページ：DEVボタン横（bottom:32, right:48）の左
     overlay.style.bottom = '72px';
     overlay.style.right  = '32px';
   }
@@ -213,15 +207,6 @@
   }
 
   function openOverlay() {
-    // スケッチページでは開くたびに位置を再計算（リサイズ対応）
-    if (isSketchPage) {
-      const panel = document.getElementById('sketch-fb-panel');
-      if (panel) {
-        const rect = panel.getBoundingClientRect();
-        overlay.style.bottom = (window.innerHeight - rect.bottom) + 'px';
-        overlay.style.right  = (window.innerWidth - rect.left + 8) + 'px';
-      }
-    }
     renderFb();
     overlay.style.display = 'block';
     if (trigger) trigger.classList.add('open');
