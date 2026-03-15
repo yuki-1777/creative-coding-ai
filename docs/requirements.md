@@ -68,10 +68,9 @@
 window.SKETCH_META = {
   num:    'NN',
   title:  '作品名',
-  desc:   '説明文（200字程度）',
   detail: '操作方法と何が起きているかの解説。非専門家向けに。省略可（省略すると「?」ボタンが非表示になる）'
+  // desc・tech は works.json から自動取得するため SKETCH_META に書かなくてよい
 };
-// tech は works.json から自動取得するため SKETCH_META に書かなくてよい
 </script>
 <script src="../../js/sketch-ui.js"></script>
 ```

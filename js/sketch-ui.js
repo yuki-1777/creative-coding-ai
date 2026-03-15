@@ -313,7 +313,7 @@
       </h1>
       <button id="sketch-close-btn">×</button>
     </div>
-    <div id="sketch-overlay-desc">${meta.desc}</div>
+    <div id="sketch-overlay-desc">${meta.desc || ''}</div>
     <div id="sketch-tech"></div>
   `;
   container.appendChild(overlay);
@@ -464,7 +464,7 @@
   fbScript.src = '../../js/fb-panel.js';
   document.body.appendChild(fbScript);
 
-  // works.json から tech を取得して表示
+  // works.json から tech・desc を取得して表示（works.json が正とする）
   fetch('../../works.json')
     .then(r => r.json())
     .then(works => {
@@ -472,6 +472,9 @@
       if (!work) return;
       const techs = Array.isArray(work.tech) ? work.tech : [work.tech];
       document.getElementById('sketch-tech').textContent = techs.join(' · ');
+      if (work.description) {
+        document.getElementById('sketch-overlay-desc').textContent = work.description;
+      }
     })
     .catch(() => {});
 })();
