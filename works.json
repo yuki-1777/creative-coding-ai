@@ -2293,5 +2293,32 @@
     "path": "sketches/249_gyroscope/",
     "description": "3つのリングが入れ子になっている。外を傾けても、内側は水平を保とうとする。回っているから、傾かない。",
     "thumb": "img/thumb_249.png"
+  },
+  {
+    "num": "258",
+    "title": "Brood",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/258_brood/",
+    "description": "繭の内側で、何かが皮膜を押し広げようとしていた。薄い層が盛り上がり、どこかで裂けて、また静かになった。",
+    "thumb": "img/thumb_258.png"
+  },
+  {
+    "num": "259",
+    "title": "Stamp",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/259_stamp/",
+    "description": "書類が列ごとに流れてきて、スタンプが押されて去っていく。判の模様は書類ごとに違う。文字は一本も使っていない。",
+    "thumb": "img/thumb_259.png"
+  },
+  {
+    "num": "257",
+    "title": "Spirit Level",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/257_spirit_level/",
+    "description": "水準器の管を傾けたら、気泡が高い方へ移動した。水平を探している。",
+    "thumb": "img/thumb_257.png"
   }
 ]

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brood</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// 繭の内側で、何かが皮膜を押し広げようとしている。
+// 薄い層が盛り上がり、しばらくして静かになる。
+// クリックすると、また始まる。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
+         || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const vsSource = `
+attribute vec2 a_position;
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}
+`;
+
+const fsSource = `
+precision highp float;
+uniform vec2  u_resolution;
+uniform float u_time;
+uniform float u_hatch_phase; // 孵化フェーズ 0.0〜1.0
+uniform vec2  u_mouse;
+
+// 値ノイズ
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i),               hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), u.x),
+    u.y
+  );
+}
+
+// FBM
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 5; i++) {
+    v += a * noise(p);
+    p *= 2.0;
+    a *= 0.5;
+  }
+  return v;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  // アスペクト補正（中心基準）
+  float aspect = u_resolution.x / u_resolution.y;
+  vec2 st = vec2((uv.x - 0.5) * aspect, uv.y - 0.5);
+
+  float t = u_time;
+  float phase = u_hatch_phase; // 0〜1
+
+  // ---- 繭の形状：楕円SDF ----
+  // マウスX で水平方向の圧力（微妙にゆがむ）
+  float pressX = (u_mouse.x - 0.5) * 0.15;
+  vec2 cocoonScale = vec2(0.28 + pressX * 0.1, 0.38);
+  float cocoonDist = length(st / cocoonScale);
+
+  // ---- 皮膜のノイズテクスチャ ----
+  // 繭の表面に沿った角度でノイズをサンプル
+  float angle = atan(st.y, st.x);
+  float r = length(st);
+
+  // 繭のシルエット（外層：繊維状ノイズ）
+  float fibNoise = fbm(vec2(angle * 3.0, r * 8.0) + t * 0.12);
+  float cocoonEdge = cocoonDist - 1.0 + fibNoise * 0.08;
+
+  // 繭の内側の押し出し：極座標でバンプ
+  // phase が進むほど内側から盛り上がる
+  float bumpFreq = 4.0 + phase * 3.0;
+  float bumpNoise = fbm(vec2(angle * bumpFreq, r * 5.0 + t * 0.3));
+
+  // 孵化の進行に伴って特定の角度で皮膜が薄くなる
+  // （位相依存の弱点角度）
+  float weakAngle = phase * 3.14159 * 2.0 + fbm(vec2(phase * 5.0, 0.5)) * 3.0;
+  float angularWeak = smoothstep(0.8, 0.0, abs(angle - weakAngle + 0.0) - 0.4 * phase);
+  float angularWeak2 = smoothstep(0.8, 0.0, abs(angle - weakAngle + 2.1) - 0.3 * phase);
+
+  // 内圧：phase が進むほど強くなる
+  float pressure = phase * 0.18 * (0.5 + bumpNoise);
+
+  // 膜の厚さ：内側境界
+  float innerBound = cocoonDist - (0.85 - pressure) + bumpNoise * 0.06 * phase;
+
+  // ---- カラーリング ----
+  // 背景：暖かいオフホワイト
+  vec3 bg = vec3(0.94, 0.92, 0.88);
+  // 繭外皮：淡いグレー（繊維感）
+  vec3 cocooonOuter = vec3(0.82, 0.79, 0.76);
+  // 繭内側：やや濃いグレー（奥行き）
+  vec3 cocoonInner = vec3(0.68, 0.65, 0.61);
+  // 薄い膜：明るい（光が透ける）
+  vec3 membraneLit = vec3(0.91, 0.89, 0.86);
+  // 中心（生命感）：ごく淡いクリーム
+  vec3 core = vec3(0.97, 0.95, 0.91);
+
+  vec3 col = bg;
+
+  // 繭の外側輪郭
+  float outerEdge = smoothstep(0.02, -0.02, cocoonEdge);
+  col = mix(col, cocooonOuter, outerEdge);
+
+  // 繭の内側グラデーション
+  float innerFill = smoothstep(-0.05, 0.05, innerBound);
+  col = mix(col, cocoonInner, outerEdge * (1.0 - innerFill) * 0.7);
+
+  // 押し出し部分：圧力がかかっている箇所が明るくなる
+  float pushOut = smoothstep(0.0, 0.08, pressure - 0.02) * outerEdge;
+  pushOut *= (angularWeak + angularWeak2 * 0.5);
+  col = mix(col, membraneLit, pushOut * 0.9);
+
+  // 裂け目：phase後半で弱い部分が裂ける
+  if (phase > 0.55) {
+    float tearPhase = (phase - 0.55) / 0.45;
+    float tearWidth = 0.015 * tearPhase;
+    float tearLine = abs(angle - weakAngle) - tearWidth;
+    float tearDist = abs(cocoonDist - 0.92);
+    float isTear = smoothstep(0.01, 0.0, tearLine) *
+                   smoothstep(0.05, 0.0, tearDist) *
+                   step(0.92 - 0.1 * tearPhase, cocoonDist);
+    col = mix(col, bg, isTear * tearPhase);
+  }
+
+  // 繭外側：紙のような細かいノイズ（繊維感）
+  float fiberNoise = fbm(vec2(uv * vec2(aspect, 1.0) * 80.0));
+  col += outerEdge * (fiberNoise - 0.5) * 0.04;
+
+  // 全体紙テクスチャ
+  float grain = (noise(uv * 400.0) - 0.5) * 0.008;
+  col += grain;
+  col = clamp(col, 0.0, 1.0);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+    return null;
+  }
+  return shader;
+}
+
+const vs = compileShader(gl.VERTEX_SHADER, vsSource);
+const fs = compileShader(gl.FRAGMENT_SHADER, fsSource);
+const program = gl.createProgram();
+gl.attachShader(program, vs);
+gl.attachShader(program, fs);
+gl.linkProgram(program);
+
+if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+  console.error('Program link error:', gl.getProgramInfoLog(program));
+}
+
+gl.useProgram(program);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1,  -1, 1,
+  -1,  1,  1, -1,   1, 1
+]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(program, 'a_position');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uResolution  = gl.getUniformLocation(program, 'u_resolution');
+const uTime        = gl.getUniformLocation(program, 'u_time');
+const uHatchPhase  = gl.getUniformLocation(program, 'u_hatch_phase');
+const uMouse       = gl.getUniformLocation(program, 'u_mouse');
+
+const startTime = Date.now();
+let mouseX = 0.5;
+let mouseY = 0.5;
+
+// 孵化フェーズ管理
+// phase は 0 → 1 → 0 を繰り返す（自動サイクル）
+// クリックでリセット
+const HATCH_DURATION = 14000; // 14秒かけて孵化
+const REST_DURATION  = 5000;  // 5秒休止
+let hatchStart = Date.now() - 7000; // 起動時に孵化中盤から始める
+
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX / canvas.width;
+  mouseY = 1.0 - e.clientY / canvas.height;
+});
+
+canvas.addEventListener('click', () => {
+  hatchStart = Date.now();
+});
+
+function getHatchPhase() {
+  const elapsed = Date.now() - hatchStart;
+  const cycle = HATCH_DURATION + REST_DURATION;
+  const pos = elapsed % cycle;
+  if (pos < HATCH_DURATION) {
+    // 孵化中：ease in-out
+    const t = pos / HATCH_DURATION;
+    return t * t * (3.0 - 2.0 * t);
+  } else {
+    // 休止中：0に戻る（徐々に）
+    const t = (pos - HATCH_DURATION) / REST_DURATION;
+    return Math.max(0, 1.0 - t * t * (3.0 - 2.0 * t));
+  }
+}
+
+function render() {
+  requestAnimationFrame(render);
+
+  const elapsed = (Date.now() - startTime) / 1000;
+  const phase = getHatchPhase();
+
+  gl.uniform2f(uResolution, canvas.width, canvas.height);
+  gl.uniform1f(uTime, elapsed);
+  gl.uniform1f(uHatchPhase, phase);
+  gl.uniform2f(uMouse, mouseX, mouseY);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '258',
+  title:  'Brood',
+  detail: '繭の内側で、何かが皮膜を押し広げようとしている。ゆっくりと盛り上がり、薄い部分が裂け、やがて静かになる。クリックすると、また始まる。マウスのX位置で外から圧力をかけられる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
