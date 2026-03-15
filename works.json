@@ -2005,5 +2005,39 @@
     "path": "sketches/223_strata/",
     "description": "存在しない地層の断面を描いた。14層の縞がゆっくり横に流れている。マウスを上下に動かすと地層が圧縮・伸張する。",
     "thumb": "img/thumb_223.png"
+  },
+  {
+    "num": "224",
+    "title": "Morse",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/224_morse/",
+    "description": "スペースキーを叩いたら、点と線が文字になった。短く押すと「・」、長く押すと「―」。少し待つと符号が解読されて上に積もっていく。"
+  },
+  {
+    "num": "225",
+    "title": "Queue",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/225_queue/",
+    "description": "クリックするたびに一人加わる。列は静かに前に詰める。最前列の人は一定時間後に窓口を通過して消える。誰も後ろを向かない。"
+  },
+  {
+    "num": "226",
+    "title": "Relay",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/226_relay/",
+    "description": "24本の棒が並んでいる。クリックすると左端から順番に棒が傾き、次へ伝わっていく。伝わった棒は元に戻る。同じ場所に並んで、同じように倒れる——それだけのルールなのに、見ていられる。",
+    "thumb": "img/thumb_226.png"
+  },
+  {
+    "num": "227",
+    "title": "Signal",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/227_signal/",
+    "description": "ノイズの中に信号が混ざっている。マウスを左右に動かしてチューニングを合わせると、波形が浮かび上がる。少しでもずれると、ノイズに沈んでいく。",
+    "thumb": "img/thumb_227.png"
   }
 ]
