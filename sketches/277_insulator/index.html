@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Insulator</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f2f1ee; overflow: hidden; }
+canvas { display: block; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+<script>
+// --- 電信柱の碍子（がいし）列 ---
+// 磁器製の白い碍子が一列に並ぶ。
+// 時刻で電流のリズムが変わる。碍子の形だけ。電線は描かない。
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  preserveDrawingBuffer: true
+});
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0xf2f1ee, 1);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(
+  38,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  200
+);
+camera.position.set(0, 0, 22);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// --- 碍子ジオメトリを手続き生成 ---
+// 縦方向に積み重なったリング形状（スタック盤）
+function makeInsulatorGeometry() {
+  // 回転体（LatheGeometry）で碍子の断面を定義
+  const points = [];
+  // 上部の細い首
+  points.push(new THREE.Vector2(0.08, 0.90));
+  points.push(new THREE.Vector2(0.12, 0.82));
+  points.push(new THREE.Vector2(0.14, 0.72));
+  // 上スカート
+  points.push(new THREE.Vector2(0.38, 0.68));
+  points.push(new THREE.Vector2(0.42, 0.62));
+  points.push(new THREE.Vector2(0.36, 0.54));
+  // 中間の首
+  points.push(new THREE.Vector2(0.15, 0.46));
+  // 中スカート
+  points.push(new THREE.Vector2(0.34, 0.40));
+  points.push(new THREE.Vector2(0.38, 0.34));
+  points.push(new THREE.Vector2(0.32, 0.26));
+  // 下の首
+  points.push(new THREE.Vector2(0.14, 0.18));
+  points.push(new THREE.Vector2(0.10, 0.00));
+
+  return new THREE.LatheGeometry(points, 20);
+}
+
+// ワイヤーフレームラインを碍子ジオメトリから作成
+function makeInsulatorLines(geo) {
+  const edges = new THREE.EdgesGeometry(geo);
+  const mat = new THREE.LineBasicMaterial({
+    color: 0x3a3732,
+    transparent: true,
+    opacity: 0.28,
+    linewidth: 1
+  });
+  return new THREE.LineSegments(edges, mat);
+}
+
+// --- 碍子列を生成 ---
+const NUM_INSULATORS = 9;
+const SPACING = 2.8;
+const insulators = [];
+const group = new THREE.Group();
+scene.add(group);
+
+const geoBase = makeInsulatorGeometry();
+
+for (let i = 0; i < NUM_INSULATORS; i++) {
+  const x = (i - (NUM_INSULATORS - 1) / 2) * SPACING;
+
+  // 本体（薄いグレーのマテリアル）
+  const matBody = new THREE.MeshBasicMaterial({
+    color: 0xf2f1ee,
+    wireframe: false,
+    side: THREE.FrontSide
+  });
+  const mesh = new THREE.Mesh(geoBase, matBody);
+  mesh.position.set(x, 0, 0);
+  group.add(mesh);
+
+  // エッジライン
+  const lines = makeInsulatorLines(geoBase);
+  lines.position.set(x, 0, 0);
+  group.add(lines);
+
+  // 碍子の状態（電流パルス用）
+  insulators.push({
+    mesh,
+    lines,
+    x,
+    phase: i / NUM_INSULATORS,  // 位相差
+    pulse: 0                    // 輝き度
+  });
+}
+
+// --- 時刻から電流リズムを計算 ---
+// 時刻の秒 + 分が電流速度に影響
+function getClockRhythm() {
+  const now = new Date();
+  const sec = now.getSeconds() + now.getMilliseconds() / 1000;
+  const min = now.getMinutes();
+  // 分数を速度に: 0分=遅い, 30分=速い, 60分=遅い
+  const speed = 0.4 + Math.sin((min / 60) * Math.PI) * 0.5;
+  return { sec, speed };
+}
+
+let t = 0;
+
+// マウスドラッグで回転
+let isDragging = false;
+let prevX = 0, prevY = 0;
+let rotY = 0, rotX = 0.08;
+
+renderer.domElement.addEventListener('mousedown', e => {
+  isDragging = true;
+  prevX = e.clientX;
+  prevY = e.clientY;
+});
+renderer.domElement.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  rotY += (e.clientX - prevX) * 0.008;
+  rotX += (e.clientY - prevY) * 0.004;
+  rotX = Math.max(-0.4, Math.min(0.5, rotX));
+  prevX = e.clientX;
+  prevY = e.clientY;
+});
+renderer.domElement.addEventListener('mouseup', () => { isDragging = false; });
+renderer.domElement.addEventListener('mouseleave', () => { isDragging = false; });
+
+function animate() {
+  requestAnimationFrame(animate);
+  t += 0.016;
+
+  const { speed } = getClockRhythm();
+
+  // 碍子の輝きパルス（電流波が端から端へ流れる）
+  for (let i = 0; i < insulators.length; i++) {
+    const ins = insulators[i];
+    // sin波で電流の波を作る
+    const wave = Math.sin(t * speed * 2.2 - ins.phase * Math.PI * 2);
+    ins.pulse = Math.max(0, wave);
+
+    // エッジラインの透明度を電流に合わせて変える
+    const baseOpacity = 0.22;
+    const peakOpacity = 0.68;
+    ins.lines.material.opacity = baseOpacity + ins.pulse * (peakOpacity - baseOpacity);
+
+    // 微かな位置ゆれ（電流の振動）
+    ins.mesh.position.y = Math.sin(t * speed * 4.5 - ins.phase * Math.PI * 2) * 0.006 * ins.pulse;
+    ins.lines.position.y = ins.mesh.position.y;
+  }
+
+  // ゆるやかな自動回転 + マウス回転
+  const autoRotY = Math.sin(t * 0.08) * 0.22;
+  group.rotation.y = autoRotY + rotY;
+  group.rotation.x = rotX;
+
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '277',
+  title: 'Insulator',
+  detail: '電信柱の碍子（磁器製の白い絶縁体）を9個並べました。電流の波が端から端へ流れ、それぞれの碍子がわずかに輝きます。流れの速さは現在時刻の分に連動しています。ドラッグで視点を変えられます。電線は描いていません。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
