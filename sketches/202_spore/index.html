@@ -67,7 +67,7 @@
   const pointGeo = new THREE.BufferGeometry();
   const pointPos = new Float32Array(MAX_PARTICLES * 3);
   pointGeo.setAttribute('position', new THREE.BufferAttribute(pointPos, 3));
-  const pointMat = new THREE.PointsMaterial({ color: 0x777770, size: 0.013, transparent: true });
+  const pointMat = new THREE.PointsMaterial({ color: 0x777770, size: 0.03, transparent: true });
   const points = new THREE.Points(pointGeo, pointMat);
   scene.add(points);
 

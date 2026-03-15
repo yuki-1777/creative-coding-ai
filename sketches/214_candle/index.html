@@ -126,15 +126,29 @@ function drawDrips() {
 function drawFlame() {
   const cx = canvas.width / 2;
   const wickTop = canvas.height * 0.55 - 14;
-
-  // Wind from mouse
   const windX = (mouseX - canvas.width / 2) * 0.003;
+  const gx = cx + windX * 8;
 
+  // Flame silhouette — teardrop outline
+  const fh = 34 + Math.sin(t * 0.09) * 4;
+  const fw = 11 + Math.sin(t * 0.13) * 1.5;
+  ctx.save();
+  ctx.translate(gx, wickTop);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo( fw,      -fh * 0.25,  fw * 0.7, -fh * 0.75, 0, -fh);
+  ctx.bezierCurveTo(-fw * 0.7, -fh * 0.75, -fw,      -fh * 0.25, 0, 0);
+  ctx.fillStyle = 'rgba(160,128,68,0.13)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(140,108,52,0.5)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+
+  // Ember particles
   particles.forEach(p => {
     p.life++;
-    if (p.life > p.maxLife) {
-      resetParticle(p);
-    }
+    if (p.life > p.maxLife) resetParticle(p);
     const windInfluence = p.life / p.maxLife;
     p.x += p.vx + windX * windInfluence * 2;
     p.y += p.vy * (1 - windInfluence * 0.3);
@@ -147,7 +161,7 @@ function drawFlame() {
 
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.size * (1 + progress * 0.5), 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(160,128,68,${(alpha * 0.65).toFixed(2)})`;
+    ctx.fillStyle = `rgba(160,128,68,${(alpha * 0.6).toFixed(2)})`;
     ctx.fill();
   });
 }
