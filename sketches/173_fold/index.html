@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>173 – Fold</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; overflow: hidden; width: 100vw; height: 100vh; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// Fold — 173
+// 紙を折るときの稜線。現在時刻の秒数で折り角が決まる。
+// 60秒かけて一枚の紙がゆっくり折り畳まれていく。
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0xf0ede8);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 1.8, 3.2);
+camera.lookAt(0, 0.1, 0);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// グラファイト色
+const GRAPHITE = 0x3a3a3a;
+const GRAPHITE_LIGHT = 0x8a8a8a;
+const ACCENT = 0x5a7a8a; // くすんだ青（一色のアクセント）
+
+// 紙を折るシミュレーション
+// 1枚の平面を fold line で二つに分け、片方を回転させる
+
+// 折り畳む枚数（重ねて折るイメージ）
+const NUM_FOLDS = 5;
+
+// 各折り目の情報
+// パネルは「折られていない平面」と「折られた平面」の二枚構成
+const panels = [];
+const edges = [];
+
+function buildFoldGeometry(foldAngle) {
+  // foldAngle: 0=開いた状態（180度展開）, PI=完全に折り畳まれた状態
+  // 各パネルのサイズ
+  const W = 2.4; // 全幅
+  const H = 1.6; // 高さ
+  const FOLDS = NUM_FOLDS;
+
+  const segW = W / FOLDS;
+
+  // 各セグメントの形状を計算
+  // セグメント0は固定、セグメント1はセグメント0の右端を軸に回転、
+  // セグメント2はセグメント1の右端を軸に回転... と連鎖
+
+  const segPositions = [];
+  // セグメントiの左端のx位置と高さ（y）、そして回転角
+  let curX = -W / 2;
+  let curY = 0;
+  let curAngleSum = 0; // 現在の向き角（ラジアン、0=右向き）
+
+  for (let i = 0; i < FOLDS; i++) {
+    const startX = curX;
+    const startY = curY;
+    const angle = curAngleSum;
+
+    // このセグメントの4頂点（ローカル座標 → ワールド座標）
+    // ローカルx: 0 to segW, ローカルy: -H/2 to H/2
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+
+    const pts = [
+      new THREE.Vector3(startX, startY, -H / 2),
+      new THREE.Vector3(startX + cos * segW, startY + sin * segW, -H / 2),
+      new THREE.Vector3(startX + cos * segW, startY + sin * segW,  H / 2),
+      new THREE.Vector3(startX, startY,  H / 2),
+    ];
+
+    segPositions.push({ pts, startX, startY, angle });
+
+    // 次のセグメントの開始点
+    curX = startX + cos * segW;
+    curY = startY + sin * segW;
+
+    // 偶数番目は下折り、奇数番目は上折り（山折り・谷折りの交互）
+    const foldDir = (i % 2 === 0) ? 1 : -1;
+    curAngleSum -= foldDir * foldAngle;
+  }
+
+  return segPositions;
+}
+
+// メッシュグループ
+const group = new THREE.Group();
+scene.add(group);
+
+// 折り紙の面メッシュ（半透明にしない、面の両面を表示）
+const meshes = [];
+const edgeLines = [];
+
+for (let i = 0; i < NUM_FOLDS; i++) {
+  // 面
+  const geo = new THREE.BufferGeometry();
+  // 4頂点で作る四角形（2つの三角形）
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(12), 3));
+  geo.setIndex([0, 1, 2, 0, 2, 3]);
+
+  // 偶数と奇数で微妙に色を変える
+  const isMountain = i % 2 === 0;
+  const mat = new THREE.MeshBasicMaterial({
+    color: isMountain ? 0xeae6e0 : 0xe2ddd8,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  group.add(mesh);
+  meshes.push(mesh);
+
+  // 境界線（稜線）
+  const lineGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(15), 3));
+  const lineMat = new THREE.LineBasicMaterial({
+    color: i === 0 ? ACCENT : GRAPHITE_LIGHT,
+    linewidth: 1,
+  });
+  const line = new THREE.Line(lineGeo, lineMat);
+  group.add(line);
+  edgeLines.push(line);
+}
+
+// 折り目の稜線（fold lines）
+const foldLineObjects = [];
+for (let i = 0; i < NUM_FOLDS - 1; i++) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+  const mat = new THREE.LineBasicMaterial({ color: GRAPHITE });
+  const line = new THREE.Line(geo, mat);
+  group.add(line);
+  foldLineObjects.push(line);
+}
+
+function updateGeometry(foldAngle) {
+  const segs = buildFoldGeometry(foldAngle);
+
+  for (let i = 0; i < NUM_FOLDS; i++) {
+    const { pts } = segs[i];
+    const posArr = meshes[i].geometry.attributes.position.array;
+    for (let j = 0; j < 4; j++) {
+      posArr[j * 3]     = pts[j].x;
+      posArr[j * 3 + 1] = pts[j].y;
+      posArr[j * 3 + 2] = pts[j].z;
+    }
+    meshes[i].geometry.attributes.position.needsUpdate = true;
+    meshes[i].geometry.computeVertexNormals();
+
+    // 境界線（外周5点でループ）
+    const lineArr = edgeLines[i].geometry.attributes.position.array;
+    const order = [0, 1, 2, 3, 0];
+    for (let k = 0; k < 5; k++) {
+      const p = pts[order[k]];
+      lineArr[k * 3]     = p.x;
+      lineArr[k * 3 + 1] = p.y;
+      lineArr[k * 3 + 2] = p.z;
+    }
+    edgeLines[i].geometry.attributes.position.needsUpdate = true;
+  }
+
+  // 折り目の稜線
+  for (let i = 0; i < NUM_FOLDS - 1; i++) {
+    const { pts: ptsLeft } = segs[i];
+    const geo = foldLineObjects[i].geometry;
+    const arr = geo.attributes.position.array;
+    // セグメントiの右端（pts[1]とpts[2]）が折り目
+    arr[0] = ptsLeft[1].x; arr[1] = ptsLeft[1].y; arr[2] = ptsLeft[1].z;
+    arr[3] = ptsLeft[2].x; arr[4] = ptsLeft[2].y; arr[5] = ptsLeft[2].z;
+    geo.attributes.position.needsUpdate = true;
+  }
+}
+
+// カメラをゆっくり周回させる
+const startTime = performance.now();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const elapsed = (performance.now() - startTime) / 1000;
+
+  // 現在時刻の秒（0〜59）を折り角に変換
+  const now = new Date();
+  const sec = now.getSeconds() + now.getMilliseconds() / 1000;
+  // 0秒=平ら(0)、30秒=最大折り畳み(PI*0.95)、60秒=戻る
+  const phase = sec / 60;
+  // sin カーブで往復
+  const foldT = (1 - Math.cos(phase * Math.PI * 2)) / 2;
+  const foldAngle = foldT * Math.PI * 0.92;
+
+  updateGeometry(foldAngle);
+
+  // カメラをゆっくり周回
+  const camAngle = elapsed * 0.08;
+  camera.position.x = Math.sin(camAngle) * 3.2;
+  camera.position.z = Math.cos(camAngle) * 3.2;
+  camera.position.y = 1.6 + Math.sin(elapsed * 0.15) * 0.3;
+  camera.lookAt(0, 0.1, 0);
+
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '173',
+  title:  'Fold',
+  detail: '現在時刻の秒数で紙の折り角が変わります。60秒かけてゆっくり折り畳まれ、また開いていきます。カメラは自動で周回します。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
