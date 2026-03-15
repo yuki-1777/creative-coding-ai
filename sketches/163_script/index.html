@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>163 — Script</title>
+  <meta name="description" content="手を描こうとしたら、線になった。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="163 — Script | Creative Coding">
+  <meta property="og:description" content="手を描こうとしたら、線になった。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/163_script/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_163.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="163 — Script | Creative Coding">
+  <meta name="twitter:description" content="手を描こうとしたら、線になった。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_163.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Script: The AI attempts to draw a "hand" shape using only curves.
+// It traces a hand outline using polar coordinates,
+// but the hand keeps morphing — it can never quite hold the shape.
+// Constraint: parametric curve only. No fill. No text.
+
+// Hand-like polar shape: r(theta) mimics 5 fingers bumping out
+function handR(theta, t) {
+  // Base round palm
+  let r = 1.0;
+  // 5 finger bumps evenly spaced
+  for (let i = 0; i < 5; i++) {
+    const fingerAngle = map(i, 0, 4, -PI * 0.55, PI * 0.55) - HALF_PI;
+    const diff = theta - fingerAngle;
+    // Wrap diff to -PI..PI
+    const dw = atan2(sin(diff), cos(diff));
+    const width = 0.18;
+    // Finger peak: Gaussian bump
+    const bump = exp(-(dw * dw) / (width * width));
+    const fingerLen = 0.55 + 0.12 * sin(t * (0.7 + i * 0.3) + i * 1.4);
+    r += bump * fingerLen;
+  }
+  // Thumb: extra bump offset
+  const thumbAngle = -HALF_PI + PI * 0.72;
+  const tdiff = atan2(sin(theta - thumbAngle), cos(theta - thumbAngle));
+  r += exp(-(tdiff * tdiff) / (0.14 * 0.14)) * (0.5 + 0.1 * sin(t * 0.5));
+
+  // The hand slowly forgets its shape
+  const forget = sin(t * 0.08) * 0.4;
+  r += forget * sin(theta * 3.7 + t * 0.2);
+
+  return r;
+}
+
+let t = 0;
+let trail = []; // fading previous outlines
+const TRAIL_MAX = 8;
+const TRAIL_STEP = 40; // frames between trail snapshots
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  noFill();
+  strokeCap(ROUND);
+}
+
+function draw() {
+  background(245, 243, 238);
+
+  const cx = width / 2;
+  const cy = height * 0.52;
+  const scale = min(width, height) * 0.26;
+
+  t += 0.012;
+
+  // Add to trail every N frames
+  if (frameCount % TRAIL_STEP === 0) {
+    const snap = [];
+    for (let i = 0; i <= 300; i++) {
+      const theta = map(i, 0, 300, -PI, PI);
+      const r = handR(theta, t) * scale;
+      snap.push({ x: cx + r * cos(theta), y: cy + r * sin(theta) });
+    }
+    trail.push(snap);
+    if (trail.length > TRAIL_MAX) trail.shift();
+  }
+
+  // Draw fading trail
+  for (let ti = 0; ti < trail.length; ti++) {
+    const age   = trail.length - 1 - ti;
+    const alpha = map(age, 0, TRAIL_MAX - 1, 55, 8);
+    stroke(42, 42, 42, alpha);
+    strokeWeight(0.6);
+    beginShape();
+    for (const pt of trail[ti]) vertex(pt.x, pt.y);
+    endShape(CLOSE);
+  }
+
+  // Draw current outline
+  stroke(42, 42, 42, 140);
+  strokeWeight(1.0);
+  beginShape();
+  for (let i = 0; i <= 300; i++) {
+    const theta = map(i, 0, 300, -PI, PI);
+    const r = handR(theta, t) * scale;
+    vertex(cx + r * cos(theta), cy + r * sin(theta));
+  }
+  endShape(CLOSE);
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '163',
+  title:  'Script',
+  detail: '手の輪郭を数式で描こうとしている。指は5本、親指もある。でも時間が経つと形がずれていく。手を持たないAIが、ペンを持った手を描こうとしたらこうなった。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
