@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Distill</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #edeae2; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  init();
+}
+
+// ── Layout ───────────────────────────────────────────────────────────────────
+function layout() {
+  const cx  = W * 0.5;
+  const cy  = H * 0.5;
+  // source flask — top left quadrant
+  const srcX = cx - W * 0.18;
+  const srcY = cy - H * 0.18;
+  // condenser outlet — middle right
+  const outX = cx + W * 0.18;
+  const outY = cy + H * 0.04;
+  // receiver flask — bottom right
+  const recX = cx + W * 0.18;
+  const recY = cy + H * 0.28;
+  return { srcX, srcY, outX, outY, recX, recY };
+}
+
+// ── Path segments ─────────────────────────────────────────────────────────────
+// The "tube" is defined by a series of control points.
+// Droplets travel along this path.
+function getPathPoints() {
+  const { srcX, srcY, outX, outY, recX, recY } = layout();
+  // path: source → rise → condenser (gentle downslope) → tip → drop → receiver
+  return [
+    { x: srcX,                     y: srcY },
+    { x: srcX + W * 0.03,          y: srcY - H * 0.08 },  // rise from flask neck
+    { x: srcX + W * 0.10,          y: srcY - H * 0.11 },  // peak of condenser
+    { x: srcX + W * 0.18,          y: srcY - H * 0.06 },  // condenser midpoint (descending)
+    { x: outX,                     y: outY },              // condenser tip
+    { x: recX,                     y: recY - H * 0.04 },  // short horizontal
+    { x: recX,                     y: recY },              // receiver
+  ];
+}
+
+// Linear interpolation along multi-segment path
+function pathLength(pts) {
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i].x - pts[i-1].x;
+    const dy = pts[i].y - pts[i-1].y;
+    total += Math.sqrt(dx*dx + dy*dy);
+  }
+  return total;
+}
+
+function pointAlongPath(pts, t) {
+  const total = pathLength(pts);
+  let target = t * total;
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i].x - pts[i-1].x;
+    const dy = pts[i].y - pts[i-1].y;
+    const seg = Math.sqrt(dx*dx + dy*dy);
+    if (target <= seg) {
+      const frac = target / seg;
+      return {
+        x: pts[i-1].x + dx * frac,
+        y: pts[i-1].y + dy * frac
+      };
+    }
+    target -= seg;
+  }
+  return pts[pts.length - 1];
+}
+
+// ── Droplets ──────────────────────────────────────────────────────────────────
+const droplets = [];
+let spawnTimer = 0;
+const SPAWN_INTERVAL = 55; // frames between spawns
+const DROP_SPEED = 0.0022; // t per frame
+
+class Droplet {
+  constructor() {
+    this.t = 0;       // 0 = source, 1 = receiver
+    this.r = 2.8 + Math.random() * 1.4;
+    this.alpha = 0.55 + Math.random() * 0.35;
+    this.done = false;
+    this.speed = DROP_SPEED * (0.8 + Math.random() * 0.4);
+    // slight size oscillation for organic feel
+    this.phase = Math.random() * Math.PI * 2;
+  }
+
+  update() {
+    this.t += this.speed;
+    if (this.t >= 1) {
+      this.t = 1;
+      this.done = true;
+    }
+  }
+
+  draw(pts) {
+    const pos = pointAlongPath(pts, this.t);
+    const osc = 1 + 0.18 * Math.sin(this.phase + this.t * Math.PI * 8);
+    const r = this.r * osc;
+    ctx.save();
+    ctx.globalAlpha = this.alpha;
+    ctx.fillStyle = '#5a7a9e';
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ── Receiver pool ─────────────────────────────────────────────────────────────
+let poolLevel = 0; // 0..1 normalized fill
+const POOL_MAX_DROPS = 60;
+let arrivedCount = 0;
+
+function drawPool() {
+  const { recX, recY } = layout();
+  const poolW = W * 0.065;
+  const poolH = H * 0.10;
+  const fillH = poolH * Math.min(poolLevel, 1);
+
+  // pool outline (just a thin U-shape)
+  ctx.save();
+  ctx.strokeStyle = 'rgba(60,55,50,0.22)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(recX - poolW * 0.5, recY - poolH);
+  ctx.lineTo(recX - poolW * 0.5, recY);
+  ctx.lineTo(recX + poolW * 0.5, recY);
+  ctx.lineTo(recX + poolW * 0.5, recY - poolH);
+  ctx.stroke();
+  ctx.restore();
+
+  if (fillH > 0) {
+    // filled liquid
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = '#5a7a9e';
+    ctx.fillRect(
+      recX - poolW * 0.5 + 1,
+      recY - fillH,
+      poolW - 2,
+      fillH
+    );
+
+    // surface shimmer line
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = '#4a6a8e';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(recX - poolW * 0.5 + 1, recY - fillH);
+    ctx.lineTo(recX + poolW * 0.5 - 1, recY - fillH);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ── Condenser tube (visualization) ───────────────────────────────────────────
+function drawTube(pts) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(60,55,50,0.14)';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) {
+    ctx.lineTo(pts[i].x, pts[i].y);
+  }
+  ctx.stroke();
+
+  // inner tube highlight
+  ctx.strokeStyle = 'rgba(200,195,185,0.35)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) {
+    ctx.lineTo(pts[i].x, pts[i].y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ── Flask marks ───────────────────────────────────────────────────────────────
+function drawFlasks(pts) {
+  const src = pts[0];
+  const rec = pts[pts.length - 1];
+
+  // source flask — small circle endpoint
+  ctx.save();
+  ctx.globalAlpha = 0.30;
+  ctx.strokeStyle = '#3c3830';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(src.x, src.y, W * 0.012, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // label
+  ctx.save();
+  ctx.globalAlpha = 0.26;
+  ctx.fillStyle = '#3c3830';
+  ctx.font = `${Math.max(10, W * 0.011)}px monospace`;
+  ctx.fillText('source', src.x - W * 0.038, src.y + H * 0.038);
+  ctx.fillText('receiver', rec.x - W * 0.05, rec.y + H * 0.05);
+  ctx.restore();
+}
+
+// ── Drip animation at tip ─────────────────────────────────────────────────────
+let dripTimer = 0;
+const dripDrops = []; // small drops that fall straight from condenser tip
+
+class DripDrop {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.vy = 0.8 + Math.random() * 0.6;
+    this.r = 2 + Math.random() * 1.5;
+    this.alpha = 0.60;
+    this.alive = true;
+  }
+  update() {
+    this.vy += 0.22;
+    this.y += this.vy;
+    this.alpha -= 0.018;
+    if (this.alpha <= 0) this.alive = false;
+  }
+  draw() {
+    ctx.save();
+    ctx.globalAlpha = this.alpha;
+    ctx.fillStyle = '#5a7a9e';
+    // teardrop-ish: slightly elongated
+    ctx.beginPath();
+    ctx.ellipse(this.x, this.y, this.r * 0.65, this.r, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+function init() {
+  droplets.length = 0;
+  dripDrops.length = 0;
+  poolLevel = 0;
+  arrivedCount = 0;
+  spawnTimer = 0;
+  dripTimer = 0;
+  // pre-seed several droplets along the path so something is visible immediately
+  for (let i = 0; i < 6; i++) {
+    const d = new Droplet();
+    d.t = (i + 1) / 9;
+    droplets.push(d);
+  }
+}
+
+// ── Animation loop ────────────────────────────────────────────────────────────
+let frame = 0;
+
+function draw() {
+  frame++;
+  const pts = getPathPoints();
+  const { outX, outY, recX, recY } = layout();
+
+  // Clear
+  ctx.fillStyle = '#edeae2';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw tube
+  drawTube(pts);
+
+  // Draw pool behind droplets
+  drawPool();
+
+  // Spawn new droplets
+  spawnTimer++;
+  if (spawnTimer >= SPAWN_INTERVAL) {
+    spawnTimer = 0;
+    droplets.push(new Droplet());
+  }
+
+  // Update & draw droplets
+  for (let i = droplets.length - 1; i >= 0; i--) {
+    const d = droplets[i];
+    d.update();
+    d.draw(pts);
+    if (d.done) {
+      arrivedCount++;
+      poolLevel = Math.min(arrivedCount / POOL_MAX_DROPS, 1);
+      // spawn a drip at condenser tip
+      dripDrops.push(new DripDrop(outX, outY));
+      droplets.splice(i, 1);
+    }
+  }
+
+  // Update & draw drip drops
+  for (let i = dripDrops.length - 1; i >= 0; i--) {
+    const d = dripDrops[i];
+    d.update();
+    d.draw();
+    if (!d.alive) dripDrops.splice(i, 1);
+  }
+
+  // Draw flask marks on top
+  drawFlasks(pts);
+
+  requestAnimationFrame(draw);
+}
+
+window.addEventListener('resize', resize);
+resize();
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '300',
+  title:  'Distill',
+  detail: '蒸留装置の管の中を液滴が移動し、受け器に溜まっていく。装置の形は描かず、液滴の軌跡と溜まり具合だけで蒸留を表現している。操作は不要。放置すると受け器が少しずつ満たされていく。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
