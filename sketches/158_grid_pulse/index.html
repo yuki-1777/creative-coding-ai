@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>158 — Grid Pulse</title>
+  <meta name="description" content="格子の点が波のように脈動する。マウスが震源。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="158 — Grid Pulse | Creative Coding">
+  <meta property="og:description" content="格子の点が波のように脈動する。マウスが震源。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/158_grid_pulse/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_158.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="158 — Grid Pulse | Creative Coding">
+  <meta name="twitter:description" content="格子の点が波のように脈動する。マウスが震源。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_158.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Grid Pulse: regular grid of dots that pulse with a sine wave.
+// Distance from mouse determines phase.
+// The grid breathes like a surface with a standing wave.
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+const SPACING = 36;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+let mouseX = W / 2;
+let mouseY = H / 2;
+let mouseActive = false;
+
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+  mouseActive = true;
+});
+canvas.addEventListener('mouseleave', () => { mouseActive = false; });
+canvas.addEventListener('click', (e) => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+  mouseActive = true;
+});
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  mouseX = e.touches[0].clientX;
+  mouseY = e.touches[0].clientY;
+  mouseActive = true;
+}, { passive: false });
+canvas.addEventListener('touchend', () => { mouseActive = false; }, { passive: false });
+
+const start = performance.now();
+
+function tick() {
+  requestAnimationFrame(tick);
+
+  const t = (performance.now() - start) / 1000;
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  // Center of wave — follows mouse, else center
+  const wx = mouseActive ? mouseX : W / 2 + Math.sin(t * 0.4) * W * 0.18;
+  const wy = mouseActive ? mouseY : H / 2 + Math.cos(t * 0.31) * H * 0.14;
+
+  const BASE_R = 1.8;
+  const MAX_ADD = 7.0;
+  const WAVELENGTH = 70; // px per cycle
+  const SPEED = 2.8;     // cycles/sec
+
+  const offX = (W % SPACING) / 2;
+  const offY = (H % SPACING) / 2;
+  const cols = Math.ceil(W / SPACING) + 1;
+  const rows = Math.ceil(H / SPACING) + 1;
+
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < rows; r++) {
+      const gx = offX + c * SPACING;
+      const gy = offY + r * SPACING;
+
+      const dx = gx - wx;
+      const dy = gy - wy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      // Sine wave: phase = dist / wavelength - time * speed
+      const phase = (dist / WAVELENGTH - t * SPEED) * Math.PI * 2;
+      const wave  = Math.sin(phase);
+
+      // Amplitude envelope: fades with distance from source
+      const maxDist = Math.sqrt(W * W + H * H);
+      const envelope = Math.max(0, 1 - dist / (maxDist * 0.65));
+
+      // Map: -1..+1 → dot size
+      const dotR = BASE_R + ((wave + 1) / 2) * MAX_ADD * envelope;
+
+      // Opacity proportional to envelope
+      const alpha = 0.20 + envelope * wave * 0.45;
+
+      ctx.beginPath();
+      ctx.arc(gx, gy, Math.max(0.5, dotR), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(42,42,42,${Math.min(0.80, Math.max(0.18, alpha)).toFixed(3)})`;
+      ctx.fill();
+    }
+  }
+}
+
+tick();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '158',
+  title:  'Grid Pulse',
+  detail: '格子状の点がマウスを中心に波打つ。遠い点は小さく、波の山では膨らみ、谷では縮む。マウスを動かすと波の震源が追いかけてくる。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

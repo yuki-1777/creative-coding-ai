@@ -1350,6 +1350,33 @@
     "thumb": "img/thumb_150.png"
   },
   {
+    "num": "151",
+    "title": "Terrain",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/151_terrain/",
+    "description": "格子状の地形が波のようにゆっくり変形し続けている。マウスを上下に動かすと山の高さが変わり、左右に動かすとカメラが周回して地形を360度から見られる。",
+    "thumb": "img/thumb_151.png"
+  },
+  {
+    "num": "152",
+    "title": "Coil",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/152_coil/",
+    "description": "4本のコイルが重なって、伸び縮みしながら回っている。外から見ると一本のばねのように見えるが、それぞれ違うリズムで動いている。マウスを上下に動かすとコイルが伸びたり縮んだりする。",
+    "thumb": "img/thumb_152.png"
+  },
+  {
+    "num": "153",
+    "title": "Radial",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/153_radial/",
+    "description": "180本の線が中心から球面全体に向かって伸びている。それぞれ違うリズムで長くなったり短くなったりする。マウスを動かすと線の先端がカーソルの方向に引き寄せられ、球が歪む。",
+    "thumb": "img/thumb_153.png"
+  },
+  {
     "num": "155",
     "title": "Breath Ring",
     "tech": "p5.js",
@@ -1375,5 +1402,14 @@
     "path": "sketches/157_ripple_shader/",
     "description": "クリックした場所から波紋が広がる。複数の波が出会うと干渉して、明暗の縞が現れる。しばらくすると波は消える。",
     "thumb": "img/thumb_157.png"
+  },
+  {
+    "num": "158",
+    "title": "Grid Pulse",
+    "tech": "canvas",
+    "date": "2026-03-15",
+    "path": "sketches/158_grid_pulse/",
+    "description": "格子状の点に波が通ると、点が膨らんで縮む。クリックすると新しい波が発生する。複数の波が重なるとリズムが乱れる。",
+    "thumb": "img/thumb_158.png"
   }
 ]
