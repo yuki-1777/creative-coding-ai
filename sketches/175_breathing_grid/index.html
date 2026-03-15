@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>175 – Breathing Grid</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0ede8; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Breathing Grid — 175
+// 格子が呼吸する。整然と並んだ点が、周期的に膨らんだり縮んだりする。
+// インタラクション：なし。時刻の秒・分が呼吸のリズムを決める。
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// -------------------------------------------------------
+// Shader sources
+// -------------------------------------------------------
+const VS = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const FS = `
+precision highp float;
+uniform vec2  u_res;
+uniform float u_time;
+
+// 現在時刻（秒・分の小数）
+uniform float u_sec;   // 0.0 〜 60.0
+uniform float u_min;   // 0.0 〜 60.0
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  float aspect = u_res.x / u_res.y;
+
+  // 基本色（オフホワイト背景）
+  vec3 bg = vec3(0.941, 0.929, 0.910);
+  vec3 ink = vec3(0.28, 0.27, 0.26);
+
+  // 格子間隔（UV空間）
+  float cellW = 0.055;
+  float cellH = 0.055;
+
+  // 格子内の位置（0〜1）
+  float gx = mod(uv.x, cellW) / cellW;
+  float gy = mod(uv.y, cellH) / cellH;
+
+  // どの格子セルか
+  float ix = floor(uv.x / cellW);
+  float iy = floor(uv.y / cellH);
+
+  // 格子番号から位相オフセットを決める
+  float phaseOffset = (ix * 0.31 + iy * 0.47);
+
+  // 呼吸の周期：秒針と分針の合成
+  // 秒: 4秒周期の主呼吸
+  float breathFast = sin(u_time * 1.5708 + phaseOffset);   // π/2 ≈ 1.5708、4秒周期
+  // 分針由来の大きなうねり（60秒でゆっくり変化）
+  float breathSlow = sin(u_min * 0.10472 + phaseOffset * 0.5);  // 2π/60 ≈ 0.10472
+
+  // 組み合わせて呼吸量を決定（0.0 〜 1.0）
+  float breath = 0.5 + 0.35 * breathFast + 0.15 * breathSlow;
+
+  // 点の半径（格子セルの 8〜32% で変動）
+  float minR = 0.08;
+  float maxR = 0.32;
+  float r = minR + (maxR - minR) * breath;
+
+  // 格子点までの距離
+  // gx, gy は 0〜1 の格子内座標。中心からの距離を求める
+  float cx = gx - 0.5;
+  float cy = gy - 0.5;
+  float dist = sqrt(cx * cx + cy * cy);
+
+  // 円の SDF（中心からの距離 - 半径）
+  float sdf = dist - r * 0.5;
+
+  // アンチエイリアス
+  float aa = 1.5 / min(u_res.x, u_res.y) / cellW;
+  float circle = 1.0 - smoothstep(-aa, aa, sdf);
+
+  // 格子線（薄く）
+  float lineW = 0.015;
+  float lineH = 0.015;
+  float lineX = smoothstep(lineW, 0.0, abs(gx - 0.5) - 0.475);
+  float lineY = smoothstep(lineH, 0.0, abs(gy - 0.5) - 0.475);
+  float gridLine = max(lineX, lineY) * 0.18;
+
+  // 合成：格子線（薄）+ 点
+  float alpha = max(gridLine, circle);
+
+  vec3 col = mix(bg, ink, alpha);
+
+  // 余白：端 5% はフェードアウト
+  float margin = 0.05;
+  float fade = smoothstep(0.0, margin, uv.x)
+             * smoothstep(1.0, 1.0 - margin, uv.x)
+             * smoothstep(0.0, margin, uv.y)
+             * smoothstep(1.0, 1.0 - margin, uv.y);
+  col = mix(bg, col, fade);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+// -------------------------------------------------------
+// WebGL setup
+// -------------------------------------------------------
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const locPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(locPos);
+gl.vertexAttribPointer(locPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes  = gl.getUniformLocation(prog, 'u_res');
+const uTime = gl.getUniformLocation(prog, 'u_time');
+const uSec  = gl.getUniformLocation(prog, 'u_sec');
+const uMin  = gl.getUniformLocation(prog, 'u_min');
+
+const startTime = performance.now();
+
+function render() {
+  const t = (performance.now() - startTime) / 1000;
+
+  // 現在時刻から秒・分を取得
+  const now = new Date();
+  const sec = now.getSeconds() + now.getMilliseconds() / 1000;
+  const min = now.getMinutes() + sec / 60;
+
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform1f(uSec, sec);
+  gl.uniform1f(uMin, min);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(render);
+}
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '175',
+  title:  'Breathing Grid',
+  detail: '操作は不要です。格子の点がゆっくりと膨らんだり縮んだりしています。呼吸のリズムは現在時刻の秒と分から計算しています。隣の点とは少しだけずれた位相で動くので、格子全体が波のようにうねります。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
