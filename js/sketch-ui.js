@@ -12,6 +12,13 @@
   const meta = window.SKETCH_META;
   if (!meta) return;
 
+  if (!document.querySelector('link[href*="Cormorant+Garamond"]')) {
+    const font = document.createElement('link');
+    font.rel = 'stylesheet';
+    font.href = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;1,300&family=IBM+Plex+Mono:wght@300;400&display=swap';
+    document.head.appendChild(font);
+  }
+
   const style = document.createElement('style');
   style.textContent = `
     #sketch-overlay {
@@ -46,8 +53,10 @@
       color: rgba(255,255,255,0.7);
     }
     #sketch-overlay-desc {
-      font-size: 1.2rem;
-      line-height: 1.65;
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 300;
+      font-size: 1.35rem;
+      line-height: 1.55;
       color: rgba(255,255,255,0.55);
       letter-spacing: 0.03em;
     }
