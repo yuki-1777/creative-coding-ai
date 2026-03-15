@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>182 – Sediment</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #f5f2ed;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      cursor: crosshair;
+    }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(function () {
+  'use strict';
+
+  // ---- canvas setup ----
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  const W = Math.min(window.innerWidth,  900);
+  const H = Math.min(window.innerHeight, 700);
+  canvas.width  = W;
+  canvas.height = H;
+
+  // ---- constants ----
+  const CELL = 4;
+  const COLS = Math.floor(W / CELL);
+  const ROWS = Math.floor(H / CELL);
+  const BG   = '#f5f2ed';
+
+  // 地層を表現する色帯: 周期的に変わる
+  // 同じ砂源から落ちる砂の「時間」を色で刻む
+  const LAYER_COLORS = [
+    '#b8a898', '#a89070', '#c4b0a0',
+    '#9c8068', '#d0bfaf', '#aa9070',
+    '#bcac9c', '#987860'
+  ];
+
+  const POUR_RATE    = 12;  // grains per frame per emitter
+  const MAX_SOURCES  = 5;
+  const LAYER_PERIOD = 120; // frames per color layer
+
+  // ---- grid: 0 = empty, 1..N = color index (1-based) ----
+  const grid = new Uint8Array(COLS * ROWS);
+
+  // color index cycling: shared clock
+  let globalClock = 0;
+
+  function currentColorIdx() {
+    return (Math.floor(globalClock / LAYER_PERIOD) % LAYER_COLORS.length) + 1;
+  }
+
+  function idx(c, r) { return r * COLS + c; }
+
+  // ---- sand emitters ----
+  const emitters = [];
+
+  function addEmitter(px) {
+    const col = Math.max(1, Math.min(COLS - 2, Math.floor(px / CELL)));
+    for (let i = 0; i < emitters.length; i++) {
+      if (Math.abs(emitters[i].col - col) < 3) {
+        // refresh life of existing nearby emitter
+        emitters[i].life = 600;
+        return;
+      }
+    }
+    if (emitters.length >= MAX_SOURCES) emitters.shift();
+    emitters.push({ col, life: 600 });
+  }
+
+  // ---- physics ----
+  function stepSand() {
+    // bottom to top to avoid double-stepping
+    for (let r = ROWS - 2; r >= 0; r--) {
+      for (let c = 0; c < COLS; c++) {
+        const v = grid[idx(c, r)];
+        if (v === 0) continue;
+
+        const below  = idx(c,     r + 1);
+        const belowL = idx(c - 1, r + 1);
+        const belowR = idx(c + 1, r + 1);
+
+        if (grid[below] === 0) {
+          grid[below] = v;
+          grid[idx(c, r)] = 0;
+        } else {
+          const goLeft = Math.random() < 0.5;
+          const aCol = goLeft ? c - 1 : c + 1;
+          const bCol = goLeft ? c + 1 : c - 1;
+          const a    = goLeft ? belowL : belowR;
+          const b    = goLeft ? belowR : belowL;
+
+          if (aCol >= 0 && aCol < COLS && grid[a] === 0) {
+            grid[a] = v;
+            grid[idx(c, r)] = 0;
+          } else if (bCol >= 0 && bCol < COLS && grid[b] === 0) {
+            grid[b] = v;
+            grid[idx(c, r)] = 0;
+          }
+        }
+      }
+    }
+  }
+
+  function pourSand() {
+    const ci = currentColorIdx();
+    for (let i = emitters.length - 1; i >= 0; i--) {
+      const em = emitters[i];
+      em.life--;
+      if (em.life <= 0) { emitters.splice(i, 1); continue; }
+      for (let k = 0; k < POUR_RATE; k++) {
+        const jitter = (Math.random() * 3 | 0) - 1;
+        const c = em.col + jitter;
+        if (c < 0 || c >= COLS) continue;
+        if (grid[idx(c, 0)] === 0) {
+          grid[idx(c, 0)] = ci;
+        }
+      }
+    }
+  }
+
+  // ---- shake ----
+  function shake() {
+    for (let r = ROWS - 1; r > 0; r--) {
+      for (let c = 0; c < COLS; c++) {
+        const v = grid[idx(c, r)];
+        if (v === 0) continue;
+        if (Math.random() < 0.2) {
+          const newR = r - 1 - (Math.random() * 2 | 0);
+          if (newR < 0) continue;
+          if (grid[idx(c, newR)] === 0) {
+            grid[idx(c, newR)] = v;
+            grid[idx(c, r)] = 0;
+          }
+        }
+      }
+    }
+  }
+
+  // ---- render ----
+  function render() {
+    ctx.fillStyle = BG;
+    ctx.fillRect(0, 0, W, H);
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const v = grid[idx(c, r)];
+        if (v === 0) continue;
+        ctx.fillStyle = LAYER_COLORS[v - 1];
+        ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
+      }
+    }
+
+    // faint emitter ticks at top
+    ctx.strokeStyle = 'rgba(140,120,100,0.2)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < emitters.length; i++) {
+      const x = emitters[i].col * CELL + CELL / 2;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, 10);
+      ctx.stroke();
+    }
+  }
+
+  // ---- initial emitters ----
+  function initEmitters() {
+    const xs = [0.2, 0.5, 0.8];
+    for (let i = 0; i < xs.length; i++) {
+      addEmitter(xs[i] * W);
+    }
+  }
+
+  // ---- events ----
+  canvas.addEventListener('click', function (e) {
+    const rect = canvas.getBoundingClientRect();
+    const px = (e.clientX - rect.left) * (W / rect.width);
+    addEmitter(px);
+  });
+
+  canvas.addEventListener('dblclick', function () {
+    shake();
+  });
+
+  // ---- loop ----
+  function loop() {
+    globalClock++;
+    pourSand();
+    stepSand();
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  // ---- warm-up: pre-simulate so the screen starts with layers already visible ----
+  initEmitters();
+  // re-initialize emitters with longer life for warm-up phase
+  for (let i = 0; i < emitters.length; i++) {
+    emitters[i].life = 9999;
+  }
+  for (let t = 0; t < 600; t++) {
+    globalClock++;
+    pourSand();
+    stepSand();
+  }
+  // reset emitter lives to normal
+  for (let i = 0; i < emitters.length; i++) {
+    emitters[i].life = 600;
+  }
+
+  loop();
+})();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '182',
+  title:  'Sediment',
+  detail: 'クリックすると、その場所から砂が降り始めます。ダブルクリックで砂が揺れます。砂粒は重力で落ち、積み上がると左右にずれながら山になります。時間とともに砂の色が少しずつ変わり、積み重なった層が地層のように見えてきます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
