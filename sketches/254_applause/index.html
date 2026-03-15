@@ -26,6 +26,7 @@ let nextGrid = [];
 let cellW, cellH;
 let framesSinceLastClick = 0;
 let clapStopTimer = 0;
+let prevSinMap = []; // beatPhaseのsin前フレーム値（極大点検出用）
 
 // Web Audio
 let audioCtx = null;
@@ -36,31 +37,47 @@ function initAudio() {
   }
 }
 
-function playClap() {
+function playClap(delayOffset) {
   if (!audioCtx) return;
-  const bufferSize = audioCtx.sampleRate * 0.08;
+  const duration = 0.06;
+  const bufferSize = Math.ceil(audioCtx.sampleRate * duration);
   const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < bufferSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.2));
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.18));
   }
+
+  const t = audioCtx.currentTime + (delayOffset || 0);
+
   const source = audioCtx.createBufferSource();
   source.buffer = buffer;
 
-  const gain = audioCtx.createGain();
-  gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
-
-  // バンドパスフィルタでクラップらしい音域に
+  // バンドパスフィルタ
   const bpf = audioCtx.createBiquadFilter();
   bpf.type = 'bandpass';
   bpf.frequency.value = 1800;
   bpf.Q.value = 0.8;
 
+  // ハイパスフィルタ（クリスピーに）
+  const hpf = audioCtx.createBiquadFilter();
+  hpf.type = 'highpass';
+  hpf.frequency.value = 1000;
+
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.25, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
   source.connect(bpf);
-  bpf.connect(gain);
+  bpf.connect(hpf);
+  hpf.connect(gain);
   gain.connect(audioCtx.destination);
-  source.start();
+  source.start(t);
+}
+
+function playClapBurst() {
+  // 2バーストを5msずらして重ねて「パン」感
+  playClap(0);
+  playClap(0.005);
 }
 
 function setup() {
@@ -77,12 +94,15 @@ function setup() {
 function initGrid() {
   grid = [];
   nextGrid = [];
+  prevSinMap = [];
   for (let r = 0; r < ROWS; r++) {
     grid.push([]);
     nextGrid.push([]);
+    prevSinMap.push([]);
     for (let c = 0; c < COLS; c++) {
-      grid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI) });
-      nextGrid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI) });
+      grid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI), clapped: false });
+      nextGrid[r].push({ state: STATES.SILENT, intensity: 0, timer: 0, beatPhase: random(TWO_PI), clapped: false });
+      prevSinMap[r].push(0);
     }
   }
 }
@@ -143,8 +163,12 @@ function updateGrid() {
       nextGrid[r][c].intensity = grid[r][c].intensity;
       nextGrid[r][c].timer = grid[r][c].timer;
       nextGrid[r][c].beatPhase = grid[r][c].beatPhase;
+      nextGrid[r][c].clapped = false; // 毎フレームリセット
     }
   }
+
+  // 終了フェーズの感染係数（60フレーム以下で逓減）
+  const spreadFactor = (clapStopTimer > 0 && clapStopTimer <= 60) ? clapStopTimer / 60 : 1.0;
 
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -156,6 +180,14 @@ function updateGrid() {
         // Beat pulse
         next.beatPhase = (cell.beatPhase + 0.18) % TWO_PI;
         next.intensity = 0.6 + 0.4 * abs(sin(cell.beatPhase));
+
+        // 極大点通過の検出（sin値が前フレームより低下 → ピーク通過）
+        const curSin = abs(sin(cell.beatPhase));
+        const prevSin = prevSinMap[r][c];
+        if (curSin < prevSin && prevSin > 0.85) {
+          next.clapped = true;
+        }
+        prevSinMap[r][c] = curSin;
 
         if (next.timer <= 0) {
           next.state = STATES.RESTING;
@@ -169,9 +201,9 @@ function updateGrid() {
             const nc = c + dc;
             if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
               if (grid[nr][nc].state === STATES.SILENT) {
-                // Infection probability: lower for diagonals
+                // Infection probability: lower for diagonals, scaled by spreadFactor
                 const isDiag = dr !== 0 && dc !== 0;
-                const prob = isDiag ? 0.018 : 0.032;
+                const prob = (isDiag ? 0.018 : 0.032) * spreadFactor;
                 if (random() < prob) {
                   nextGrid[nr][nc].state = STATES.CLAPPING;
                   nextGrid[nr][nc].intensity = 0.8;
@@ -206,34 +238,27 @@ function draw() {
 
   updateGrid();
 
-  // clapStopTimer: クリックから360フレーム後に全セルをSILENTにリセット
+  // clapStopTimer: 60フレーム以下で感染確率を逓減（強制リセットなし・自然収束）
   if (clapStopTimer > 0) {
     clapStopTimer--;
-    if (clapStopTimer === 0) {
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          if (grid[r][c].state !== STATES.SILENT) {
-            grid[r][c].state = STATES.SILENT;
-            grid[r][c].intensity = 0;
-          }
-        }
-      }
-    }
   }
 
-  // Count clapping cells for overall energy
+  // Count clapping cells and clapped (peak) cells
   let clapCount = 0;
+  let clappedCount = 0;
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       if (grid[r][c].state === STATES.CLAPPING) clapCount++;
+      if (grid[r][c].clapped) clappedCount++;
     }
   }
 
-  // 拍手音: clapCountに比例した確率で毎フレームトリガー
-  if (clapCount > 0 && audioCtx) {
-    const prob = (clapCount / (ROWS * COLS)) * 0.15;
-    if (random() < prob) {
-      playClap();
+  // 拍手音: ビジュアルのピーク（clapped）に同期してトリガー（最大3回/フレーム）
+  if (clappedCount > 0 && audioCtx) {
+    const prob = clappedCount * 0.3;
+    const triggers = min(3, floor(prob) + (random() < (prob % 1) ? 1 : 0));
+    for (let i = 0; i < triggers; i++) {
+      playClapBurst();
     }
   }
 
