@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f3f2ee; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const vsSource = `
+attribute vec2 a_pos;
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const fsSource = `
+precision highp float;
+
+uniform vec2 u_res;
+uniform float u_time;
+uniform vec2 u_mouse;  // normalized 0..1
+
+// Hash / noise helpers
+float hash(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7));
+  p += dot(p, p + 19.19);
+  return fract(p.x * p.y);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float amp = 0.5;
+  for (int i = 0; i < 5; i++) {
+    v += amp * noise(p);
+    p *= 2.1;
+    amp *= 0.48;
+  }
+  return v;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  // uv: 0..1, centered
+  vec2 st = (gl_FragCoord.xy - u_res * 0.5) / min(u_res.x, u_res.y);
+
+  // --- Tuning parameter: mouse X controls "frequency dial" ---
+  // Center of mouse range (0..1) is the "tuned" frequency
+  float dial = u_mouse.x;   // 0..1
+  // Frequency we are "broadcasting" at — a fixed mid value
+  float targetFreq = 0.5;
+  // How far off-tune: 0 = perfectly tuned, 1 = far off
+  float offTune = abs(dial - targetFreq) * 2.0;  // 0..1
+  offTune = clamp(offTune, 0.0, 1.0);
+
+  float clarity = 1.0 - offTune;   // 1 = clear, 0 = pure noise
+
+  // --- Signal: horizontal sine sweep (like oscilloscope / audio) ---
+  float scanY = st.y;
+  float freq = 6.0 + dial * 14.0;  // frequency shifts with dial
+  float phase = u_time * 1.8;
+  float signal = sin(freq * st.x * 6.2832 + phase);
+  // Multi-harmonic: add a faint overtone
+  signal += 0.28 * sin(freq * 1.97 * st.x * 6.2832 + phase * 1.13 + 0.7);
+  signal *= 0.5;
+
+  // Vertical proximity to signal line
+  float signalLine = signal * 0.22;         // signal amplitude in st coords
+  float dist = abs(scanY - signalLine);
+  float lineBright = smoothstep(0.018, 0.0, dist);
+
+  // Faint glow around line
+  float glow = smoothstep(0.12, 0.0, dist) * 0.18;
+
+  // --- Noise (static) ---
+  // Fast-varying noise for grain
+  float staticNoise = fbm(st * 14.0 + u_time * 7.3);
+  // Slow drift
+  float driftNoise = fbm(st * 4.0 + u_time * 0.5) * 0.5 + 0.5;
+  // Horizontal scan lines (analog TV feel)
+  float scanline = smoothstep(0.38, 0.5, abs(fract(st.y * 22.0 + u_time * 0.4) - 0.5));
+
+  // Combine noise layers
+  float noiseVal = mix(staticNoise, driftNoise, 0.4) * 0.7 + scanline * 0.15;
+
+  // --- Mix signal + noise ---
+  // When perfectly tuned: show signal line clearly, noise fades
+  // When off-tune: noise dominates, signal barely visible
+  float signalStrength = clarity * clarity;   // non-linear response
+  float noiseStrength = offTune;
+
+  // Background
+  float bg = 0.94;  // off-white
+
+  // Signal contribution
+  float sigContrib = (lineBright + glow) * signalStrength;
+
+  // Noise contribution (darkens/lightens background texture)
+  float noiseContrib = noiseVal * noiseStrength * 0.55;
+
+  float value = bg - sigContrib * 0.78 - noiseContrib;
+  value = clamp(value, 0.0, 1.0);
+
+  // Slight vignette
+  float vig = 1.0 - dot(st * 1.1, st * 1.1) * 0.25;
+  value *= vig;
+
+  gl_FragColor = vec4(vec3(value), 1.0);
+}
+`;
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+    return null;
+  }
+  return s;
+}
+
+const vs = compileShader(gl.VERTEX_SHADER, vsSource);
+const fs = compileShader(gl.FRAGMENT_SHADER, fsSource);
+const prog = gl.createProgram();
+gl.attachShader(prog, vs);
+gl.attachShader(prog, fs);
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+// Full-screen quad
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1,  -1, 1,
+  -1,  1,  1, -1,   1, 1
+]), gl.STATIC_DRAW);
+
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes   = gl.getUniformLocation(prog, 'u_res');
+const uTime  = gl.getUniformLocation(prog, 'u_time');
+const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+let mouseX = 0.5;   // start tuned
+let mouseY = 0.5;
+
+window.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX / window.innerWidth;
+  mouseY = 1.0 - e.clientY / window.innerHeight;
+});
+
+// Touch support
+window.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  mouseX = t.clientX / window.innerWidth;
+  mouseY = 1.0 - t.clientY / window.innerHeight;
+}, { passive: false });
+
+const startTime = performance.now();
+
+function render() {
+  requestAnimationFrame(render);
+  const t = (performance.now() - startTime) / 1000;
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, t);
+  gl.uniform2f(uMouse, mouseX, mouseY);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+render();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '227',
+  title: 'Signal',
+  detail: 'マウスを左右に動かすとラジオのチューニングダイヤルを回すような操作になる。画面中央付近でダイヤルが合い、ノイズの中から波形の線が浮かび上がる。左右にずれるとノイズが増えて線が消える。アナログ受信機の「合わせる」感覚をグレースケールだけで表した。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>

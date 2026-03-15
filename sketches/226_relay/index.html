@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relay</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f3f2ee; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf3f2ee);
+
+const W = window.innerWidth;
+const H = window.innerHeight;
+const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 200);
+camera.position.set(0, 6, 22);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+// --- Parameters ---
+const COUNT = 24;
+const SPACING = 0.9;
+const ROD_HEIGHT = 2.8;
+const ROD_RADIUS = 0.055;
+const BASE_H = 0.12;
+const BASE_W = 0.38;
+
+// Material
+const rodMat = new THREE.MeshBasicMaterial({ color: 0x2a2a2a });
+const baseMat = new THREE.MeshBasicMaterial({ color: 0x5a5a5a });
+const activeMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+
+// Build rods
+const rods = [];
+const bases = [];
+const pivots = [];
+
+const totalWidth = (COUNT - 1) * SPACING;
+
+for (let i = 0; i < COUNT; i++) {
+  const x = -totalWidth / 2 + i * SPACING;
+
+  // Base plate
+  const baseGeo = new THREE.BoxGeometry(BASE_W, BASE_H, BASE_W);
+  const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+  baseMesh.position.set(x, -ROD_HEIGHT / 2 - BASE_H / 2, 0);
+  scene.add(baseMesh);
+  bases.push(baseMesh);
+
+  // Pivot group (rotation axis at bottom of rod)
+  const pivot = new THREE.Group();
+  pivot.position.set(x, -ROD_HEIGHT / 2, 0);
+  scene.add(pivot);
+
+  // Rod geometry offset upward so pivot is at bottom
+  const rodGeo = new THREE.CylinderGeometry(ROD_RADIUS, ROD_RADIUS, ROD_HEIGHT, 8);
+  const rod = new THREE.Mesh(rodGeo, rodMat.clone());
+  rod.position.set(0, ROD_HEIGHT / 2, 0);
+  pivot.add(rod);
+
+  // Small tip ball
+  const tipGeo = new THREE.SphereGeometry(ROD_RADIUS * 2.2, 8, 8);
+  const tip = new THREE.Mesh(tipGeo, rodMat.clone());
+  tip.position.set(0, ROD_HEIGHT, 0);
+  pivot.add(tip);
+
+  pivots.push(pivot);
+  rods.push({ pivot, rod, tip, angle: 0, vel: 0, active: false, phase: 0 });
+}
+
+// --- Wave state ---
+// Each rod has a wave "phase" value 0..1 that drives a forward-lean then return
+// Wave travels left to right when triggered
+const WAVE_SPEED = 0.18;   // seconds between adjacent rod peaks
+const LEAN_ANGLE = Math.PI / 5; // max forward lean (radians)
+const DECAY = 3.5;         // how quickly the motion settles
+
+let waveTime = -999;       // when the wave was triggered
+let triggered = false;
+
+function triggerWave() {
+  waveTime = 0;
+  triggered = true;
+  // Reset all rods
+  for (let i = 0; i < COUNT; i++) {
+    rods[i].phase = 0;
+    rods[i].active = false;
+  }
+}
+
+// Mouse interaction: click to trigger
+renderer.domElement.addEventListener('click', () => {
+  triggerWave();
+});
+
+// Space to reset/re-trigger
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    triggerWave();
+  }
+});
+
+// --- Animation ---
+let lastTime = performance.now();
+let elapsed = 0;
+
+// Auto-trigger on start after brief pause
+let autoTriggered = false;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const now = performance.now();
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  elapsed += dt;
+
+  // Auto-trigger once after 0.8s
+  if (!autoTriggered && elapsed > 0.8) {
+    autoTriggered = true;
+    triggerWave();
+  }
+
+  if (triggered) {
+    waveTime += dt;
+  }
+
+  // Update each rod
+  for (let i = 0; i < COUNT; i++) {
+    const r = rods[i];
+    // Time at which this rod's wave arrives
+    const arrivalTime = i * WAVE_SPEED;
+    const t = waveTime - arrivalTime;
+
+    let targetAngle = 0;
+
+    if (t > 0) {
+      // Forward lean: sharp rise, then spring back
+      // Use a damped sine: sin(pi * t * freq) * e^(-decay * t)
+      const freq = 2.0;
+      const rawAngle = Math.sin(Math.PI * t * freq) * Math.exp(-DECAY * t);
+      targetAngle = rawAngle * LEAN_ANGLE;
+
+      // After half a second, rod settles back to 0
+      r.active = (t < 1.5);
+    }
+
+    // Smooth approach with spring (with gentle residual sway)
+    const spring = 12.0;
+    const damp = 0.85;
+    r.vel = (r.vel + (targetAngle - r.angle) * spring * dt) * (1 - damp * dt);
+    r.angle += r.vel * dt;
+
+    r.pivot.rotation.z = r.angle;
+
+    // Tint active rod slightly darker
+    const col = r.active ? 0x111111 : 0x2a2a2a;
+    r.rod.material.color.setHex(col);
+    r.tip.material.color.setHex(col);
+  }
+
+  // Gentle idle sway when no wave is active
+  if (waveTime > COUNT * WAVE_SPEED + 2.0) {
+    for (let i = 0; i < COUNT; i++) {
+      const r = rods[i];
+      const idleSway = Math.sin(elapsed * 0.4 + i * 0.3) * 0.018;
+      r.pivot.rotation.z += idleSway * dt;
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  const W2 = window.innerWidth, H2 = window.innerHeight;
+  camera.aspect = W2 / H2;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W2, H2);
+});
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '226',
+  title: 'Relay',
+  detail: 'クリックするかスペースキーを押すと、左から順番に棒が倒れて次へ伝わっていく。倒れた棒はゆっくり元に戻る。各棒は独立していて、隣が倒れることで自分も動き出す。24本の棒が順番に反応する連鎖反応。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
