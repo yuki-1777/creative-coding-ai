@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>148 — Lattice</title>
+  <meta name="description" content="格子に波を流したら、布みたいになった。">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 7, 10);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xF5F3EE);
+    document.body.appendChild(renderer.domElement);
+
+    // グリッドの格子点を動的に更新するジオメトリ
+    const COLS = 24;
+    const ROWS = 24;
+    const SPACING = 0.42;
+
+    // 格子線：横方向と縦方向
+    const matGrid = new THREE.LineBasicMaterial({
+      color: 0x2A2826,
+      transparent: true,
+      opacity: 0.3,
+    });
+    const matAccent = new THREE.LineBasicMaterial({
+      color: 0x8A7055,
+      transparent: true,
+      opacity: 0.5,
+    });
+
+    // 全頂点の位置配列を保持
+    // 横ライン (ROWS 本, 各 COLS 頂点)
+    const hLines = [];
+    const vLines = [];
+
+    for (let r = 0; r < ROWS; r++) {
+      const positions = new Float32Array(COLS * 3);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = r % 4 === 0 ? matAccent : matGrid;
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      hLines.push({ geo, positions, row: r });
+    }
+
+    for (let c = 0; c < COLS; c++) {
+      const positions = new Float32Array(ROWS * 3);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = c % 4 === 0 ? matAccent : matGrid;
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      vLines.push({ geo, positions, col: c });
+    }
+
+    // マウス
+    const mouse = { x: 0, y: 0 };
+    window.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    let time = 0;
+
+    function getY(c, r, t) {
+      const x = (c - COLS / 2) * SPACING;
+      const z = (r - ROWS / 2) * SPACING;
+      // 複数の波を重ねる
+      const dist = Math.sqrt(x * x + z * z);
+      const wave1 = Math.sin(x * 0.8 + t * 1.2) * 0.35;
+      const wave2 = Math.sin(z * 0.8 + t * 0.9) * 0.35;
+      const radial = Math.sin(dist * 0.9 - t * 1.5) * 0.25;
+      // マウス影響
+      const mouseWave = Math.sin(x * mouse.x * 0.8 + z * mouse.y * 0.8 + t * 2) * 0.2;
+      return wave1 + wave2 + radial + mouseWave;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.012;
+
+      // 横ライン更新
+      hLines.forEach(({ geo, positions, row: r }) => {
+        for (let c = 0; c < COLS; c++) {
+          positions[c * 3]     = (c - COLS / 2) * SPACING;
+          positions[c * 3 + 1] = getY(c, r, time);
+          positions[c * 3 + 2] = (r - ROWS / 2) * SPACING;
+        }
+        geo.attributes.position.needsUpdate = true;
+      });
+
+      // 縦ライン更新
+      vLines.forEach(({ geo, positions, col: c }) => {
+        for (let r = 0; r < ROWS; r++) {
+          positions[r * 3]     = (c - COLS / 2) * SPACING;
+          positions[r * 3 + 1] = getY(c, r, time);
+          positions[r * 3 + 2] = (r - ROWS / 2) * SPACING;
+        }
+        geo.attributes.position.needsUpdate = true;
+      });
+
+      // カメラをゆっくり周回
+      const camAngle = time * 0.05 + mouse.x * 0.3;
+      camera.position.x = Math.sin(camAngle) * 10;
+      camera.position.z = Math.cos(camAngle) * 10;
+      camera.position.y = 7 + mouse.y * 2;
+      camera.lookAt(0, 0, 0);
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+  <script>
+  window.SKETCH_META = {
+    num:   '148',
+    title: 'Lattice',
+    detail: '格子状の線が波に揺れている。複数の波が重なって、布が風を受けているような動きになる。マウスを動かすと波のパターンが変化し、カメラがゆっくり周回して格子を立体的に見せる。'
+  };
+  </script>
+  <script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
