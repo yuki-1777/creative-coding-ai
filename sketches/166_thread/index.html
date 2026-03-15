@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>166 — Thread</title>
+  <meta name="description" content="針が通った跡だけが残っている。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="166 — Thread | Creative Coding">
+  <meta property="og:description" content="針が通った跡だけが残っている。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/166_thread/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_166.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="166 — Thread | Creative Coding">
+  <meta name="twitter:description" content="針が通った跡だけが残っている。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_166.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Thread: A "needle" traces a Lissajous-like path on a grid of anchor pins.
+// The thread accumulates. Space bar clears and picks a new frequency ratio.
+// The needle itself is never shown — only its thread remains.
+
+const GRID_COLS = 12;
+const GRID_ROWS = 9;
+let pins = [];         // grid of anchor positions
+let path = [];         // accumulated thread points
+let needle = { x: 0, y: 0 };
+let freqX, freqY, phaseShift;
+let paramT = 0;
+let threadColor;
+let drawStep = 0;      // how many points already drawn
+let totalSteps;
+
+// Gentle colour palette (graphite + one muted accent)
+const PALETTE = [
+  [90, 80, 70],     // warm brown
+  [70, 90, 100],    // slate blue
+  [90, 75, 85],     // dusty rose
+  [75, 95, 80],     // sage
+];
+
+function newPattern() {
+  // Pick random Lissajous parameters
+  const ratios = [[1,2],[2,3],[3,4],[2,5],[3,5],[4,5],[1,3],[3,7]];
+  const r = random(ratios);
+  freqX = r[0];
+  freqY = r[1];
+  phaseShift = random(0.1, PI * 0.75);
+  threadColor = random(PALETTE);
+
+  // Generate full path
+  path = [];
+  totalSteps = 2000;
+  const cx = width / 2;
+  const cy = height / 2;
+  const rx = width * 0.38;
+  const ry = height * 0.38;
+
+  for (let i = 0; i <= totalSteps; i++) {
+    const tt = (i / totalSteps) * TWO_PI * freqY; // period = LCM
+    const x = cx + rx * sin(freqX * tt + phaseShift);
+    const y = cy + ry * sin(freqY * tt);
+    path.push({ x, y });
+  }
+  drawStep = 0;
+}
+
+function buildPins() {
+  pins = [];
+  const marginX = width * 0.08;
+  const marginY = height * 0.08;
+  const gw = width - marginX * 2;
+  const gh = height - marginY * 2;
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      pins.push({
+        x: marginX + (col / (GRID_COLS - 1)) * gw,
+        y: marginY + (row / (GRID_ROWS - 1)) * gh,
+      });
+    }
+  }
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  strokeCap(ROUND);
+  buildPins();
+  newPattern();
+  background('#F5F3EE');
+}
+
+function draw() {
+  // Draw pins lightly
+  background('#F5F3EE');
+
+  // Draw faint pin dots
+  noStroke();
+  for (const p of pins) {
+    fill(200, 195, 188, 100);
+    circle(p.x, p.y, 3);
+  }
+
+  // Draw accumulated thread so far
+  const [cr, cg, cb] = threadColor;
+  noFill();
+  stroke(cr, cg, cb, 100);
+  strokeWeight(1.0);
+
+  beginShape();
+  for (let i = 0; i < drawStep && i < path.length; i++) {
+    curveVertex(path[i].x, path[i].y);
+  }
+  endShape();
+
+  // Advance needle by a few steps per frame
+  const advance = 6;
+  if (drawStep < totalSteps) {
+    drawStep = min(drawStep + advance, totalSteps);
+  }
+
+  // Hint text
+  if (drawStep >= totalSteps) {
+    noStroke();
+    fill(180, 175, 168, 160);
+    textFont('monospace');
+    textSize(10);
+    textAlign(RIGHT, BOTTOM);
+    text('space — new pattern', width - 18, height - 18);
+  }
+}
+
+function keyPressed() {
+  if (key === ' ') {
+    newPattern();
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  buildPins();
+  newPattern();
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:   '166',
+  title: 'Thread',
+  detail: '針は見えない。糸の跡だけが残る。スペースキーを押すと糸を張り直す。毎回違うリサジュー図形の軌跡で縫われていく。縫われているのが何かはわからない。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
