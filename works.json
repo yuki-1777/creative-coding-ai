@@ -2635,5 +2635,14 @@
     "path": "sketches/293_nacre/",
     "description": "貝殻の内側を書いた。薄い層が重なるたびに光が干渉して、グレーの中に青みが滲んだ。",
     "thumb": "img/thumb_293.png"
+  },
+  {
+    "num": "294",
+    "title": "Weld",
+    "tech": "p5.js",
+    "date": "2026-03-16",
+    "path": "sketches/294_weld/",
+    "description": "トーチを走らせたら、短い線の束が飛び散った。跡だけが残る。",
+    "thumb": "img/thumb_294.png"
   }
 ]

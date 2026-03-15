@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weld</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #eeebe3; overflow: hidden; cursor: crosshair; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// Weld — move the mouse to drag the torch and leave a weld bead.
+// Sparks are short lines only — no dots, no filled circles.
+
+// ─── Spark ──────────────────────────────────────────────────────────────────
+class Spark {
+  constructor(x, y) {
+    const speed = random(1.5, 5.5);
+    const angle = random(-PI, PI);
+    this.x  = x;
+    this.y  = y;
+    this.vx = cos(angle) * speed;
+    this.vy = sin(angle) * speed - random(0.5, 2.0); // bias upward
+    this.len = random(3, 11);
+    this.life = 1.0;
+    this.decay = random(0.025, 0.065);
+    this.bend  = random(-0.04, 0.04); // slight sideways drift
+    // Colour: graphite with occasional warm tint (heat glow)
+    this.warm = random() < 0.35;
+  }
+
+  update() {
+    this.vy  += 0.18;   // gravity
+    this.vx  += this.bend;
+    this.vx  *= 0.97;
+    this.x   += this.vx;
+    this.y   += this.vy;
+    this.life -= this.decay;
+  }
+
+  draw() {
+    if (this.life <= 0) return;
+    const speed = sqrt(this.vx * this.vx + this.vy * this.vy);
+    const nx = this.vx / speed;
+    const ny = this.vy / speed;
+    const l  = this.len * this.life;
+    const x2 = this.x - nx * l;
+    const y2 = this.y - ny * l;
+    const a  = this.life * (this.warm ? 0.70 : 0.55);
+    if (this.warm) {
+      stroke(90, 65, 45, a * 255);  // warm brown (heat)
+    } else {
+      stroke(55, 50, 45, a * 255);  // graphite
+    }
+    strokeWeight(0.9);
+    line(this.x, this.y, x2, y2);
+  }
+
+  isDead() { return this.life <= 0; }
+}
+
+// ─── Weld bead segment ───────────────────────────────────────────────────────
+// The bead is drawn as staggered short lines along the path.
+class BeadPoint {
+  constructor(x, y, pressure) {
+    this.x = x;
+    this.y = y;
+    this.p = pressure; // 0–1, from mouse speed
+  }
+}
+
+// ─── Globals ─────────────────────────────────────────────────────────────────
+let sparks = [];
+let beadPoints = [];
+let prevX, prevY;
+let isWelding = false;  // true while mouse is moving fast enough
+let heatGlow  = 0;      // 0–1, follows torch activity
+let torchX, torchY;
+let lastMoveTime = 0;
+let frameCount_  = 0;
+
+const SPARK_RATE    = 4;     // sparks per frame while welding
+const BEAD_INTERVAL = 3;     // px spacing for bead points
+let   beadBuffer    = 0;     // accumulated distance
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  torchX = width  * 0.5;
+  torchY = height * 0.5;
+  prevX  = torchX;
+  prevY  = torchY;
+  colorMode(RGB, 255);
+  noFill();
+
+  // Seed a demo weld path so the canvas isn't empty on first load
+  seedDemoBead();
+}
+
+function seedDemoBead() {
+  // Draw a gentle S-curve weld seam across the center for the initial view
+  const cx = width * 0.5;
+  const cy = height * 0.5;
+  const len = width * 0.38;
+  const steps = 180;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const bx = cx - len * 0.5 + t * len;
+    const by = cy + sin(t * PI * 2) * height * 0.08;
+    const pressure = 0.5 + sin(t * PI) * 0.4;
+    beadPoints.push(new BeadPoint(bx, by, pressure));
+  }
+  lastMoveTime = -99999; // ensure hint text doesn't show
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+
+function draw() {
+  frameCount_++;
+
+  // ── Background: persistent layer with slow fade for bead persistence ──────
+  // We draw over a semi-transparent background to let bead linger longer
+  // but still allow it to fade. The bead is drawn separately to a graphics
+  // buffer; here we just clear and redraw every frame.
+  background(238, 235, 227);
+
+  // ── Draw bead trail ────────────────────────────────────────────────────────
+  if (beadPoints.length >= 2) {
+    for (let i = 1; i < beadPoints.length; i++) {
+      const a = beadPoints[i - 1];
+      const b = beadPoints[i];
+      // Bead: overlapping short dashes
+      const d = dist(a.x, a.y, b.x, b.y);
+      if (d < 0.1) continue;
+      const steps = max(1, floor(d / 1.5));
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        const mx = lerp(a.x, b.x, t);
+        const my = lerp(a.y, b.y, t);
+        const nx =  (b.y - a.y) / d;  // normal
+        const ny = -(b.x - a.x) / d;
+        // Ripple pattern perpendicular to bead direction — weld ripple
+        const ripple = sin(i * 0.85 + t * PI * 2) * 1.2;
+        const rX = mx + nx * ripple;
+        const rY = my + ny * ripple;
+        const beadA = min(1.0, b.p * 0.55 + 0.18) * 200;
+        const w = b.p * 2.2 + 0.8;
+        strokeWeight(w);
+        stroke(50, 45, 40, beadA);
+        // Short line along the bead to give texture
+        const dx = (b.x - a.x) / d * 1.0;
+        const dy = (b.y - a.y) / d * 1.0;
+        line(rX - dx, rY - dy, rX + dx, rY + dy);
+      }
+    }
+  }
+
+  // ── Update & draw sparks ───────────────────────────────────────────────────
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    sparks[i].update();
+    sparks[i].draw();
+    if (sparks[i].isDead()) sparks.splice(i, 1);
+  }
+
+  // ── Torch arc / heat glow ─────────────────────────────────────────────────
+  if (isWelding) {
+    // Arc: flickering short lines radiating from torch tip
+    const arcCount = 5 + floor(random(4));
+    for (let i = 0; i < arcCount; i++) {
+      const a = random(-PI * 0.55, PI * 0.55) + HALF_PI;  // downward arc fan
+      const r = random(3, 9);
+      const x2 = torchX + cos(a) * r;
+      const y2 = torchY + sin(a) * r;
+      stroke(70, 65, 55, random(80, 160));
+      strokeWeight(0.7);
+      line(torchX, torchY, x2, y2);
+    }
+
+    // Spawn sparks
+    for (let i = 0; i < SPARK_RATE; i++) {
+      sparks.push(new Spark(torchX, torchY));
+    }
+  }
+
+  // ── Torch cursor ──────────────────────────────────────────────────────────
+  const torchAlpha = isWelding ? 180 : 80;
+  stroke(50, 45, 40, torchAlpha);
+  strokeWeight(1.0);
+  // Crosshair
+  const cs = 8;
+  line(torchX - cs, torchY, torchX - 3, torchY);
+  line(torchX + 3, torchY, torchX + cs, torchY);
+  line(torchX, torchY - cs, torchX, torchY - 3);
+  line(torchX, torchY + 3, torchX, torchY + cs);
+  // Small circle at tip
+  noFill();
+  strokeWeight(0.8);
+  circle(torchX, torchY, 10);
+
+  // ── Mouse inactive hint ──────────────────────────────────────────────────
+  if (millis() - lastMoveTime > 3000 && beadPoints.length === 0) {
+    noStroke();
+    fill(50, 45, 40, 55);
+    textFont('monospace');
+    textSize(11);
+    textAlign(CENTER);
+    text('move the mouse to weld', width * 0.5, height * 0.5 + 40);
+    noFill();
+  }
+}
+
+function mouseMoved() {
+  updateTorch(mouseX, mouseY);
+}
+function mouseDragged() {
+  updateTorch(mouseX, mouseY);
+}
+
+function updateTorch(x, y) {
+  lastMoveTime = millis();
+  const d = dist(x, y, prevX, prevY);
+  const speed = d;   // pixels/frame (approximate)
+
+  torchX = x;
+  torchY = y;
+
+  // Welding starts above a minimum speed; a very slow drag = "not yet lit"
+  isWelding = speed > 0.5;
+
+  if (isWelding) {
+    // Accumulate distance to place bead points
+    beadBuffer += d;
+    while (beadBuffer >= BEAD_INTERVAL) {
+      const t = 1 - beadBuffer / d;
+      const bx = lerp(prevX, x, t + BEAD_INTERVAL / d);
+      const by = lerp(prevY, y, t + BEAD_INTERVAL / d);
+      const pressure = min(1, speed / 8);
+      beadPoints.push(new BeadPoint(bx, by, pressure));
+      // Cap bead length
+      if (beadPoints.length > 4000) beadPoints.shift();
+      beadBuffer -= BEAD_INTERVAL;
+    }
+  }
+
+  prevX = x;
+  prevY = y;
+}
+
+function mousePressed() {
+  // Clear bead on click
+  if (mouseButton === RIGHT) {
+    beadPoints = [];
+    sparks = [];
+  }
+}
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '294',
+  title:  'Weld',
+  detail: 'マウスを動かすとトーチが走り、溶接跡が残る。火花はすべて短い線の束。右クリックでリセット。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
