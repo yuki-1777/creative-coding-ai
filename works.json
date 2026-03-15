@@ -1528,5 +1528,50 @@
     "path": "sketches/170_membrane/",
     "description": "クリックすると波が広がる。波同士が干渉し、端で反射して戻ってくる。変位を等高線で描いた。",
     "thumb": "img/thumb_170.png"
+  },
+  {
+    "num": "173",
+    "title": "Fold",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/173_fold/",
+    "description": "紙を折るときの稜線の連なり。現在時刻の秒数で折り角が変わり、60秒かけて折り畳まれ、また開く。カメラはゆっくり周回する。",
+    "thumb": "img/thumb_173.png"
+  },
+  {
+    "num": "174",
+    "title": "Orbit",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/174_orbit/",
+    "description": "重力源の周りを漂う物体の軌跡。マウスを左右に動かすと引力が変わり、軌道が変形する。軌跡は消えず重なっていく。",
+    "thumb": "img/thumb_174.png"
+  },
+  {
+    "num": "171",
+    "title": "Hourglass",
+    "tech": "p5.js",
+    "date": "2026-03-15",
+    "path": "sketches/171_hourglass/",
+    "description": "クリックすると砂時計がゆっくりひっくり返る。280粒の砂がくびれを通って反対側へ落ちていく。",
+    "thumb": "img/thumb_171.png"
+  },
+  {
+    "num": "175",
+    "title": "Breathing Grid",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/175_breathing_grid/",
+    "description": "格子の点が呼吸している。4秒周期で膨らんだり縮んだりするリズムは、現在時刻の秒と分から計算した。隣の点とは少しずれた位相で動くので、格子全体が波のようにうねって見える。操作不要。",
+    "thumb": "img/thumb_175.png"
+  },
+  {
+    "num": "176",
+    "title": "Cursor Shadow",
+    "tech": "glsl",
+    "date": "2026-03-15",
+    "path": "sketches/176_cursor_shadow/",
+    "description": "マウスを動かすと影が追いかけてくる。形は描いていない。過去8点のカーソル位置を記録して、距離の関数が作る柔らかい濃淡だけで「そこにいた」跡を示す。遅れてにじむ影が、動いた軌跡を教えてくれる。",
+    "thumb": "img/thumb_176.png"
   }
 ]
