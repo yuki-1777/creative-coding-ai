@@ -229,7 +229,7 @@
     #sketch-capture-btn:hover { color: rgba(42,42,42,0.75); }
     #sketch-capture-btn.done { color: rgba(42,42,42,0.5); }
 
-    /* FB パネル：デバッグモード時のみ */
+    /* FB チャットパネル：デバッグモード時のみ */
     #sketch-fb-panel {
       position: fixed;
       bottom: 106px;
@@ -239,8 +239,11 @@
       background: rgba(245,243,238,0.95);
       border: 1px solid rgba(42,42,42,0.15);
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      display: flex;
+      flex-direction: column;
+      max-height: 320px;
     }
-    #sketch-fb-label {
+    #sketch-fb-header {
       font-size: 0.62rem;
       letter-spacing: 0.2em;
       color: rgba(42,42,42,0.4);
@@ -249,36 +252,94 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-shrink: 0;
     }
-    #sketch-fb-clear {
+    .sketch-fb-status-pending { color: rgba(42,42,42,0.6); }
+    .sketch-fb-status-done    { color: rgba(42,42,42,0.3); }
+    #sketch-fb-thread {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 40px;
+      max-height: 180px;
+    }
+    .sketch-fb-empty {
+      padding: 10px 12px;
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      color: rgba(42,42,42,0.25);
+    }
+    .sketch-fb-msg {
+      display: flex;
+      gap: 8px;
+      padding: 6px 12px;
+      font-size: 0.66rem;
+      line-height: 1.5;
+      border-bottom: 1px solid rgba(42,42,42,0.04);
+    }
+    .sketch-fb-msg:last-child { border-bottom: none; }
+    .sketch-fb-by {
+      color: rgba(42,42,42,0.3);
+      flex-shrink: 0;
+      width: 22px;
+      letter-spacing: 0;
+    }
+    .sketch-fb-msg-user .sketch-fb-by { color: rgba(42,42,42,0.5); }
+    .sketch-fb-text {
+      color: rgba(42,42,42,0.65);
+      letter-spacing: 0.02em;
+      word-break: break-all;
+    }
+    #sketch-fb-link {
+      padding: 8px 12px;
+    }
+    #sketch-fb-link-btn {
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
-      font-size: 0.58rem;
+      font-size: 0.62rem;
       letter-spacing: 0.1em;
       background: transparent;
-      border: none;
-      color: rgba(42,42,42,0.25);
+      border: 1px solid rgba(42,42,42,0.2);
+      color: rgba(42,42,42,0.45);
       cursor: pointer;
-      padding: 0;
-      transition: color 0.2s;
-    }
-    #sketch-fb-clear:hover { color: rgba(42,42,42,0.6); }
-    #sketch-fb-textarea {
-      display: block;
+      padding: 4px 10px;
+      transition: all 0.2s;
       width: 100%;
-      min-height: 72px;
+    }
+    #sketch-fb-link-btn:hover { border-color: rgba(42,42,42,0.5); color: rgba(42,42,42,0.75); }
+    #sketch-fb-input-area {
+      display: flex;
+      align-items: flex-end;
+      border-top: 1px solid rgba(42,42,42,0.08);
+      flex-shrink: 0;
+    }
+    #sketch-fb-textarea {
+      flex: 1;
+      min-height: 40px;
+      max-height: 80px;
       background: transparent;
       border: none;
       outline: none;
       resize: none;
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
       font-weight: 300;
-      font-size: 0.72rem;
-      line-height: 1.6;
+      font-size: 0.66rem;
+      line-height: 1.5;
       color: rgba(42,42,42,0.7);
-      padding: 8px 12px;
-      letter-spacing: 0.04em;
+      padding: 8px 8px 8px 12px;
+      letter-spacing: 0.02em;
     }
-    #sketch-fb-textarea::placeholder { color: rgba(42,42,42,0.25); }
+    #sketch-fb-textarea::placeholder { color: rgba(42,42,42,0.2); }
+    #sketch-fb-send {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.8rem;
+      background: transparent;
+      border: none;
+      color: rgba(42,42,42,0.3);
+      cursor: pointer;
+      padding: 8px 10px;
+      transition: color 0.2s;
+      flex-shrink: 0;
+    }
+    #sketch-fb-send:hover { color: rgba(42,42,42,0.7); }
   `;
   document.head.appendChild(style);
 
@@ -349,53 +410,93 @@
     });
   }
 
-  // FB パネル（デバッグモード時のみ）
+  // FB チャットパネル（デバッグモード時のみ）
   if (isDebug) {
-    const FB_KEY = 'sketch_fb';
-
     const fbPanel = document.createElement('div');
     fbPanel.id = 'sketch-fb-panel';
     fbPanel.innerHTML = `
-      <div id="sketch-fb-label"><span>FB</span><button id="sketch-fb-clear">clear</button></div>
-      <textarea id="sketch-fb-textarea" placeholder="フィードバックを入力…"></textarea>
+      <div id="sketch-fb-header"><span>FB</span><span id="sketch-fb-status"></span></div>
+      <div id="sketch-fb-thread"></div>
+      <div id="sketch-fb-input-area">
+        <textarea id="sketch-fb-textarea" placeholder="コメント… (Enter で送信)"></textarea>
+        <button id="sketch-fb-send">→</button>
+      </div>
     `;
     document.body.appendChild(fbPanel);
 
-    const fbTextarea = document.getElementById('sketch-fb-textarea');
+    const threadEl  = document.getElementById('sketch-fb-thread');
+    const statusEl  = document.getElementById('sketch-fb-status');
+    const textarea  = document.getElementById('sketch-fb-textarea');
+    const sendBtn   = document.getElementById('sketch-fb-send');
+    const inputArea = document.getElementById('sketch-fb-input-area');
 
-    // 既存コメントを読み込む
-    try {
-      const all = JSON.parse(localStorage.getItem(FB_KEY) || '{}');
-      fbTextarea.value = all[meta.num] || '';
-    } catch (e) {}
+    function renderThread(thread) {
+      if (!thread || thread.length === 0) {
+        threadEl.innerHTML = '<div class="sketch-fb-empty">no feedback yet</div>';
+        statusEl.textContent = '';
+        statusEl.className = '';
+      } else {
+        threadEl.innerHTML = thread.map(msg => `
+          <div class="sketch-fb-msg sketch-fb-msg-${msg.by}">
+            <span class="sketch-fb-by">${msg.by === 'user' ? 'you' : ' ai'}</span>
+            <span class="sketch-fb-text">${msg.text.replace(/</g, '&lt;')}</span>
+          </div>`).join('');
+        threadEl.scrollTop = threadEl.scrollHeight;
+        const last = thread[thread.length - 1];
+        statusEl.textContent = last.by === 'user' ? '●' : '○';
+        statusEl.className = last.by === 'user' ? 'sketch-fb-status-pending' : 'sketch-fb-status-done';
+      }
+    }
 
-    // clear ボタン
-    document.getElementById('sketch-fb-clear').addEventListener('click', () => {
-      fbTextarea.value = '';
-      try {
-        const all = JSON.parse(localStorage.getItem(FB_KEY) || '{}');
-        delete all[meta.num];
-        localStorage.setItem(FB_KEY, JSON.stringify(all));
-      } catch (e) {}
+    async function loadChat() {
+      const all = await FsBridge.readComments();
+      renderThread(all[meta.num] || []);
+    }
+
+    async function sendMessage() {
+      const text = textarea.value.trim();
+      if (!text) return;
+      const all = await FsBridge.readComments();
+      if (!all[meta.num]) all[meta.num] = [];
+      all[meta.num].push({ by: 'user', text });
+      await FsBridge.writeComments(all);
+      textarea.value = '';
+      renderThread(all[meta.num]);
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    textarea.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
     });
 
-    // 入力 → localStorage に保存（debounce）
-    let fbTimer;
-    fbTextarea.addEventListener('input', () => {
-      clearTimeout(fbTimer);
-      fbTimer = setTimeout(() => {
-        try {
-          const all = JSON.parse(localStorage.getItem(FB_KEY) || '{}');
-          const val = fbTextarea.value.trim();
-          if (val) {
-            all[meta.num] = val;
-          } else {
-            delete all[meta.num];
-          }
-          localStorage.setItem(FB_KEY, JSON.stringify(all));
-        } catch (e) {}
-      }, 500);
-    });
+    function showLinkPrompt() {
+      threadEl.innerHTML = `
+        <div id="sketch-fb-link">
+          <button id="sketch-fb-link-btn">link project folder</button>
+        </div>`;
+      inputArea.style.display = 'none';
+      document.getElementById('sketch-fb-link-btn').addEventListener('click', async () => {
+        if (await FsBridge.pickFolder()) {
+          inputArea.style.display = '';
+          await loadChat();
+        }
+      });
+    }
+
+    // fs-bridge.js を注入して初期化、完了後に fb-panel.js を注入
+    const fsBridgeScript = document.createElement('script');
+    fsBridgeScript.src = '../../js/fs-bridge.js';
+    fsBridgeScript.onload = async () => {
+      if (await FsBridge.init()) {
+        await loadChat();
+      } else {
+        showLinkPrompt();
+      }
+      const fbScript = document.createElement('script');
+      fbScript.src = '../../js/fb-panel.js';
+      document.body.appendChild(fbScript);
+    };
+    document.body.appendChild(fsBridgeScript);
   }
 
   // save thumb（デバッグモード時のみ）
@@ -458,11 +559,6 @@
   document.addEventListener('keydown', e => {
     if (e.key === 'h' || e.key === 'H') toggleOverlay();
   });
-
-  // FB パネルをロード（スケッチページにも共通表示）
-  const fbScript = document.createElement('script');
-  fbScript.src = '../../js/fb-panel.js';
-  document.body.appendChild(fbScript);
 
   // works.json から tech・desc を取得して表示（works.json が正とする）
   fetch('../../works.json')
