@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tidal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f5f4f0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setClearColor(0xf5f4f0);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+  camera.position.set(0, 0, 5);
+
+  let W = window.innerWidth, H = window.innerHeight;
+  renderer.setSize(W, H);
+  const aspect = W / H;
+  camera.left = -aspect; camera.right = aspect;
+  camera.updateProjectionMatrix();
+
+  const PTS = 200;
+  const N_LINES = 8;
+  const lines = [];
+
+  for (let i = 0; i < N_LINES; i++) {
+    const baseY = -0.55 + i * 0.16;
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(PTS * 3);
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const opacity = 0.25 + (i / N_LINES) * 0.5;
+    const mat = new THREE.LineBasicMaterial({ color: 0x666668, transparent: true, opacity });
+    const line = new THREE.Line(geo, mat);
+    scene.add(line);
+    lines.push({ line, geo, pos, baseY, index: i });
+  }
+
+  // Moon marker (small circle that moves with time)
+  const moonSegs = 20;
+  const moonGeo = new THREE.BufferGeometry();
+  const moonPos = new Float32Array((moonSegs + 1) * 3);
+  moonGeo.setAttribute('position', new THREE.BufferAttribute(moonPos, 3));
+  const moonLine = new THREE.LineLoop(moonGeo, new THREE.LineBasicMaterial({ color: 0x999990, transparent: true, opacity: 0.4 }));
+  scene.add(moonLine);
+
+  function getMoonAngle() {
+    const now = new Date();
+    const hours = now.getHours() + now.getMinutes() / 60;
+    return (hours / 24) * Math.PI * 2;
+  }
+
+  function update(t) {
+    const moonAngle = getMoonAngle() + t * 0.05; // add small animation
+    const moonX = Math.cos(moonAngle) * 0.7 * aspect;
+    const moonY = Math.sin(moonAngle) * 0.65 + 0.3;
+
+    // Update moon
+    for (let s = 0; s <= moonSegs; s++) {
+      const a = (s / moonSegs) * Math.PI * 2;
+      moonPos[s * 3] = moonX + Math.cos(a) * 0.04;
+      moonPos[s * 3 + 1] = moonY + Math.sin(a) * 0.04;
+    }
+    moonGeo.attributes.position.needsUpdate = true;
+
+    // Tidal force: water bulges toward moon
+    lines.forEach(l => {
+      for (let p = 0; p < PTS; p++) {
+        const x = (p / (PTS - 1) - 0.5) * 2 * aspect;
+        // Distance from moon (horizontal influence)
+        const dx = x - moonX;
+        const tidalBulge = Math.exp(-dx * dx * 2) * 0.12;
+
+        // Wave components (multiple frequencies)
+        const wave1 = Math.sin(x * 2.5 + t * 0.4) * 0.04;
+        const wave2 = Math.sin(x * 5.0 - t * 0.7) * 0.02;
+        const wave3 = Math.sin(x * 1.2 + t * 0.15) * 0.06;
+
+        const y = l.baseY + tidalBulge * (1 - l.index / N_LINES) + wave1 + wave2 + wave3;
+        l.pos[p * 3] = x;
+        l.pos[p * 3 + 1] = y;
+        l.pos[p * 3 + 2] = 0;
+      }
+      l.geo.attributes.position.needsUpdate = true;
+    });
+  }
+
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    t += 0.016;
+    update(t);
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    W = window.innerWidth; H = window.innerHeight;
+    renderer.setSize(W, H);
+    const aspect = W / H;
+    camera.left = -aspect; camera.right = aspect;
+    camera.updateProjectionMatrix();
+  });
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '201',
+  title:  'Tidal',
+  detail: '現在の時刻が月の位置を決めています。月が真上にある時刻は海面が盛り上がり、月が横にある時は平らになります。8本の横線がそれぞれ違う高さで波打ち、月に引き寄せられます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
