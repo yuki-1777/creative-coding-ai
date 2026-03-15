@@ -58,7 +58,7 @@ void main() {
   vec2 p = uv;
   p.x *= aspect;
 
-  float t = uTime * 0.06;
+  float t = uTime * 0.09;
 
   // 高さ場
   float h = fbm(p * 2.5 + vec2(t * 0.4, t * 0.2));
@@ -85,8 +85,8 @@ void main() {
   groove = smoothstep(0.35, 0.65, groove);
 
   // 全体のトーンとして高さを使い、浸食溝を線として重ねる
-  float baseTone = smoothstep(0.35, 0.65, h) * 0.25;
-  float density  = baseTone + groove * 0.55;
+  float baseTone = smoothstep(0.35, 0.65, h) * 0.32;
+  float density  = baseTone + groove * 0.62;
   density = clamp(density, 0.0, 1.0);
 
   vec3 paper    = vec3(0.960, 0.953, 0.933);

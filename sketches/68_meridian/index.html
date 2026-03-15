@@ -51,10 +51,10 @@ void main() {
   vec2 p = uv * 2.0 - 1.0;
   p.x *= aspect;
 
-  float t = uTime * 0.12;
+  float t = uTime * 0.08;
 
-  // 球の半径（わずかにノイズで揺らす）
-  float sphereR = 0.7;
+  // 球の半径
+  float sphereR = 0.72;
 
   // 球の外は紙のまま
   float dist = length(p);
@@ -69,10 +69,10 @@ void main() {
   float z = sqrt(max(0.0, sphereR * sphereR - dist * dist));
   vec3 pos = normalize(vec3(p, z));
 
-  // マウスで回転軸を傾ける
+  // マウスで回転軸を傾ける（マウスが主役、自動回転は補助）
   vec2 m = uMouse;
-  float rotY = (m.x - 0.5) * PI * 0.8 + t * 0.6;
-  float rotX = (m.y - 0.5) * PI * 0.5;
+  float rotY = (m.x - 0.5) * PI * 1.2 + t * 0.25;
+  float rotX = (m.y - 0.5) * PI * 0.7;
 
   // Y軸回転
   float cy = cos(rotY), sy = sin(rotY);
@@ -87,26 +87,26 @@ void main() {
   float lon = atan(pos.z, pos.x);                    // -PI 〜 PI
 
   // 経線の数（緯線と経線）
-  float meridianN  = 18.0;
-  float parallelN  = 10.0;
+  float meridianN  = 16.0;
+  float parallelN  = 9.0;
 
   float mLine = abs(sin(lon * meridianN * 0.5));
   float pLine = abs(sin(lat * parallelN));
 
-  float meridian  = smoothstep(0.98, 1.0, mLine);
-  float parallel  = smoothstep(0.97, 1.0, pLine);
+  float meridian  = smoothstep(0.97, 1.0, mLine);
+  float parallel  = smoothstep(0.96, 1.0, pLine);
 
   // わずかなノイズで線をかすれさせる
   float grain = noise(vec2(lon * 20.0, lat * 20.0) + vec2(t * 0.2));
   float scratch = smoothstep(0.4, 0.6, grain) * 0.3;
 
-  float lines = clamp(meridian + parallel * 0.7 + scratch * 0.15, 0.0, 1.0);
+  float lines = clamp(meridian + parallel * 0.8 + scratch * 0.15, 0.0, 1.0);
 
-  // 球の縁をフェードアウト
-  float edgeFade = smoothstep(sphereR, sphereR * 0.75, dist);
+  // 球の縁をフェードアウト（もう少し縁まで線を残す）
+  float edgeFade = smoothstep(sphereR, sphereR * 0.70, dist);
   lines *= edgeFade;
 
-  float density = lines * 0.6;
+  float density = lines * 0.65;
 
   vec3 paper    = vec3(0.960, 0.953, 0.933);
   vec3 graphite = vec3(0.165, 0.165, 0.165);

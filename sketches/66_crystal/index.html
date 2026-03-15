@@ -80,12 +80,12 @@ void main() {
   float hex2   = max(abs(rel2.y) * 1.1547, abs(rel2.x) + abs(rel2.y) * 0.5774);
   density += smoothstep(size2 + 0.015, size2, hex2) * (0.2 + 0.2 * cos(phase2 * 0.5)) * 0.6;
 
-  // 境界線の強調（結晶の稜線）
-  float edge1 = smoothstep(0.46, 0.5, hex1) * smoothstep(0.54, 0.5, hex1);
-  float edge2 = smoothstep(0.46, 0.5, hex2) * smoothstep(0.54, 0.5, hex2);
-  density += (edge1 + edge2) * 0.3;
+  // 境界線の強調（結晶の稜線）— 稜線こそ結晶の本質
+  float edge1 = smoothstep(0.44, 0.5, hex1) * smoothstep(0.56, 0.5, hex1);
+  float edge2 = smoothstep(0.44, 0.5, hex2) * smoothstep(0.56, 0.5, hex2);
+  density += (edge1 + edge2) * 0.55;
 
-  density = clamp(density, 0.0, 0.75);
+  density = clamp(density, 0.0, 0.80);
 
   vec3 paper    = vec3(0.960, 0.953, 0.933);
   vec3 graphite = vec3(0.165, 0.165, 0.165);
@@ -154,7 +154,7 @@ render();
 window.SKETCH_META = {
   num:   '66',
   title: 'Crystal',
-  desc:  '六角形のセルをふたつの尺度で重ねた。それぞれが独自のリズムで息をしている。マウスを当てると拡大する。'
+  desc:  '大小2種の六角格子を重ねた。セルが収縮するたびに稜線が浮き出る。マウスを当てると拡大する。'
 };
 </script>
 <script src="../../js/sketch-ui.js"></script>

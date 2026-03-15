@@ -82,18 +82,18 @@ void main() {
   // 緯糸の線
   float weftLine = smoothstep(lineWidth, lineWidth + 0.1, weft);
 
-  // 上側にある糸が影を落とす（奥の糸はわずかに薄く）
-  float shadow = 0.15;
+  // 上側にある糸が影を落とす（奥の糸はより薄く）
+  float shadow = 0.30;
   float density;
-  float crossW = smoothstep(0.5, 0.4, warp);
-  float crossF = smoothstep(0.5, 0.4, weft);
+  float crossW = smoothstep(0.5, 0.35, warp);
+  float crossF = smoothstep(0.5, 0.35, weft);
 
-  // 上の糸：濃く、下の糸：やや薄く
+  // 上の糸：濃く、下の糸：明確に薄く
   float warpD = warpLine * (isOver > 0.5 ? 1.0 : 1.0 - shadow * crossF);
   float weftD = weftLine * (isOver < 0.5 ? 1.0 : 1.0 - shadow * crossW);
 
-  density = (warpD + weftD) * 0.55;
-  density = clamp(density, 0.0, 0.75);
+  density = (warpD + weftD) * 0.65;
+  density = clamp(density, 0.0, 0.80);
 
   vec3 paper    = vec3(0.960, 0.953, 0.933);
   vec3 graphite = vec3(0.165, 0.165, 0.165);
@@ -162,7 +162,7 @@ render();
 window.SKETCH_META = {
   num:   '69',
   title: 'Weave',
-  desc:  '縦糸と横糸を交互に重ねた。どちらが上かで、わずかに色が違う。糸は少し波打っている。マウスを当てると目が詰まる。'
+  desc:  '縦糸と横糸を交互に重ねた。上にある糸が影を落とし、下の糸が沈む。マウスを当てると目が詰まる。'
 };
 </script>
 <script src="../../js/sketch-ui.js"></script>

@@ -64,24 +64,24 @@ void main() {
 
   float t = uTime;
 
-  // 煙源：下から中央あたり
-  vec2 source = vec2(0.5 * aspect, 0.15);
+  // 煙源：画面下寄り（マウスで水平移動）
+  vec2 source = vec2(0.5 * aspect, 0.2);
 
-  // マウスで煙源を動かす
+  // マウスで煙源を動かす（水平のみ追従）
   vec2 m = uMouse;
   m.x *= aspect;
-  source = mix(source, vec2(m.x, 0.15), 0.5);
+  source = mix(source, vec2(m.x, 0.2), 0.7);
 
-  // 煙源からの距離（縦に引き伸ばす）
+  // 煙源からの距離（縦に大きく引き伸ばす）
   vec2 fromSource = p - source;
-  fromSource.y *= 0.5; // 縦に広がりやすくする
+  fromSource.y *= 0.4; // より縦長に広がる
   float baseDist = length(fromSource);
 
-  // 高さで密度を下げる（上に行くほど薄くなる）
-  float heightFade = smoothstep(1.1, 0.1, p.y) * smoothstep(-0.1, 0.15, p.y);
+  // 高さで密度を下げる（上に行くほど薄くなるが、より広い範囲をカバー）
+  float heightFade = smoothstep(1.2, 0.18, p.y) * smoothstep(-0.05, 0.18, p.y);
 
-  // 距離で基本的な広がり
-  float distFade = smoothstep(0.55, 0.0, baseDist);
+  // 距離で基本的な広がり（少し広め）
+  float distFade = smoothstep(0.65, 0.0, baseDist);
 
   // ノイズで煙らしい揺らぎ
   float n = smokeNoise(p * 2.5 + vec2(0.0, t * 0.1), t);
@@ -93,9 +93,9 @@ void main() {
   density *= (0.7 + 0.3 * n2);
 
   // 煙のエッジを柔らかく
-  density = smoothstep(0.0, 0.5, density);
-  density *= 0.55;
-  density = clamp(density, 0.0, 0.55);
+  density = smoothstep(0.0, 0.45, density);
+  density *= 0.62;
+  density = clamp(density, 0.0, 0.62);
 
   vec3 paper    = vec3(0.960, 0.953, 0.933);
   vec3 graphite = vec3(0.165, 0.165, 0.165);

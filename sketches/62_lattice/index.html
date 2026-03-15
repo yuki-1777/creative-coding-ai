@@ -33,20 +33,20 @@ void main() {
   vec2 p = uv;
   p.x *= aspect;
 
-  float t = uTime * 0.12;
+  float t = uTime * 0.10;
 
   // マウス影響：格子の周期をマウス位置で微妙に変化
   vec2 m = uMouse;
   m.x *= aspect;
   float mDist = length(p - m);
-  float mInfluence = exp(-mDist * 2.5);
+  float mInfluence = exp(-mDist * 1.8);
 
   // 2方向の格子波
-  float freq1 = 28.0 + mInfluence * 8.0;
-  float freq2 = 28.0 + mInfluence * 6.0;
+  float freq1 = 26.0 + mInfluence * 12.0;
+  float freq2 = 26.0 + mInfluence * 9.0;
 
   // わずかに回転した2つの格子
-  float angle = 0.08 + mInfluence * 0.04;
+  float angle = 0.09 + mInfluence * 0.06;
   float ca = cos(angle), sa = sin(angle);
 
   vec2 p1 = vec2(ca * p.x - sa * p.y, sa * p.x + ca * p.y);
@@ -58,14 +58,14 @@ void main() {
   // 干渉縞（モアレ）
   float moire = (g1 + g2) * 0.5;
 
-  // 細かい格子線の強調
-  float lineWidth = 0.85;
+  // 格子線の強調（少し太めに出す）
+  float lineWidth = 0.80;
   float lines = smoothstep(lineWidth, 1.0, abs(moire));
 
   // 離れた格子もうっすら残す
-  float bg = smoothstep(0.5, 0.0, abs(moire)) * 0.08;
+  float bg = smoothstep(0.5, 0.0, abs(moire)) * 0.10;
 
-  float density = lines * 0.65 + bg;
+  float density = lines * 0.72 + bg;
 
   vec3 paper    = vec3(0.960, 0.953, 0.933);
   vec3 graphite = vec3(0.165, 0.165, 0.165);
@@ -134,7 +134,7 @@ render();
 window.SKETCH_META = {
   num:   '62',
   title: 'Lattice',
-  desc:  '2枚の格子をわずかにずらして重ねた。ずれのせいで縞が現れる。マウスを近づけると、そこだけ格子が伸びる。'
+  desc:  '2枚の格子をわずかにずらして重ねた。ずれが縞を生む。マウスを近づけると、そこだけ格子の密度が上がる。'
 };
 </script>
 <script src="../../js/sketch-ui.js"></script>

@@ -60,7 +60,7 @@ void main() {
   vec2 p = uv;
   p.x *= aspect;
 
-  float t = uTime * 0.08;
+  float t = uTime * 0.12;
 
   // マウス影響
   vec2 m = uMouse;
@@ -80,24 +80,24 @@ void main() {
   vec2 perp = vec2(-dir.y, dir.x);
   float fiberCoord = dot(p, perp);
 
-  // 細かい繊維ラインの周期
-  float fiberFreq = 120.0;
+  // 細かい繊維ラインの周期（少し間隔を広めにして存在感を出す）
+  float fiberFreq = 95.0;
   float fiberPhase = fiberCoord * fiberFreq + directionNoise(p * 0.5) * 6.28;
   float fiber = sin(fiberPhase);
 
   // 繊維の途切れ：沿方向のノイズで密度変化
   float along = dot(p, dir);
   float breakNoise = noise(vec2(along * 8.0 + t * 0.5, fiberCoord * 40.0));
-  float opacity = smoothstep(0.3, 0.7, breakNoise);
+  float opacity = smoothstep(0.25, 0.7, breakNoise);
 
-  // 線を抽出
-  float lineWidth = 0.78;
+  // 線を抽出（やや太め）
+  float lineWidth = 0.74;
   float line = smoothstep(lineWidth, 1.0, abs(fiber)) * opacity;
 
   vec3 paper    = vec3(0.960, 0.953, 0.933);
   vec3 graphite = vec3(0.165, 0.165, 0.165);
 
-  float density = line * 0.55;
+  float density = line * 0.65;
   gl_FragColor = vec4(mix(paper, graphite, density), 1.0);
 }
 `;

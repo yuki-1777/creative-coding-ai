@@ -52,19 +52,25 @@ float grain(vec2 p, float t) {
   return hash3(vec3(floor(p * 800.0), frame));
 }
 
-// 放電の筋（ライヒェンバッハ様）
+// 放電の筋（樹状放電）
 float discharge(vec2 p, vec2 center, float t) {
   vec2 diff = p - center;
   float r = length(diff);
   float a = atan(diff.y, diff.x);
 
-  // 放電は複数の分岐を持つ
+  // 放電は複数の分岐を持つ（ノイズで方向を歪める）
   float v = 0.0;
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < 5; i++) {
     float fi = float(i);
-    float branchAngle = a + noise(vec2(r * 4.0 + fi * 1.7, t * 0.5)) * 1.2 - 0.6;
-    float branchDist = abs(fract(branchAngle / 3.14159 * 3.0 + fi * 0.3) - 0.5);
-    float branch = smoothstep(0.08, 0.0, branchDist) * smoothstep(0.7, 0.0, r) * (1.0 - fi * 0.1);
+    // 半径方向にノイズを乗せて、曲がりくねった放電の筋にする
+    float noiseSample = noise(vec2(r * 5.0 + fi * 2.1, t * 0.4 + fi * 0.5));
+    float branchAngle = a + noiseSample * 1.5 - 0.75;
+    float branchSpread = 0.25 / (1.0 + fi * 0.5); // 先になるほど広がる
+    float branchDist = abs(mod(branchAngle / 3.14159 * (2.5 + fi * 0.4) + fi * 0.35, 1.0) - 0.5);
+    float branch = smoothstep(branchSpread, 0.0, branchDist)
+                 * smoothstep(0.75, 0.0, r)
+                 * smoothstep(0.0, 0.05, r) // 中心点での急激な出現を抑制
+                 * (1.0 - fi * 0.12);
     v += branch;
   }
   return clamp(v, 0.0, 1.0);
@@ -104,8 +110,8 @@ void main() {
   float lineV = smoothstep(0.97, 1.0, abs(sin(uv.x * 400.0 + noise(vec2(uv.x * 5.0, t * 1.5)) * 2.0)));
   float lines = (lineH + lineV) * field * 0.25;
 
-  float density = grainDensity * 0.4 + spark * 0.6 + lines;
-  density = clamp(density, 0.0, 0.75);
+  float density = grainDensity * 0.45 + spark * 0.65 + lines;
+  density = clamp(density, 0.0, 0.78);
 
   vec3 paper    = vec3(0.960, 0.953, 0.933);
   vec3 graphite = vec3(0.165, 0.165, 0.165);
