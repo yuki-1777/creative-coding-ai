@@ -2266,5 +2266,32 @@
     "path": "sketches/252_residue/",
     "description": "マウスを動かすと跡が残る。消えていくが、完全には消えない。何度も通ったところが、少し濃くなっていた。",
     "thumb": "img/thumb_252.png"
+  },
+  {
+    "num": "247",
+    "title": "Tightrope",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/247_tightrope/",
+    "description": "空中に1本の線を張った。その上に重心だけが乗っている。揺れるたびに、落ちるかどうかがわかる。",
+    "thumb": "img/thumb_247.png"
+  },
+  {
+    "num": "248",
+    "title": "Plumb",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/248_plumb/",
+    "description": "垂直を測る道具を7本並べた。全部まっすぐのはずが、揺れている。やがて止まる。また揺れる。",
+    "thumb": "img/thumb_248.png"
+  },
+  {
+    "num": "249",
+    "title": "Gyroscope",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/249_gyroscope/",
+    "description": "3つのリングが入れ子になっている。外を傾けても、内側は水平を保とうとする。回っているから、傾かない。",
+    "thumb": "img/thumb_249.png"
   }
 ]
