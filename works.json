@@ -2356,5 +2356,14 @@
     "path": "sketches/263_reflection/",
     "description": "水面に景色を映したら、揺れるたびに別の絵になった。上は変わらない。下だけが揺れている。",
     "thumb": "img/thumb_263.png"
+  },
+  {
+    "num": "265",
+    "title": "Stitch",
+    "tech": "three.js",
+    "date": "2026-03-15",
+    "path": "sketches/265_stitch/",
+    "description": "ミシン針が左から右へ進んで、縫い目を置いていった。表と裏で糸の渡り方が違う。",
+    "thumb": "img/thumb_265.png"
   }
 ]
