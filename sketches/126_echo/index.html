@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>126 — Echo</title>
+  <meta name="description" content="マウスの軌跡が、遅れてついてくる。何重にも重なって、しばらく残る。">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Creative Coding">
+  <meta property="og:title" content="126 — Echo | Creative Coding">
+  <meta property="og:description" content="マウスの軌跡が、遅れてついてくる。何重にも重なって、しばらく残る。">
+  <meta property="og:url" content="https://creative-coding-ai.vercel.app/sketches/126_echo/">
+  <meta property="og:image" content="https://creative-coding-ai.vercel.app/img/thumb_126.png">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="300">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="126 — Echo | Creative Coding">
+  <meta name="twitter:description" content="マウスの軌跡が、遅れてついてくる。何重にも重なって、しばらく残る。">
+  <meta name="twitter:image" content="https://creative-coding-ai.vercel.app/img/thumb_126.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #F5F3EE; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Ring buffer of mouse positions
+const HISTORY_LEN = 300;
+const history = [];
+let historyHead = 0;
+let historyCount = 0;
+
+let mx = W / 2, my = H / 2;
+let mouseIn = false;
+let hasRealMouse = false;
+
+canvas.addEventListener('mousemove', e => {
+  mx = e.clientX;
+  my = e.clientY;
+  mouseIn = true;
+  hasRealMouse = true;
+  pushHistory(mx, my);
+});
+canvas.addEventListener('mouseleave', () => { mouseIn = false; });
+canvas.addEventListener('mouseenter', () => { mouseIn = true; });
+
+// Auto-demo: simulate a gentle figure-8 path when no mouse
+let demoT = 0;
+function updateDemo() {
+  if (hasRealMouse) return;
+  demoT += 0.018;
+  const cx = W / 2, cy = H / 2;
+  const rx = Math.min(W, H) * 0.28;
+  const ry = Math.min(W, H) * 0.16;
+  // Lissajous figure-8
+  const dx = Math.sin(demoT) * rx;
+  const dy = Math.sin(demoT * 2) * ry;
+  pushHistory(cx + dx, cy + dy);
+}
+
+function pushHistory(x, y) {
+  if (history.length < HISTORY_LEN) {
+    history.push({ x, y });
+  } else {
+    history[historyHead] = { x, y };
+    historyHead = (historyHead + 1) % HISTORY_LEN;
+  }
+  historyCount = Math.min(historyCount + 1, HISTORY_LEN);
+}
+
+// Number of echo layers
+const LAYERS = 6;
+// Delay in frames between each layer
+const LAYER_DELAY = 28;
+
+function getHistorical(stepsBack) {
+  const len = history.length;
+  if (len === 0) return null;
+  const idx = (historyHead - 1 - stepsBack + len * 2) % len;
+  return history[idx] || null;
+}
+
+let frame = 0;
+
+function draw() {
+  requestAnimationFrame(draw);
+  frame++;
+
+  ctx.fillStyle = '#F5F3EE';
+  ctx.fillRect(0, 0, W, H);
+
+  // Auto-demo runs if no real mouse
+  updateDemo();
+
+  if (!mouseIn && historyCount === 0 && hasRealMouse) {
+    // Idle hint (only shown if real mouse was previously detected and left)
+    ctx.fillStyle = 'rgba(42, 42, 42, 0.15)';
+    ctx.font = '13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('move mouse', W / 2, H / 2);
+    return;
+  }
+
+  // Draw from oldest to newest layer (so newest is on top)
+  for (let l = LAYERS - 1; l >= 0; l--) {
+    const delay = l * LAYER_DELAY;
+    // How far back in history for this layer
+    const alphaRatio = 1 - l / LAYERS;
+    const alpha = alphaRatio * 0.75 + 0.12;
+    const radius = 4 + l * 5;
+
+    const pos = getHistorical(delay);
+    if (!pos) continue;
+
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(42, 42, 42, ${alpha * 0.15})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(42, 42, 42, ${alpha})`;
+    ctx.lineWidth = 0.8 + alphaRatio * 1.2;
+    ctx.stroke();
+  }
+
+  // Draw path between echo positions
+  for (let l = LAYERS - 1; l >= 1; l--) {
+    const delay1 = l * LAYER_DELAY;
+    const delay2 = (l - 1) * LAYER_DELAY;
+    const p1 = getHistorical(delay1);
+    const p2 = getHistorical(delay2);
+    if (!p1 || !p2) continue;
+
+    const alpha = (1 - l / LAYERS) * 0.2;
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.strokeStyle = `rgba(42, 42, 42, ${alpha})`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+}
+
+draw();
+</script>
+<script>
+window.SKETCH_META = {
+  num:    '126',
+  title:  'Echo',
+  desc:   'マウスの軌跡が、遅れてついてくる。6つの影が、時間差でついてくる。ゆっくり動くほど、よく見える。',
+  detail: 'マウスを動かすと、その軌跡が時間差で複数の円としてエコーします。遠い過去ほど薄く、大きく表示されます。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
