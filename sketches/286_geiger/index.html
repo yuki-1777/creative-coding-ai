@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>286 – Geiger</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #f5f3ef;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// params
+const HISTORY = 600;   // 横方向のサンプル数
+const MEAN_INTERVAL = 90; // 平均パルス間隔 (フレーム)
+
+let history = [];      // {t, amp} の配列
+let frameCount = 0;
+let nextPulse = Math.floor(Math.random() * MEAN_INTERVAL);
+let speed = 1.0;       // ホイールで変化
+let totalCount = 0;
+
+// ホイールで速度（線源強度）を変える
+window.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  speed = Math.max(0.2, Math.min(5.0, speed + e.deltaY * 0.003));
+}, { passive: false });
+
+function poissonInterval() {
+  // 指数分布でパルス間隔をサンプリング
+  return Math.max(4, Math.floor(-MEAN_INTERVAL * Math.log(Math.random()) / speed));
+}
+
+function draw() {
+  requestAnimationFrame(draw);
+  frameCount++;
+
+  // パルス発生
+  if (frameCount >= nextPulse) {
+    const amp = 0.4 + Math.random() * 0.6;
+    history.push({ t: frameCount, amp });
+    totalCount++;
+    nextPulse = frameCount + poissonInterval();
+  }
+
+  // 古いパルスを除去（HISTORY フレーム分だけ保持）
+  const cutoff = frameCount - HISTORY;
+  history = history.filter(p => p.t > cutoff);
+
+  // 描画
+  ctx.clearRect(0, 0, W, H);
+
+  const PAD_L = Math.floor(W * 0.08);
+  const PAD_R = Math.floor(W * 0.06);
+  const PAD_T = Math.floor(H * 0.20);
+  const PAD_B = Math.floor(H * 0.20);
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+  const baseY  = PAD_T + plotH;
+
+  // ベースライン（水平線）
+  ctx.strokeStyle = '#2a2620';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(PAD_L, baseY);
+  ctx.lineTo(PAD_L + plotW, baseY);
+  ctx.stroke();
+
+  // パルスを縦線で描画
+  for (const p of history) {
+    const age = (frameCount - p.t) / HISTORY; // 0=新しい, 1=古い
+    const x   = PAD_L + plotW * (1 - age);
+    const pulseH = plotH * p.amp * 0.85;
+
+    // 古いほど薄い
+    const alpha = Math.pow(1 - age, 1.5);
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = '#2a2620';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x, baseY);
+    ctx.lineTo(x, baseY - pulseH);
+    ctx.stroke();
+
+    // パルストップに小さな点
+    ctx.fillStyle = '#2a2620';
+    ctx.beginPath();
+    ctx.arc(x, baseY - pulseH, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.globalAlpha = 1;
+
+  // 左端に小さなドット（カウンター記号）
+  ctx.fillStyle = '#2a2620';
+  for (let i = 0; i < 3; i++) {
+    const phase = (frameCount * 0.04 + i * 1.1) % (Math.PI * 2);
+    const pulsingR = 2.5 + Math.sin(phase) * 1.5;
+    ctx.beginPath();
+    ctx.arc(PAD_L - 24, baseY - plotH * 0.5 + i * 16 - 16, pulsingR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 速度インジケーター（右端の小さな縦棒群）
+  const barCount = Math.round(speed * 3);
+  for (let i = 0; i < barCount; i++) {
+    const bx = W - PAD_R + 16;
+    const by = baseY - i * (plotH / 15);
+    const alpha2 = 0.2 + (i / barCount) * 0.6;
+    ctx.globalAlpha = alpha2;
+    ctx.fillStyle = '#2a2620';
+    ctx.fillRect(bx, by - 2, 4, 3);
+  }
+  ctx.globalAlpha = 1;
+}
+
+draw();
+</script>
+
+<script>
+window.SKETCH_META = {
+  num:    '286',
+  title:  'Geiger',
+  detail: 'ガイガーカウンターの記録を再現した。縦線ひとつがパルスひとつ。右から流れ込んで、古いものは薄れていく。マウスホイールを回すと線源の強度が変わり、パルスの頻度が変化する。数字は表示していない。'
+};
+</script>
+<script src="../../js/sketch-ui.js"></script>
+</body>
+</html>
