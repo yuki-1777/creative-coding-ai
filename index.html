@@ -904,6 +904,7 @@
       works.forEach(w => { pathMap[w.num] = w.path; });
       document.getElementById('empty-state').textContent = 'no works found';
       renderWorks(works.slice().reverse());
+      if (overlay.style.display !== 'none') renderFb();
       const s = loadState();
       applyView(s.view, false);
       applyFilter(s.filter, false);
